@@ -109,8 +109,10 @@ previous one stopped without the old conversation. Read `README.md` first.
    clipped to the SE box. The previous session's placeholder envelope ended
    at lon -77.69 and left **Boonsboro and Rohrersville outside**; the box now
    runs to -77.58 and a test checks all four named towns fall inside.
-   `config/study_area.geojson` (2,248 km²) and
-   `study_area_expanded_carroll.geojson` (3,241 km²) are committed.
+   `config/study_area.geojson` (2,269 km²) and
+   `study_area_expanded_carroll.geojson` (3,270 km²) are committed
+   (political boundaries; the earlier physical-boundary build clipped the
+   Potomac and was 2,248 km²).
 8. **Adversarial code review** (5 reviewers, 2 refuters per finding) confirmed
    20 defects in the first version of this work, all fixed and covered by
    tests: the parcel cache depended on the study-area bbox it was fetched
@@ -128,6 +130,81 @@ previous one stopped without the old conversation. Read `README.md` first.
    reserve-strip and frontage tests); and a handful of CLI / config edge
    cases (county-code validation, error exit codes, `[]` vs missing lists,
    `build-study-area` default output per variant).
+
+## Independent source verification (27 agents, 2026-09-02)
+
+Every configured endpoint was re-verified by an independent agent that
+fetched the layer metadata, counted ids in the study bbox, sampled
+features, ran distinct-value queries and searched for better sources; a
+critic then checked the inventory against the spec. What changed because
+of it:
+
+- **Acreage basis is now geometry.** The live `ACRES` field stores square
+  feet on ~335 Frederick rows with `LUOM='A'` (e.g. ACRES 65,995 for a
+  1.51-acre lot); 38 rows with ACRES ≥ 20 have POLYACRES < 5. POLYACRES
+  matches the polygon area to 0.1%. SDAT acreage is still reported and the
+  >10% disagreement flag still fires.
+- **Placeholder polygons are blockers, not parcels.** RAILROAD, WATER,
+  WATER_CANAL, GCE/LCE, PRIVATE ROW, UNK etc. stay in the Stage 4 neighbour
+  set as non-account rows (`is_account = False`,
+  `stage1_pass_reason = non_parcel_polygon`) so a railroad or canal between
+  a farm and the road reports as a foreign blocker; they are excluded from
+  every count. Account-shaped ids with no SDAT record (`PTYPE` null, ~220
+  rows) are dropped (`parcels.require_non_null`).
+- **Municipal zoning holes are known-unknowns.** Frederick `MUN` and
+  Washington `TOWN` are placeholders, not districts (`is_agricultural:
+  unknown`); parcels there are retained as `zoning_unknown_retained`
+  instead of being filtered out as non-agricultural. Carroll's layer has no
+  polygons inside town limits, which already produced the same result.
+- **Fresher county easement layers added alongside the state
+  compilation**: Frederick MALPF (/8), IPP (/5), Critical Farms (/3),
+  County Held (/2), Rural Legacy (/10), MET (/9) and forest banking
+  easements (ForestResource/0). Same `type` as the state entry; Stage 2
+  unions by implication before summing.
+- **Erase layers.** Frederick FRO easements are erased with the county's
+  release polygons (ForestResource/3: 24% of released acreage was still
+  drawn); the SHA right-of-way polygons are erased with a 200 ft buffer of
+  the MDOT SHA full-access-control corridors (I-70, I-270, I-81, US 15,
+  US 40, US 340) so a fenced freeway is not frontage (`erase:` on a
+  constraint or ROW layer; a missing erase layer degrades with a warning).
+- **Replacements**: USFWS live NWI (14.4k polygons in the study bbox vs
+  6.8k in iMAP's undated 2016 copy; Riverine excluded, dotted field names
+  need backticks in `where`); USGS NHD High Resolution flowlines for the
+  riparian buffer (iMAP's SHA hydrography misses ~1,100 km of headwater
+  streams; perennial + intermittent StreamRiver only) plus iMAP SHORE lines
+  for the banks of the Potomac, Monocacy and ponds; Washington
+  `Road_Centerlines_3_view` (the `_Public_View` is a frozen Oct-2022
+  snapshot); political county boundaries for the study area (the physical
+  boundary is clipped to hydrography and cut riverfront parcels).
+- **Filters tightened**: floodplain `SFHA_TF == 'T'`; state FCA `Type !=
+  'exclusion'`; MALPF / county PDR `Category == 'Easement'` (Next Generation
+  "options" are not easements); Washington FCA deduped by geometry (295
+  identical-geometry duplicates, a 93% overcount); Frederick roads filtered
+  on OWNERSHIP, JURISDICTION and ICADCLASS (A10 limited access, A63 ramps,
+  A66 crossovers, A71 trails, A73 alleys, A74 driveways); Carroll blank
+  ROADCLASS kept (86% are municipal streets); Washington not-built and
+  private roads excluded.
+- **DEM**: the mosaic has artefact elevations down to -22 m in Frederick
+  County (`dem_min_valid_m: 30` masks them); a 200 response with a JSON
+  error body is now rejected by TIFF magic bytes; the Carroll corner is
+  2014-15 LiDAR (`carroll1m`), Frederick/Washington are 2021.
+
+Staleness ledger (print with every run): parcel geometry FRED 2024NOV /
+CARR 2025JUL / WASH 2025MAR with SDAT attributes 2026MAY (county parcel
+layers are edited through 2026-08/09 but carry no SDAT attributes, except
+Washington `Property_view/42`, which also carries OwnName1/2 — the only
+public owner-name source found); state FCA compilation 2019; state MET
+rows for these counties end 2020; state MALPF lags the counties by 2–7% of
+acreage; state county-PDR lags Frederick by ~14 months; Rural Legacy is
+missing ~480 ac of 2025-26 settlements; SHA access-control 2017.
+
+Not yet consumed (verified, listed under `reference_layers` or noted):
+SSURGO prime-farmland classes (valuation), municipal zoning layers for the
+holes (Frederick layer 0 for 11 towns, Mount Airy's own layer), Frederick
+Creek ReLeaf riparian easements, MHT preservation easements, NHD waterbody
+polygons, SHA plat sheets (rectangles of plat extents, unusable for
+reserve-strip acreage — no public source for access-control takings
+exists; Stage 4's geometry heuristic is the substitute).
 
 ## Verified sources (2026-09-02)
 

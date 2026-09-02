@@ -34,6 +34,7 @@ class LayerSource:
     where: Optional[str] = None        # pandas-query filter applied AFTER download / on read
     rest_where: Optional[str] = None   # SQL-92 filter sent to the REST service at fetch time
     page_size: Optional[int] = None    # override the service maxRecordCount when paging (heavy geometries)
+    dedupe_geometry: bool = False      # drop rows whose geometry duplicates an earlier row (double-published easements)
 
     @classmethod
     def from_dict(cls, base: Path, d: dict, name: Optional[str] = None) -> "LayerSource":
@@ -41,7 +42,23 @@ class LayerSource:
                    path=_opt_path(base, d.get("path")),
                    url=d.get("url"), layer=d.get("layer"), where=d.get("where"),
                    rest_where=d.get("rest_where"),
-                   page_size=(int(d["page_size"]) if d.get("page_size") else None))
+                   page_size=(int(d["page_size"]) if d.get("page_size") else None),
+                   dedupe_geometry=bool(d.get("dedupe_geometry", False)))
+
+
+@dataclass
+class EraseSpec:
+    """A layer whose (optionally buffered) footprint is subtracted from another
+    layer at load time: released forest easements erased from the easement
+    layer, controlled-access highway corridors erased from the state ROW."""
+    source: LayerSource
+    buffer_ft: float = 0.0
+
+    @classmethod
+    def from_dict(cls, base: Path, d: Optional[dict], name: str) -> Optional["EraseSpec"]:
+        if not d:
+            return None
+        return cls(source=LayerSource.from_dict(base, d, name=name), buffer_ft=float(d.get("buffer_ft", 0) or 0))
 
     def available(self) -> bool:
         return self.path is not None and self.path.exists()
@@ -62,6 +79,9 @@ class ParcelsConfig:
     # match the pattern is not an account. null disables the pattern.
     non_parcel_account_ids: list[str] = field(default_factory=list)
     account_id_regex: Optional[str] = r"^(?=.*\d)[0-9A-Za-z]{8,}$"
+    # Canonical fields that must be non-null for a row to count as a parcel
+    # (the MD layer's PTYPE is null exactly on polygons with no SDAT record).
+    require_non_null: list[str] = field(default_factory=list)
     # Optional ArcGIS REST layer the parcels can be pulled from with
     # `farmsearch fetch-parcels` (paginated per county into `path`).
     url: Optional[str] = None
@@ -83,12 +103,24 @@ class ZoningSpec:
         if self.code_field is None:
             self.code_field = m.get("code_field")
         self.codes = {}
+        # is_agricultural: true / false / "unknown" (a deliberate "the county has
+        # no opinion here", e.g. municipal placeholders — the parcel is retained
+        # and flagged) / null (NOT decided yet — aborts under on_unmapped_zoning: error)
         for code, v in (m.get("codes") or {}).items():
-            if isinstance(v, dict):
-                self.codes[str(code)] = {"description": v.get("description"),
-                                         "is_agricultural": v.get("is_agricultural")}
-            else:
-                self.codes[str(code)] = {"description": None, "is_agricultural": v}
+            val = v.get("is_agricultural") if isinstance(v, dict) else v
+            if isinstance(val, str):
+                val = val.strip().lower()
+                if val == "unknown":
+                    val = "unknown"
+                elif val in ("true", "yes"):
+                    val = True
+                elif val in ("false", "no"):
+                    val = False
+                else:
+                    raise ConfigError(f"zoning {self.county}: code {code!r} has is_agricultural={val!r}; "
+                                      f"use true, false, unknown or null")
+            self.codes[str(code)] = {"description": (v.get("description") if isinstance(v, dict) else None),
+                                     "is_agricultural": val}
 
 
 @dataclass
@@ -109,6 +141,7 @@ class ConstraintSpec:
     derive_from_lines: Optional[DeriveFromLines] = None
     manual_flag: Optional[str] = None
     name_field: Optional[str] = None
+    erase: Optional[EraseSpec] = None
 
     @classmethod
     def from_dict(cls, base: Path, d: dict) -> "ConstraintSpec":
@@ -134,7 +167,8 @@ class ConstraintSpec:
                    subtract_from_usable=bool(d["subtract_from_usable"]),
                    crossable_with_permit=bool(d["crossable_with_permit"]),
                    source=src, derive_from_lines=dfl,
-                   manual_flag=d.get("manual_flag"), name_field=d.get("name_field"))
+                   manual_flag=d.get("manual_flag"), name_field=d.get("name_field"),
+                   erase=EraseSpec.from_dict(base, d.get("erase"), name=f"{d['name']}_erase"))
 
 
 @dataclass
@@ -149,6 +183,7 @@ class SlopeConfig:
     # dem_cache_dir.
     dem_url: Optional[str] = None
     dem_cache_dir: Optional[Path] = None
+    dem_min_valid_m: Optional[float] = None   # elevations below this are artefacts (masked as nodata)
 
 
 @dataclass
@@ -169,10 +204,11 @@ class StudyAreaBuild:
 @dataclass
 class RowLayer:
     source: LayerSource
-    authority: str                # state | county | municipal | private
+    authority: str                # state | county | municipal | unknown
     public: bool
     geometry: str                 # polygon | line
     row_width_ft: Optional[float] = None
+    erase: Optional[EraseSpec] = None   # e.g. controlled-access corridors: ROW there is not access
 
 
 @dataclass
@@ -238,6 +274,7 @@ class Config:
                 row_account_ids=[str(x) for x in (["ROW", "ROW_ALLEY"] if p.get("row_account_ids") is None else p["row_account_ids"])],
                 non_parcel_account_ids=[str(x) for x in (p.get("non_parcel_account_ids") or [])],
                 account_id_regex=(p["account_id_regex"] if "account_id_regex" in p else r"^(?=.*\d)[0-9A-Za-z]{8,}$"),
+                require_non_null=[str(x) for x in (p.get("require_non_null") or [])],
                 url=p.get("url"),
             )
             if parcels.acreage_source not in ("sdat", "geometry"):
@@ -259,7 +296,8 @@ class Config:
                                 steep_polygons_path=_opt_path(base, s.get("steep_polygons_path")),
                                 crossable=bool(s.get("crossable", False)),
                                 dem_url=s.get("dem_url") or None,
-                                dem_cache_dir=_opt_path(base, s.get("dem_cache_dir")))
+                                dem_cache_dir=_opt_path(base, s.get("dem_cache_dir")),
+                                dem_min_valid_m=(None if s.get("dem_min_valid_m") in (None, "null") else float(s["dem_min_valid_m"])))
             sab = None
             sb = raw.get("study_area_build")
             if sb:
@@ -289,7 +327,8 @@ class Config:
                                      authority=r.get("authority", "unknown"),
                                      public=bool(r.get("public", True)),
                                      geometry=geom,
-                                     row_width_ft=(float(r["row_width_ft"]) if r.get("row_width_ft") else None)))
+                                     row_width_ft=(float(r["row_width_ft"]) if r.get("row_width_ft") else None),
+                                     erase=EraseSpec.from_dict(base, r.get("erase"), name=f"{r.get('name', 'row')}_erase")))
             access = AccessConfig(
                 row_layers=rows,
                 contact_tolerance_ft=float(a.get("contact_tolerance_ft", 3)),

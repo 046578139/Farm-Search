@@ -55,11 +55,29 @@ def load_parcels(cfg: Config, study_geom: BaseGeometry, parcels_raw: Optional[gp
     non_parcel = non_account_mask(gdf["account_id"],
                                   list(cfg.parcels.row_account_ids) + list(cfg.parcels.non_parcel_account_ids),
                                   cfg.parcels.account_id_regex)
-    if non_parcel.any():
+    # Named placeholders (RAILROAD, WATER, GCE, PRIVATE ROW, UNK, ...) are not
+    # accounts, but they are real polygons that can sit between a farm and
+    # the road: keep them as NON-ACCOUNT rows so Stage 4 sees them as foreign
+    # blockers. Road right-of-way placeholders and null IDs are dropped (the
+    # ROW polygons come back in as a ROW layer).
+    acct_str = gdf["account_id"].astype("string").fillna("").str.strip()
+    row_ids = {x.upper() for x in cfg.parcels.row_account_ids}
+    blocker = non_parcel & (acct_str != "") & ~acct_str.str.upper().isin(row_ids) & ~acct_str.str.upper().isin({"NONE", "NAN", "NULL", "<NULL>"})
+    drop = non_parcel & ~blocker
+    # Unlinked polygons (an account-shaped id with no SDAT record): the MD
+    # layer marks them with a null PTYPE.
+    unlinked = pd.Series(False, index=gdf.index)
+    for f in cfg.parcels.require_non_null:
+        if f in gdf.columns:
+            unlinked |= gdf[f].isna() & ~non_parcel
+    if drop.any() or unlinked.any() or blocker.any():
         seen = gdf.loc[non_parcel, "account_id"].astype("string").fillna("<null>").value_counts().head(12).to_dict()
-        log.info("excluding %d non-parcel polygons (placeholder ids: %s)", int(non_parcel.sum()), seen)
-    n_non_parcel = int(non_parcel.sum())
-    gdf = gdf[~non_parcel].copy()
+        log.info("non-parcel polygons: %d dropped (ROW / null id), %d unlinked (null %s) dropped, %d kept as blockers only; ids: %s",
+                 int(drop.sum()), int(unlinked.sum()), cfg.parcels.require_non_null, int(blocker.sum()), seen)
+    n_non_parcel = int(drop.sum())
+    n_unlinked = int(unlinked.sum())
+    gdf = gdf[~drop & ~unlinked].copy()
+    gdf["is_account"] = ~blocker[gdf.index].values
     gdf["account_id"] = gdf["account_id"].astype(str).str.strip()
     # Keep only areal geometry
     gdf = gdf[gdf.geometry.geom_type.isin(["Polygon", "MultiPolygon"])]
@@ -97,6 +115,7 @@ def load_parcels(cfg: Config, study_geom: BaseGeometry, parcels_raw: Optional[gp
                     gdf.at[i, "sdat_acreage_summed"] = True
     gdf = gdf.reset_index(drop=True)
     gdf.attrs["non_parcel_polygons_excluded"] = n_non_parcel   # set last: constructors above drop attrs
+    gdf.attrs["unlinked_polygons_excluded"] = n_unlinked
     return gdf
 
 
@@ -300,7 +319,7 @@ def assign_zoning(gdf: gpd.GeoDataFrame, zoning_layers: dict[str, gpd.GeoDataFra
                 if m is None or m.get("is_agricultural") is None:
                     unmapped = True
                     unmapped_seen.setdefault(county, set()).add(code)
-                elif m["is_agricultural"]:
+                elif m["is_agricultural"] is True:
                     ag_area += ar
             i = gdf.index[pidx[a]]
             gdf.at[i, "zoning"] = major
@@ -310,6 +329,8 @@ def assign_zoning(gdf: gpd.GeoDataFrame, zoning_layers: dict[str, gpd.GeoDataFra
             if mm is None or mm.get("is_agricultural") is None:
                 gdf.at[i, "zoning_unmapped"] = True
                 gdf.at[i, "is_agricultural"] = None
+            elif mm["is_agricultural"] == "unknown":
+                gdf.at[i, "is_agricultural"] = None          # known-unknown (municipal hole): retained, flagged
             else:
                 gdf.at[i, "is_agricultural"] = bool(mm["is_agricultural"])
     if unmapped_seen:
@@ -327,6 +348,7 @@ def run_stage1(cfg: Config, study_geom: BaseGeometry, parcels_raw: Optional[gpd.
     gdf = load_parcels(cfg, study_geom, parcels_raw)
     n_loaded = len(gdf)
     excluded = gdf.attrs.get("non_parcel_polygons_excluded", 0)
+    unlinked = gdf.attrs.get("unlinked_polygons_excluded", 0)
     gdf = attribute_study_area(gdf, study_geom, cfg.study_area_selection)
     gdf = gdf[gdf["in_study_area"]].reset_index(drop=True)
     gdf = attribute_county(gdf, cfg)
@@ -334,7 +356,9 @@ def run_stage1(cfg: Config, study_geom: BaseGeometry, parcels_raw: Optional[gpd.
     gdf = attribute_acreage(gdf, cfg)
     if zoning_layers is None:
         zoning_layers = load_zoning_layers(cfg, study_geom)
-    gdf = assign_zoning(gdf, zoning_layers, cfg, scope_mask=gdf["meets_acreage"])
+    if "is_account" not in gdf.columns:
+        gdf["is_account"] = True
+    gdf = assign_zoning(gdf, zoning_layers, cfg, scope_mask=gdf["meets_acreage"] & gdf["is_account"])
 
     flags = [[] for _ in range(len(gdf))]
     for i, (dis, unm, miss, inc) in enumerate(zip(gdf["acreage_disagrees"], gdf["zoning_unmapped"],
@@ -354,14 +378,17 @@ def run_stage1(cfg: Config, study_geom: BaseGeometry, parcels_raw: Optional[gpd.
     gdf["manual_flags"] = flags
     ag = gdf["is_agricultural"]
     # Unknown zoning (layer missing / unmapped under flag mode) is retained: never auto-delete.
-    gdf["stage1_pass"] = gdf["meets_acreage"] & (ag.isna() | (ag == True))  # noqa: E712
+    gdf["stage1_pass"] = gdf["is_account"] & gdf["meets_acreage"] & (ag.isna() | (ag == True))  # noqa: E712
     gdf["stage1_pass_reason"] = np.select(
-        [~gdf["meets_acreage"], ag == False, ag.isna()],  # noqa: E712
-        ["below_acreage_min" if cfg.acreage_max is None else "outside_acreage_band", "not_agricultural_zoning", "zoning_unknown_retained"],
+        [~gdf["is_account"], ~gdf["meets_acreage"], ag == False, ag.isna()],  # noqa: E712
+        ["non_parcel_polygon", "below_acreage_min" if cfg.acreage_max is None else "outside_acreage_band",
+         "not_agricultural_zoning", "zoning_unknown_retained"],
         default="pass")
 
     summary = summarize_stage1(gdf, n_loaded, cfg)
     summary["non_parcel_polygons_excluded"] = int(excluded)
+    summary["unlinked_polygons_excluded"] = int(unlinked)
+    summary["blocker_polygons_retained"] = int((~gdf["is_account"]).sum())
     summary["owner_name_available_pct"] = round(100 * float(gdf["owner_name_available"].mean()), 1) if len(gdf) else None
     summary["owner_key_unavailable"] = int((~gdf["owner_key_available"]).sum())
     return Stage1Result(parcels=gdf, summary=summary)
@@ -369,7 +396,8 @@ def run_stage1(cfg: Config, study_geom: BaseGeometry, parcels_raw: Optional[gpd.
 
 def summarize_stage1(gdf: gpd.GeoDataFrame, n_loaded: int, cfg: Config) -> dict:
     per_county = {}
-    for county, g in gdf.groupby("county"):
+    accounts = gdf[gdf["is_account"]] if "is_account" in gdf.columns else gdf
+    for county, g in accounts.groupby("county"):
         ma = g["meets_acreage"]
         per_county[county] = {
             "in_study_area": int(len(g)),
@@ -383,7 +411,7 @@ def summarize_stage1(gdf: gpd.GeoDataFrame, n_loaded: int, cfg: Config) -> dict:
         }
     return {
         "parcels_loaded": int(n_loaded),
-        "parcels_in_study_area": int(len(gdf)),
+        "parcels_in_study_area": int(len(accounts)),
         "acreage_min": cfg.acreage_min,
         "acreage_max": cfg.acreage_max,
         "meets_acreage": int(gdf["meets_acreage"].sum()),

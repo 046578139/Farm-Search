@@ -175,8 +175,10 @@ class ImageServerDEM:
                   "interpolation": "RSP_BilinearInterpolation", "f": "image"}
         r = self.session.get(f"{self.url}/exportImage", params=params, timeout=self.timeout)
         r.raise_for_status()
-        if not r.headers.get("content-type", "").startswith("image/tiff"):
-            raise RuntimeError(f"exportImage did not return a GeoTIFF: {r.headers.get('content-type')} {r.text[:200]}")
+        # The service answers HTTP 200 + image/tiff with a JSON error body when
+        # the request exceeds its size limit: check the TIFF magic bytes.
+        if not r.headers.get("content-type", "").startswith("image/tiff") or r.content[:4] not in (b"II*\x00", b"MM\x00*"):
+            raise RuntimeError(f"exportImage did not return a GeoTIFF: {r.headers.get('content-type')} {r.content[:200]!r}")
         if cp is not None:
             cp.write_bytes(r.content)
         return r.content
@@ -184,7 +186,7 @@ class ImageServerDEM:
 
 def steep_polygons_from_imageserver(dem: ImageServerDEM, geom: BaseGeometry, geom_crs: str, slope_max_pct: float,
                                     vertical_factor: float = 1.0, resample_m: Optional[float] = 5.0,
-                                    margin_m: float = 30.0) -> Optional[BaseGeometry]:
+                                    margin_m: float = 30.0, min_valid: Optional[float] = None) -> Optional[BaseGeometry]:
     """Same contract as steep_polygons_from_dem, reading the window from an
     ImageServer in the parcel's own (projected, metric) CRS."""
     import pyproj
@@ -200,6 +202,8 @@ def steep_polygons_from_imageserver(dem: ImageServerDEM, geom: BaseGeometry, geo
         arr = ds.read(1).astype("float64")
         nodata = ds.nodata if ds.nodata is not None else IMAGESERVER_NODATA
         arr[(arr == nodata) | (arr <= -9000)] = np.nan
+        if min_valid is not None:
+            arr[arr < min_valid] = np.nan       # mosaic artefacts (e.g. -22 m in Frederick County)
         if np.all(np.isnan(arr)):
             return None
         xres, yres = ds.res

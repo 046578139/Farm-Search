@@ -142,21 +142,21 @@ service tree (same paths) and is what the config uses.
 | Zoning, Frederick | Frederick County GIS `PlanningAndPermitting/Zoning/MapServer/1` | `TYPE` (coded domain) |
 | Zoning, Carroll | Carroll County AGOL `Zoning/FeatureServer/0` | `Zoning` |
 | Zoning, Washington | Washington County AGOL `Washington_County_Zoning/FeatureServer/21` | `Zone` / `Zone_Full` |
-| MALPF easements | iMAP `Environment/MD_ProtectedLands/MapServer/4` | favorable |
-| County PDR/TDR/IPP/Critical Farms | `MD_ProtectedLands/MapServer/9` | favorable, `OthrPrgNm != 'CREP'` |
-| Rural Legacy | `MD_ProtectedLands/MapServer/1` | favorable |
-| MET easements | `MD_ProtectedLands/MapServer/2` | varies |
-| Forest conservation easements | `MD_ProtectedLands/MapServer/3` + Frederick `ForestResource/2`, Carroll `Forest_Conservation_Easement/0` (recorded), Washington `Forest_Conservation_Easements_View/0` (unreleased) | hostile |
+| MALPF easements | iMAP `Environment/MD_ProtectedLands/MapServer/4` + Frederick `AgPreservation/8` | favorable |
+| County PDR/TDR/IPP/Critical Farms | `MD_ProtectedLands/MapServer/9` (easements only, no CREP) + Frederick `AgPreservation/5`, `/3`, `/2` | favorable |
+| Rural Legacy | `MD_ProtectedLands/MapServer/1` + Frederick `AgPreservation/10` | favorable |
+| MET easements | `MD_ProtectedLands/MapServer/2` + Frederick `AgPreservation/9` | varies |
+| Forest conservation easements | `MD_ProtectedLands/MapServer/3` (no exclusions) + Frederick `ForestResource/2` minus releases `/3`, Frederick banking `/0`, Carroll `Forest_Conservation_Easement/0` (recorded), Washington `Forest_Conservation_Easements_View/0` (deduped) | hostile |
 | CREP enrolled farms (mapped) | `MD_ProtectedLands/MapServer/9`, `OthrPrgNm == 'CREP'` | varies: whole farms, flag only |
-| DNR lands, Frederick other easements | `MD_ProtectedLands/MapServer/0`, Frederick `OtherEasementsOrRestrictions/0` | varies |
-| Wetlands | iMAP `Hydrology/MD_Wetlands/MapServer/2` (NWI) | physical |
-| Floodplain | iMAP `Hydrology/MD_Floodplain/MapServer/1` | `FLD_ZONE in A, AE, AH, AO` |
-| Streams (riparian inference) | iMAP `Hydrology/MD_Waterbodies/MapServer/2` (detailed) | 100 ft each side |
-| State road ROW | MDOT SHA `MDOT_SHA_Right-Of-Way_(Polygons)/FeatureServer/32` | polygons per SHA grid |
+| DNR, federal, local protected lands; Frederick other easements | `MD_ProtectedLands/MapServer/0`, `/8`, `/5`; Frederick `OtherEasementsOrRestrictions/0` | varies |
+| Wetlands | USFWS `wetlandsmapservice/.../Wetlands/MapServer/0` (live NWI) | physical, Riverine excluded |
+| Floodplain | iMAP `Hydrology/MD_Floodplain/MapServer/1` | `SFHA_TF == 'T'`, zones A, AE, AH, AO |
+| Streams (riparian inference) | USGS NHD HR `nhd/MapServer/6` (perennial + intermittent) + iMAP SHORE lines | 100 ft each side |
+| State road ROW | MDOT SHA `MDOT_SHA_Right-Of-Way_(Polygons)/FeatureServer/32` minus full-access-control corridors | polygons per SHA grid |
 | Tax-map road ROW | `ACCTID = 'ROW'` rows of the parcel layer | polygons |
-| County roads | Frederick `Basemap/Centerlines/0` (`OWNERSHIP`), Carroll `Roads_CarrollCounty/0` (`ROADCLASS`), Washington `Road_Centerlines_Public_View/0` (`Road_Code`) | public only, no interstates/ramps |
+| County roads | Frederick `Basemap/Centerlines/0` (OWNERSHIP/JURISDICTION/ICADCLASS), Carroll `Roads_CarrollCounty/0` (`ROADCLASS`), Washington `Road_Centerlines_3_view/2` (`Road_Code`) | public only, no limited access, ramps, driveways |
 | DEM | iMAP LiDAR `Statewide/MD_statewide_dem_m/ImageServer` | per-parcel `exportImage` |
-| County boundaries | iMAP `Boundaries/MD_PhysicalBoundaries/MapServer/0` | study area |
+| County boundaries | iMAP `Boundaries/MD_PoliticalBoundaries/MapServer/1` | study area |
 
 SHA plat boundaries, the HPMS access-control layer, statewide centerlines,
 MDP generalized zoning, the MPRP route, the residential pipeline and other
@@ -167,7 +167,7 @@ later-stage layers are listed under `reference_layers:` in the config.
 `config/study_area.geojson` is built from the iMAP detailed county
 boundaries (all of Frederick, the Mount Airy corner of Carroll, and the
 Sharpsburg / Keedysville / Boonsboro / Rohrersville area of Washington;
-2,248 km²). An expanded northern-Carroll run (3,241 km²) is a one-line change:
+2,269 km²). An expanded northern-Carroll run (3,270 km²) is a one-line change:
 
 ```yaml
 study_area: study_area_expanded_carroll.geojson

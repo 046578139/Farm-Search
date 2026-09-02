@@ -119,6 +119,7 @@ codes:
     citation: https://www.washco-md.net/wp-content/uploads/legal-ZoningOrd.pdf — Article 19C Sec. 19C.1 Purpose
   TOWN:
     description: Incorporated municipality (GIS placeholder, not a county zoning district)
-    is_agricultural: false
+    is_agricultural: unknown
     confidence: high
+    note: municipal placeholder — the county has no zoning opinion here; parcels are retained as zoning_unknown_retained
     citation: https://www.washco-md.net/wp-content/uploads/legal-ZoningOrd.pdf — Article 2 Sec. 2.0 (Application within County and County Towns) and Article 3 Sec. 3.0 (district list, which does not include TOWN); GIS renderer value list at https://services2.arcgis.com/uxxyl33jRTSmjre5/arcgis/rest/services/Washington_County_Zoning/FeatureServer/21?f=pjson

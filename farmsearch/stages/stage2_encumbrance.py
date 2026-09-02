@@ -20,7 +20,7 @@ from shapely.ops import unary_union
 
 from ..config import Config
 from ..geometry.position import describe_position, polygon_parts, relative_position
-from ..io.loaders import LayerNotAvailable, derive_buffer_layer, read_layer
+from ..io.loaders import erase_layer, LayerNotAvailable, derive_buffer_layer, read_layer
 from ..units import ACRE_M2, m2_to_acres
 
 log = logging.getLogger(__name__)
@@ -49,6 +49,8 @@ def load_constraint_layers(cfg: Config, study_geom: BaseGeometry) -> tuple[dict[
             log.warning("constraint layer %s unavailable: %s", c.name, e)
             missing.append(c.name)
             continue
+        if c.erase is not None:
+            g = erase_layer(g, c.erase, cfg.working_crs, study_geom, what=c.name)
         g = g[g.geometry.geom_type.isin(["Polygon", "MultiPolygon"])].reset_index(drop=True)
         layers[c.name] = g
         log.info("constraint %s: %d features in study area", c.name, len(g))

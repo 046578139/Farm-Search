@@ -104,8 +104,12 @@ def cmd_fetch(args) -> int:
             sources.append(c.source)
         if c.derive_from_lines is not None:
             sources.append(c.derive_from_lines.source)
+        if c.erase is not None:
+            sources.append(c.erase.source)
     for r in cfg.access.row_layers:
         sources.append(r.source)
+        if r.erase is not None:
+            sources.append(r.erase.source)
     only = set(args.only or [])
     rc = 0
     for s in sources:

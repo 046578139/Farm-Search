@@ -30,7 +30,7 @@ from ..config import Config
 from ..geometry.connectivity import connected_components, reachable_usable_via, seed_components
 from ..geometry.frontage import analyze_frontage
 from ..geometry.strips import is_strip, strip_metrics
-from ..io.loaders import LayerNotAvailable, clean_geometries, read_layer
+from ..io.loaders import erase_layer, LayerNotAvailable, clean_geometries, read_layer
 from ..geometry.position import merge_lines
 from ..owners import owners_match
 from ..units import ACRE_M2, ft_to_m, m2_to_acres, m_to_ft
@@ -63,6 +63,8 @@ def load_row_layers(cfg: Config, study_geom: BaseGeometry) -> tuple[gpd.GeoDataF
         if r.geometry == "line":
             g = g.copy()
             g[g.geometry.name] = g.geometry.buffer(ft_to_m(r.row_width_ft) / 2.0, cap_style="flat")
+        if r.erase is not None:
+            g = erase_layer(g, r.erase, cfg.working_crs, study_geom, what=r.source.name)
         g = g[g.geometry.geom_type.isin(["Polygon", "MultiPolygon"])]
         n = len(g)
         g = gpd.GeoDataFrame({"row_layer": [r.source.name] * n, "authority": [r.authority] * n, "public": [r.public] * n},

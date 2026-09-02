@@ -72,8 +72,9 @@ codes:
     citation: Frederick County Code Ch. 1-19, §1-19-5.260 (see also §1-19-10.900 Institutional Floating District), https://frederickcountymd.gov/DocumentCenter/View/334390/Chapter-1-19-Zoning; GIS domain 'Ie = Institutional'; renderer label 'IE - Institutional'
   MUN:
     description: Municipality
-    is_agricultural: false
+    is_agricultural: unknown
     confidence: high
+    note: municipal placeholder — the county has no zoning opinion here; parcels are retained as zoning_unknown_retained
     citation: GIS layer ZoneType coded-value domain 'MUN = Municipality', renderer label 'MUN - Municipality', https://fcgis.frederickcountymd.gov/server_pub/rest/services/PlanningAndPermitting/Zoning/MapServer/1?f=pjson; no such district is established in Ch. 1-19 Article V
   ROW:
     description: Right of Way

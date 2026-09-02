@@ -146,6 +146,12 @@ def read_layer(source: LayerSource, working_crs: str, clip_geom: Optional[BaseGe
                                     f"{[c for c in gdf.columns if c != gdf.geometry.name]}: {e}") from e
     gdf = gdf.to_crs(working_crs)
     gdf = clean_geometries(gdf)
+    if source.dedupe_geometry and not gdf.empty:
+        wkb = gdf.geometry.to_wkb()
+        dup = wkb.duplicated()
+        if dup.any():
+            log.info("%s: dropped %d rows with duplicate geometry", source.name, int(dup.sum()))
+            gdf = gdf[~dup]
     if clip_geom is not None and not gdf.empty:
         if clip_mode == "clip":
             gdf = gpd.clip(gdf, clip_geom, keep_geom_type=True)
@@ -154,6 +160,34 @@ def read_layer(source: LayerSource, working_crs: str, clip_geom: Optional[BaseGe
             gdf = gdf.iloc[sorted(idx)]
         gdf = clean_geometries(gdf)
     return gdf.reset_index(drop=True)
+
+
+def erase_layer(gdf: gpd.GeoDataFrame, erase, working_crs: str, clip_geom: Optional[BaseGeometry],
+                what: str = "") -> gpd.GeoDataFrame:
+    """Subtract the (buffered) footprint of `erase.source` from every geometry
+    of gdf. A missing erase layer is a warning, never a failure: the layer is
+    used un-erased and the caller records it as missing."""
+    if erase is None or gdf.empty:
+        return gdf
+    try:
+        e = read_layer(erase.source, working_crs, clip_geom, clip_mode="clip")
+    except LayerNotAvailable as ex:
+        log.warning("erase layer %s for %s unavailable (%s); using the layer un-erased", erase.source.name, what, ex)
+        return gdf
+    if e.empty:
+        return gdf
+    footprint = unary_union(list(e.geometry.values))
+    if erase.buffer_ft:
+        footprint = footprint.buffer(ft_to_m(erase.buffer_ft))
+    before = float(gdf.geometry.area.sum())
+    out = gdf.copy()
+    hit = out.sindex.query(footprint, predicate="intersects")
+    if len(hit):
+        out.iloc[hit, out.columns.get_loc(out.geometry.name)] = out.geometry.iloc[hit].difference(footprint).values
+    out = clean_geometries(out, kind="areal" if out.geometry.geom_type.isin(_AREAL).any() else None)
+    log.info("%s: erased %s (%d features touched; area %.0f -> %.0f m2)", what, erase.source.name, len(hit),
+             before, float(out.geometry.area.sum()))
+    return out.reset_index(drop=True)
 
 
 def read_layer_fields(source: LayerSource) -> list[str]:

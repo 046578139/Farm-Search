@@ -102,7 +102,8 @@ class SlopeProvider:
             try:
                 return steep_polygons_from_imageserver(self.dem_service, geom, self.cfg.working_crs, self.cfg.slope_max_pct,
                                                        vertical_factor=s.dem_vertical_unit_to_m,
-                                                       resample_m=s.dem_resample_m or 5.0)
+                                                       resample_m=s.dem_resample_m or 5.0,
+                                                       min_valid=s.dem_min_valid_m)
             except Exception as e:  # noqa: BLE001 - one bad window must not kill the run
                 log.warning("slope window failed for parcel bounds %s: %s", geom.bounds, e)
                 self.failures = getattr(self, "failures", 0) + 1

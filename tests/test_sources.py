@@ -96,8 +96,10 @@ def _parcels_raw():
 def test_stage1_excludes_row_and_null_accounts_and_dissolves(tmp_path):
     cfg = _cfg(tmp_path)
     gdf = load_parcels(cfg, box(-10, -10, 5000, 5000), parcels_raw=_parcels_raw())
-    assert sorted(gdf["account_id"]) == ["1101000001", "1101000002", "1102502WH"]   # letters are fine, digits required
-    assert gdf.attrs["non_parcel_polygons_excluded"] == 5                            # ROW, null, WATER, RAILROAD, GCE
+    accounts = gdf[gdf["is_account"]]
+    assert sorted(accounts["account_id"]) == ["1101000001", "1101000002", "1102502WH"]   # letters are fine, digits required
+    assert gdf.attrs["non_parcel_polygons_excluded"] == 2                                 # ROW and the null id are dropped
+    assert sorted(gdf.loc[~gdf["is_account"], "account_id"]) == ["GCE", "RAILROAD", "WATER"]   # kept as blockers only
     two = gdf.set_index("account_id").loc["1101000002"]
     assert two.geometry.geom_type == "MultiPolygon"          # two rows dissolved into one account
 
@@ -626,3 +628,97 @@ def test_merge_lines_tolerates_single_lines_and_collections():
     assert isinstance(m, MultiLineString) and len(m.geoms) == 2
     assert merge_lines(GeometryCollection([Point(1, 1)])).is_empty
     assert _merge_count([]) == 0
+
+
+def test_blockers_never_pass_stage1_and_are_not_counted(tmp_path):
+    from farmsearch.stages.stage1_base_filter import run_stage1
+    cfg = _cfg(tmp_path, zoning=[], on_unmapped_zoning="flag")
+    raw = _parcels_raw()
+    res = run_stage1(cfg, box(-10, -10, 5000, 5000), parcels_raw=raw, zoning_layers={})
+    p = res.parcels.set_index("account_id")
+    assert p.loc["RAILROAD", "stage1_pass_reason"] == "non_parcel_polygon" and not p.loc["RAILROAD", "stage1_pass"]
+    assert res.summary["parcels_in_study_area"] == 3 and res.summary["blocker_polygons_retained"] == 3
+    assert "RAILROAD" in p.index                      # still present for Stage 4 adjacency
+
+
+def test_require_non_null_drops_unlinked_polygons(tmp_path):
+    cfg = _cfg(tmp_path, parcels={"path": str(tmp_path / "p"), "schema": str(ROOT / "config/schema/parcels.yaml"),
+                                  "require_non_null": ["polygon_type"]})
+    raw = _parcels_raw()
+    raw["PTYPE"] = [2, 2, None, None, 2, None, None, None, None]     # 1102502WH is account-shaped but unlinked
+    gdf = load_parcels(cfg, box(-10, -10, 5000, 5000), parcels_raw=raw)
+    assert sorted(gdf.loc[gdf["is_account"], "account_id"]) == ["1101000001", "1101000002"]
+    assert gdf.attrs["unlinked_polygons_excluded"] == 1
+
+
+def test_zoning_unknown_is_retained_not_unmapped(tmp_path):
+    from farmsearch.stages.stage1_base_filter import assign_zoning
+    (tmp_path / "z.yaml").write_text("code_field: TYPE\ncodes:\n  A: {is_agricultural: true}\n  MUN: {is_agricultural: unknown}\n  R1: {is_agricultural: false}\n")
+    cfg = _cfg(tmp_path, zoning=[{"county": "Frederick", "path": str(tmp_path / "z.gpkg"), "code_field": "TYPE",
+                                  "mapping": str(tmp_path / "z.yaml")}], on_unmapped_zoning="error")
+    parcels = gpd.GeoDataFrame({"account_id": ["p1", "p2"], "county": ["Frederick"] * 2},
+                               geometry=[box(0, 0, 100, 100), box(200, 0, 300, 100)], crs="EPSG:26985")
+    layer = gpd.GeoDataFrame({"TYPE": ["MUN", "R1"]}, geometry=[box(0, 0, 100, 100), box(200, 0, 300, 100)], crs="EPSG:26985")
+    out = assign_zoning(parcels, {"Frederick": layer}, cfg)          # no ConfigError: MUN is a known unknown
+    assert out.loc[0, "is_agricultural"] is None and not out.loc[0, "zoning_unmapped"] and out.loc[0, "zoning"] == "MUN"
+    assert out.loc[1, "is_agricultural"] is False
+    with pytest.raises(Exception, match="use true, false, unknown or null"):
+        (tmp_path / "z.yaml").write_text("code_field: TYPE\ncodes:\n  A: {is_agricultural: maybe}\n")
+        cfg.zoning[0].load_mapping()
+
+
+def test_erase_layer_subtracts_buffered_footprint(tmp_path):
+    from farmsearch.config import EraseSpec, LayerSource
+    from farmsearch.io.loaders import erase_layer
+    releases = gpd.GeoDataFrame({"id": [1]}, geometry=[box(40, 0, 60, 100)], crs="EPSG:26985")
+    releases.to_file(str(tmp_path / "rel.gpkg"), driver="GPKG")
+    layer = gpd.GeoDataFrame({"id": [1, 2]}, geometry=[box(0, 0, 100, 100), box(500, 500, 600, 600)], crs="EPSG:26985")
+    spec = EraseSpec(source=LayerSource("rel", path=tmp_path / "rel.gpkg"), buffer_ft=0)
+    out = erase_layer(layer, spec, "EPSG:26985", None, what="test")
+    assert len(out) == 2 and out.geometry.iloc[0].area == pytest.approx(8000) and out.geometry.iloc[1].area == pytest.approx(10000)
+    buffered = EraseSpec(source=LayerSource("rel", path=tmp_path / "rel.gpkg"), buffer_ft=32.8084)   # 10 m
+    out2 = erase_layer(layer, buffered, "EPSG:26985", None)
+    assert out2.geometry.iloc[0].area == pytest.approx(6000, rel=0.01)
+    missing = EraseSpec(source=LayerSource("rel", path=tmp_path / "nope.gpkg"))
+    assert erase_layer(layer, missing, "EPSG:26985", None).geometry.iloc[0].area == pytest.approx(10000)   # degrade, not fail
+
+
+def test_dedupe_geometry_on_read(tmp_path):
+    from farmsearch.config import LayerSource
+    from farmsearch.io.loaders import read_layer
+    g = box(-77.5, 39.4, -77.4, 39.5)
+    gpd.GeoDataFrame({"id": [1, 2, 3]}, geometry=[g, g, box(-77.3, 39.4, -77.2, 39.5)], crs="EPSG:4326").to_file(str(tmp_path / "d.gpkg"), driver="GPKG")
+    assert len(read_layer(LayerSource("d", path=tmp_path / "d.gpkg"), "EPSG:26985")) == 3
+    assert len(read_layer(LayerSource("d", path=tmp_path / "d.gpkg", dedupe_geometry=True), "EPSG:26985")) == 2
+
+
+def test_imageserver_rejects_json_error_body_disguised_as_tiff():
+    dem = ImageServerDEM("https://example.invalid/ImageServer", cache_dir=None)
+    class S:
+        def get(self, url, params=None, timeout=None):
+            class R:
+                content = b'{"error":{"code":400,"message":"The requested image exceeds the size limit."}}'
+                headers = {"content-type": "image/tiff"}
+                def raise_for_status(self): pass
+            return R()
+    dem.session = S()
+    with pytest.raises(RuntimeError, match="did not return a GeoTIFF"):
+        dem.export((0, 0, 100, 100), 26985, 5.0)
+
+
+def test_dem_min_valid_masks_artefacts(monkeypatch):
+    dem = ImageServerDEM("https://example.invalid/ImageServer", cache_dir=None)
+    def fake_export(bounds, epsg, cell_m):
+        # flat 100 m surface with one -22 m artefact pixel: without masking it is a huge "cliff"
+        b = _synthetic_tiff(bounds, cell_m)
+        with MemoryFile(b) as mf, mf.open() as ds:
+            arr = ds.read(1); prof = ds.profile
+        arr[:] = 100.0; arr[5, 5] = -22.0
+        with MemoryFile() as mf:
+            with mf.open(**prof) as ds:
+                ds.write(arr, 1)
+            return mf.read()
+    monkeypatch.setattr(dem, "export", fake_export)
+    parcel = box(1000, 1000, 1200, 1200)
+    assert steep_polygons_from_imageserver(dem, parcel, "EPSG:26985", 15, resample_m=5.0, margin_m=30) is not None
+    assert steep_polygons_from_imageserver(dem, parcel, "EPSG:26985", 15, resample_m=5.0, margin_m=30, min_valid=30) is None
