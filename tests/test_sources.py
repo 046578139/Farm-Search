@@ -760,3 +760,38 @@ def test_strip_max_length_and_row_parcel_overlap_are_configured(tmp_path):
     cfg = _cfg(tmp_path, access={"row_layers": [], "strip_max_length_ft": 4000, "row_parcel_overlap": 0.6})
     assert cfg.access.strip_max_length_ft == 4000 and cfg.access.row_parcel_overlap == 0.6
     assert _cfg(tmp_path).access.strip_max_length_ft == 5000
+
+
+def test_reserve_strip_must_be_vacant_and_between_parcel_and_road(tmp_path):
+    """Two 49 ft x 984 ft slivers lie between the farm's south line and the
+    road; one carries a dwelling. A third sliver runs along the farm's east
+    side line and touches the road. Only the vacant one in front is an
+    access-control strip."""
+    from farmsearch.stages.stage4_access import run_stage4
+    farm = box(0, 35, 600, 435)
+    strip_vacant = box(0, 20, 300, 35)
+    strip_house = box(300, 20, 600, 35)
+    side = box(600, 20, 615, 435)
+    parcels = gpd.GeoDataFrame({
+        "account_id": ["FARM", "STRIP1", "STRIP2", "SIDE"],
+        "owner_name": ["", "", "", ""],
+        "owner_mailing_address": ["1 FARM RD", "9 ELSEWHERE", "8 ELSEWHERE", "7 ELSEWHERE"],
+        "deed_ref": [None, None, None, None],
+        "structure_sqft": [2400.0, 0.0, 1800.0, 0.0],
+    }, geometry=[farm, strip_vacant, strip_house, side], crs="EPSG:26985")
+    rows = gpd.GeoDataFrame({"authority": ["county"], "public": [True]}, geometry=[box(-100, 0, 700, 20)], crs="EPSG:26985")
+    mask = pd.Series([True, False, False, False])
+
+    res = run_stage4(_cfg(tmp_path), parcels, mask, {}, rows)
+    farm_row = res.parcels.iloc[0]
+    assert farm_row["frontage_blocked_by_foreign_parcel"] and farm_row["reserve_strip_detected"]
+    strips = res.strips
+    assert set(strips["strip_account_id"]) == {"STRIP1"}
+    assert strips.iloc[0]["frontage_ft_blocked"] > 900 and not strips.iloc[0]["same_owner"]
+    assert strips.iloc[0]["est_width_ft"] == pytest.approx(47, abs=2) and strips.iloc[0]["aspect"] > 15   # 2A/P of a 49 ft x 984 ft rectangle
+
+    # With the improvement test switched off the house lot is reported too; the side neighbour never is.
+    cfg2 = _cfg(tmp_path, access={"row_layers": [], "strip_exclude_improved": False})
+    res2 = run_stage4(cfg2, parcels, mask, {}, rows)
+    assert set(res2.strips["strip_account_id"]) == {"STRIP1", "STRIP2"}
+    assert _cfg(tmp_path).access.strip_exclude_improved is True

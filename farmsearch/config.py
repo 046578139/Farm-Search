@@ -223,6 +223,7 @@ class AccessConfig:
     strip_max_width_ft: float = 100
     strip_min_aspect: float = 6
     strip_max_length_ft: float = 5000     # longer "strips" are road / rail / utility corridors, not access control
+    strip_exclude_improved: bool = True   # a candidate with a structure / improvement value is a house lot, not a strip
     row_parcel_overlap: float = 0.5       # a neighbour with this share of its area inside public ROW IS the road
     sliver_acres: float = 0.25
 
@@ -342,6 +343,7 @@ class Config:
                 strip_max_width_ft=float(a.get("strip_max_width_ft", 100)),
                 strip_min_aspect=float(a.get("strip_min_aspect", 6)),
                 strip_max_length_ft=float(a.get("strip_max_length_ft", 5000)),
+                strip_exclude_improved=bool(a.get("strip_exclude_improved", True)),
                 row_parcel_overlap=float(a.get("row_parcel_overlap", 0.5)),
                 sliver_acres=float(a.get("sliver_acres", 0.25)),
             )

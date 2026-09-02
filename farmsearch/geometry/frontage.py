@@ -94,9 +94,18 @@ class FrontageResult:
         return sorted({s.authority for s in self.subsegments if s.authority and s.cls in ("open", "encumbered", "same_owner_parcel")})
 
     def blocking_lengths(self) -> dict[str, float]:
+        """Frontage length behind each separately-owned neighbour."""
+        return self._lengths_behind(("foreign_parcel",))
+
+    def crossed_lengths(self) -> dict[str, float]:
+        """Frontage length behind each neighbour, whoever owns it (the
+        reserve-strip test looks at shape first and ownership second)."""
+        return self._lengths_behind(("foreign_parcel", "same_owner_parcel"))
+
+    def _lengths_behind(self, classes: tuple[str, ...]) -> dict[str, float]:
         out: dict[str, float] = {}
         for s in self.subsegments:
-            if s.cls == "foreign_parcel" and s.blocking_account_id is not None:
+            if s.cls in classes and s.blocking_account_id is not None:
                 out[s.blocking_account_id] = out.get(s.blocking_account_id, 0.0) + s.geom.length
         return out
 

@@ -569,6 +569,7 @@ access:
   strip_max_width_ft: 100           # reserve-strip detector: estimated width
   strip_min_aspect: 6               # reserve-strip detector: length / width
   strip_max_length_ft: 5000         # longer = road / rail / utility corridor held as an account, not a reserve strip
+  strip_exclude_improved: true      # a candidate with a dwelling / improvement value is a house lot, not a strip
   row_parcel_overlap: 0.5           # a neighbour with >= this share of its area inside public ROW is the road itself
   sliver_acres: 0.25                # usable fragments below this are noise, not islands
 

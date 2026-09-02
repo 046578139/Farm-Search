@@ -37,7 +37,11 @@ from ..units import ACRE_M2, ft_to_m, m2_to_acres, m_to_ft
 
 log = logging.getLogger(__name__)
 
-STRIP_MIN_SHARED_FRACTION = 0.25   # strip must run along >= this share of its length against the subject
+# A reserve strip must lie behind at least this many frontage samples. One
+# sample can straddle a corner and probe sideways through the neighbour on
+# the side line; a strip in front of the parcel blocks far more than that.
+STRIP_MIN_BLOCKED_SAMPLES = 2
+
 
 
 @dataclass
@@ -141,6 +145,14 @@ def run_stage4(cfg: Config, parcels_all: gpd.GeoDataFrame, target_mask: pd.Serie
 
     owners = P["owner_name"].values
     addrs = P["owner_mailing_address"].values if "owner_mailing_address" in P.columns else np.array([None] * len(P))
+    # Improved neighbours (a dwelling, a barn, any assessed improvement) are
+    # house lots carved off the road frontage, not access-control strips.
+    # Without the SDAT improvement fields every candidate counts as vacant.
+    improved = np.zeros(len(P), dtype=bool)
+    if a.strip_exclude_improved:
+        for col in ("structure_sqft", "year_built", "assessed_improvement_value"):
+            if col in P.columns:
+                improved |= pd.to_numeric(P[col], errors="coerce").fillna(0).values > 0
     deeds = P["deed_ref"].values if "deed_ref" in P.columns else np.array([None] * len(P))
     accts = P["account_id"].values
 
@@ -179,6 +191,7 @@ def run_stage4(cfg: Config, parcels_all: gpd.GeoDataFrame, target_mask: pd.Serie
         blocked = determinate > 0 and (L["foreign_parcel"] / determinate) >= a.frontage_blocked_threshold
         P.at[i, "frontage_blocked_by_foreign_parcel"] = bool(blocked)
         bl = fr.blocking_lengths()
+        crossed = fr.crossed_lengths()
         if bl:
             top = max(bl, key=bl.get)
             P.at[i, "blocking_parcel_account_id"] = top
@@ -220,15 +233,16 @@ def run_stage4(cfg: Config, parcels_all: gpd.GeoDataFrame, target_mask: pd.Serie
                 continue
             # Miles-long "strips" are road, rail or utility corridors; a
             # neighbour that is mostly public ROW is the road itself.
-            if m["est_length_ft"] > a.strip_max_length_ft or is_row_like(int(c)):
+            if m["est_length_ft"] > a.strip_max_length_ft or is_row_like(int(c)) or improved[c]:
                 continue
-            # A strip merely touching the subject at a corner is someone else's
-            # problem: it must block the subject's probes, or run along a
-            # substantial share of the subject's boundary.
+            # The spec's test is "sitting between the subject parcel and the
+            # road": the strip must lie behind a real stretch of the subject's
+            # frontage probes. A narrow neighbour that merely runs along a
+            # side line, or touches at a corner, is someone else's problem.
+            blocked_ft = m_to_ft(crossed.get(accts[c], 0.0))
+            if blocked_ft < STRIP_MIN_BLOCKED_SAMPLES * a.frontage_sample_ft:
+                continue
             shared = pg.boundary.intersection(cg.buffer(ft_to_m(a.contact_tolerance_ft))).length
-            blocked_ft = m_to_ft(bl.get(accts[c], 0.0))
-            if blocked_ft <= 0 and m_to_ft(shared) < STRIP_MIN_SHARED_FRACTION * m["est_length_ft"]:
-                continue
             same = owners_match(owners[i], owners[c], addrs[i], addrs[c], deed_a=deeds[i], deed_b=deeds[c])
             rec = {"account_id": acct, "strip_account_id": accts[c], "strip_owner": owners[c], "same_owner": bool(same),
                    "frontage_ft_blocked": round(blocked_ft, 1), "shared_boundary_ft": round(m_to_ft(shared), 1), **m}
