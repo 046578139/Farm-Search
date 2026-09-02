@@ -130,7 +130,16 @@ def attribute_owners(gdf: gpd.GeoDataFrame) -> gpd.GeoDataFrame:
         n2 = name2.astype("string").fillna("").str.strip()
         full = (full + np.where(n2 != "", " & " + n2, "")).astype("string")
     gdf["owner_name"] = full.str.strip()
-    gdf["owner_mailing_address"] = gdf.apply(lambda r: join_address(r, ADDRESS_FIELDS), axis=1)
+    # Vectorized join of the address pieces (join_address row-by-row is slow on 200k rows)
+    addr = None
+    for f in ADDRESS_FIELDS:
+        if f not in gdf.columns:
+            continue
+        col = gdf[f].astype("string").fillna("").str.strip()
+        col = col.where(col.str.lower() != "nan", "")
+        addr = col if addr is None else (addr + " " + col)
+    gdf["owner_mailing_address"] = (addr.str.replace(r"\s+", " ", regex=True).str.strip() if addr is not None
+                                    else pd.Series("", index=gdf.index, dtype="string")).astype(str)
     gdf["owner_type"] = gdf["owner_name"].map(classify_owner)
     gdf["owner_key"] = [owner_key(n, a) for n, a in zip(gdf["owner_name"], gdf["owner_mailing_address"])]
     gdf["owner_name_available"] = gdf["owner_name"].astype(str).str.strip().ne("")
@@ -181,9 +190,28 @@ def attribute_county(gdf: gpd.GeoDataFrame, cfg: Config) -> gpd.GeoDataFrame:
 
 
 def attribute_study_area(gdf: gpd.GeoDataFrame, study_geom: BaseGeometry, mode: str) -> gpd.GeoDataFrame:
+    """Share of each parcel inside the study polygon.
+
+    The study polygon is a detailed county boundary (tens of thousands of
+    vertices); intersecting every parcel with it is the slowest step of
+    Stage 1 by far. Parcels entirely inside (the vast majority) or entirely
+    outside need no intersection at all, so only boundary-straddling parcels
+    are intersected."""
     gdf = gdf.copy()
-    inter = gdf.geometry.intersection(study_geom).area
-    gdf["in_study_area_pct"] = (100 * inter / gdf.geometry.area).round(1)
+    area = gdf.geometry.area
+    inter = pd.Series(0.0, index=gdf.index)
+    n = len(gdf)
+    if n:
+        tree = gdf.sindex
+        inside = np.zeros(n, dtype=bool)
+        inside[tree.query(study_geom, predicate="contains")] = True
+        touching = np.zeros(n, dtype=bool)
+        touching[tree.query(study_geom, predicate="intersects")] = True
+        straddle = touching & ~inside
+        inter[inside] = area[inside]
+        if straddle.any():
+            inter[straddle] = gdf.geometry[straddle].intersection(study_geom).area
+    gdf["in_study_area_pct"] = (100 * inter / area).round(1)
     if mode == "intersects":
         gdf["in_study_area"] = inter > 0
     elif mode == "centroid":

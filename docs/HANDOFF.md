@@ -126,6 +126,28 @@ these servers apply the spatial filter to) and equal the cached feature counts.
 | DEM | `mdgeodata.md.gov/lidar/rest/services/Statewide/MD_statewide_dem_m/ImageServer` | exportImage OK | per-county folders also exist |
 | County boundaries | `.../Boundaries/MD_PhysicalBoundaries/MapServer/0` | 24 counties | |
 
+## Stage 1 on the real data (2026-09-02)
+
+`farmsearch run --stages 1` on the initial study area, 71 s:
+
+| county | parcels in study area | ≥ 40 ac | ag-zoned | zoning unknown | Stage 1 pass | median ac | acres passing |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| Frederick (whole) | 105,822 | 2,078 | 1,880 | 0 | 1,880 | 88 | 205,525 |
+| Carroll (Mount Airy corner) | 11,143 | 218 | 203 | 2 | 205 | 77 | 21,552 |
+| Washington (SE) | 6,906 | 309 | 308 | 0 | 308 | 102 | 39,722 |
+| total | 123,871 | 2,605 | 2,391 | 2 | 2,393 | | 266,800 |
+
+Sanity: hundreds to low thousands per county, as the spec expects. 1,879
+distinct owner keys (mailing address) among the 2,393. The two "zoning
+unknown" parcels are inside the Town of Mount Airy (municipal zoning; no
+county polygon) and are retained with `zoning_unknown_retained`.
+`owner_name_available_pct` is 0 (see item 2 above).
+
+Performance note: intersecting every parcel with the detailed county
+boundary took >15 minutes; `attribute_study_area` now intersects only
+parcels that straddle the boundary (interior parcels are found with the
+spatial index), which is the difference between 15 minutes and 71 seconds.
+
 ## Caveats to keep in mind
 
 - **Limited-access highways.** The SHA ROW polygons and county centerline
@@ -150,7 +172,7 @@ these servers apply the spatial filter to) and equal the cached feature counts.
 ## Suggested next steps
 
 1. Re-run `farmsearch run --stages 1-4` after any config change and compare
-   `outputs/summary.md` with the counts recorded in the section below.
+   `outputs/summary.md` with the counts recorded above.
 2. Wire the HPMS access-control layer into Stage 4 (frontage on
    controlled-access ROW ≠ access).
 3. Continue the spec's build order: MPRP + future encroachment (Stages 7–8;
