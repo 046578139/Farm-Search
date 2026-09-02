@@ -164,12 +164,15 @@ def _offset_points(parcel: BaseGeometry, mid: Point, tangent: tuple[float, float
 def analyze_frontage(subject_idx: int, subject: BaseGeometry, subject_owner: Optional[str], subject_addr: Optional[str],
                      parcels: gpd.GeoDataFrame, rows: gpd.GeoDataFrame, hostile: dict[str, BaseGeometry],
                      search_ft: float, sample_ft: float, contact_tol_ft: float, open_gap_ft: float,
-                     subject_deed: Optional[str] = None) -> FrontageResult:
+                     subject_deed: Optional[str] = None, row_like=None) -> FrontageResult:
     """Classify the road-facing boundary of one parcel.
 
     parcels: all parcels (account_id, owner_name, owner_mailing_address, geometry) with a spatial index
     rows:    public ROW polygons (authority, geometry) with a spatial index
     hostile: constraint name -> geometry of subtracted constraints within this parcel
+    row_like: optional callable(index) -> True when that neighbouring polygon is
+             itself public road (a road held as an assessment account, a
+             tax-map ROW sliver): a probe that hits it has reached the road.
     """
     search_m, sample_m = ft_to_m(search_ft), ft_to_m(sample_ft)
     contact_m, open_gap_m = ft_to_m(contact_tol_ft), ft_to_m(open_gap_ft)
@@ -236,6 +239,11 @@ def analyze_frontage(subject_idx: int, subject: BaseGeometry, subject_owner: Opt
                     dd = out_pt.distance(x)
                     if best_d is None or dd < best_d:
                         best_d, hit_idx = dd, c
+            if hit_idx is not None and row_like is not None and row_like(int(hit_idx)):
+                # The "neighbour" is the road itself (an account-held road
+                # right-of-way); the parcel touches the road here.
+                sub.outside = "row"
+                hit_idx = None
             if hit_idx is not None:
                 rowc = parcels.iloc[hit_idx]
                 sub.blocking_index = hit_idx

@@ -568,6 +568,8 @@ access:
   frontage_blocked_threshold: 0.95  # foreign-parcel share above this -> flag
   strip_max_width_ft: 100           # reserve-strip detector: estimated width
   strip_min_aspect: 6               # reserve-strip detector: length / width
+  strip_max_length_ft: 5000         # longer = road / rail / utility corridor held as an account, not a reserve strip
+  row_parcel_overlap: 0.5           # a neighbour with >= this share of its area inside public ROW is the road itself
   sliver_acres: 0.25                # usable fragments below this are noise, not islands
 
 # --- Reference layers (located and verified; not consumed by Stages 1-4 yet) --

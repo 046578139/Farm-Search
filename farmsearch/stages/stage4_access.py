@@ -120,6 +120,25 @@ def run_stage4(cfg: Config, parcels_all: gpd.GeoDataFrame, target_mask: pd.Serie
     P["access_flags"] = [[] for _ in range(len(P))]
 
     front_rows, entry_rows, strip_rows, island_rows = [], [], [], []
+    # Neighbours that ARE road: a polygon whose area is mostly inside the
+    # public ROW (roads held as assessment accounts, unbuffered tax-map
+    # slivers). They are road contact for the frontage probe and never
+    # reserve strips. Computed lazily; most parcels are never probed.
+    _row_like_cache: dict[int, bool] = {}
+
+    def is_row_like(idx: int) -> bool:
+        if idx in _row_like_cache:
+            return _row_like_cache[idx]
+        val = False
+        if not public_rows.empty:
+            g = P.geometry.values[idx]
+            hits = public_rows.sindex.query(g, predicate="intersects")
+            if len(hits) and g.area > 0:
+                inter = g.intersection(unary_union(list(public_rows.geometry.values[hits]))).area
+                val = inter / g.area >= a.row_parcel_overlap
+        _row_like_cache[idx] = val
+        return val
+
     owners = P["owner_name"].values
     addrs = P["owner_mailing_address"].values if "owner_mailing_address" in P.columns else np.array([None] * len(P))
     deeds = P["deed_ref"].values if "deed_ref" in P.columns else np.array([None] * len(P))
@@ -136,7 +155,7 @@ def run_stage4(cfg: Config, parcels_all: gpd.GeoDataFrame, target_mask: pd.Serie
         fr = analyze_frontage(int(i), pg, owners[i], addrs[i], P, public_rows, hostile,
                               search_ft=a.frontage_search_ft, sample_ft=a.frontage_sample_ft,
                               contact_tol_ft=a.contact_tolerance_ft, open_gap_ft=a.open_gap_ft,
-                              subject_deed=deeds[i])
+                              subject_deed=deeds[i], row_like=is_row_like)
         L = fr.length_by_class()
         facing = fr.road_facing_m
         direct = L["open"] + L["encumbered"]
@@ -198,6 +217,10 @@ def run_stage4(cfg: Config, parcels_all: gpd.GeoDataFrame, target_mask: pd.Serie
             cg = P.geometry.values[c]
             m = strip_metrics(cg)
             if not is_strip(m, a.strip_max_width_ft, a.strip_min_aspect):
+                continue
+            # Miles-long "strips" are road, rail or utility corridors; a
+            # neighbour that is mostly public ROW is the road itself.
+            if m["est_length_ft"] > a.strip_max_length_ft or is_row_like(int(c)):
                 continue
             # A strip merely touching the subject at a corner is someone else's
             # problem: it must block the subject's probes, or run along a

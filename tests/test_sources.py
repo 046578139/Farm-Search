@@ -734,3 +734,29 @@ def test_dotted_column_names_survive_gpkg_and_backticked_where(tmp_path):
     src = LayerSource("wetlands", path=tmp_path / "nwi.gpkg", where="`Wetlands.WETLAND_TYPE` != 'Riverine'")
     out = read_layer(src, "EPSG:26985")
     assert len(out) == 2 and "Wetlands.WETLAND_TYPE" in out.columns and "Riverine" not in set(out["Wetlands.WETLAND_TYPE"])
+
+
+def test_road_held_as_an_account_is_road_contact_not_a_foreign_blocker():
+    """A 50 ft road parcel (its own account) lying inside the ROW polygon
+    sits between the farm and the centerline buffer. It is road, not a
+    foreign parcel, and never a reserve strip."""
+    from farmsearch.geometry.frontage import analyze_frontage
+    farm = box(0, 60, 400, 460)                              # 400 m square, south edge at y=60
+    road_acct = box(-50, 45, 450, 60)                        # 15 m wide road account touching the farm's south edge
+    row_poly = box(-100, 40, 500, 60)                        # public ROW polygon (buffered centerline), 20 m wide
+    parcels = gpd.GeoDataFrame({"account_id": ["FARM", "ROADACCT"], "owner_name": ["", ""],
+                                "owner_mailing_address": ["1 FARM RD", ""], "deed_ref": [None, None]},
+                               geometry=[farm, road_acct], crs="EPSG:26985")
+    rows = gpd.GeoDataFrame({"authority": ["county"]}, geometry=[row_poly], crs="EPSG:26985")
+    kw = dict(search_ft=250, sample_ft=15, contact_tol_ft=3, open_gap_ft=25)
+    plain = analyze_frontage(0, farm, "", "1 FARM RD", parcels, rows, {}, **kw)
+    smart = analyze_frontage(0, farm, "", "1 FARM RD", parcels, rows, {}, row_like=lambda i: i == 1, **kw)
+    # The road account fully overlaps the ROW: with row_like it is road contact
+    assert smart.length_by_class()["foreign_parcel"] == 0 and smart.length_by_class()["open"] > 300
+    assert plain.length_by_class()["foreign_parcel"] > 300 or plain.length_by_class()["open"] > 300
+
+
+def test_strip_max_length_and_row_parcel_overlap_are_configured(tmp_path):
+    cfg = _cfg(tmp_path, access={"row_layers": [], "strip_max_length_ft": 4000, "row_parcel_overlap": 0.6})
+    assert cfg.access.strip_max_length_ft == 4000 and cfg.access.row_parcel_overlap == 0.6
+    assert _cfg(tmp_path).access.strip_max_length_ft == 5000
