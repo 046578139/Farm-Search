@@ -6,7 +6,9 @@ previous one stopped without the old conversation. Read `README.md` first.
 ## State of the branch `claude/geodata-md-gov-access-zvtlkc`
 
 - Stages 1–4 of `docs/farm_parcel_screening_spec.md` are implemented and
-  validated against the synthetic fixture (41 pytest tests, `python -m pytest`).
+  validated against the synthetic fixture (74 pytest tests, `python -m pytest`),
+  and Stages 1–4 have been run end to end on the real three-county data
+  (results below).
 - **Every data source for Stages 1–4 has been located and verified live**
   (layer JSON read, field list checked, feature count over the study area
   confirmed) and is wired into `config/pipeline.yaml`. The verification
@@ -262,12 +264,22 @@ spatial index), which is the difference between 15 minutes and 71 seconds.
 
 ## Caveats to keep in mind
 
-- **Limited-access highways.** The SHA ROW polygons and county centerline
-  layers give frontage on interstates; frontage there is not access. County
-  centerline filters drop INTERSTATE/RAMP/A1, but the SHA polygon layer has
-  no attribute to filter on. The HPMS "Roadway Access Control" layer
-  (`reference_layers.roadway_access_control`) is the fix: subtract
-  controlled-access ROW in Stage 4.
+- **Limited-access highways.** Frontage on an interstate is not access.
+  County centerline filters drop INTERSTATE/RAMP/A1, and the SHA ROW
+  polygon layer (which has no access attribute of its own) is erased with
+  the HPMS "Roadway Access Control" centerlines where `ACCESS_CONTROL == '1'`
+  (full control), buffered 200 ft (`row_layers.sha_row_polygons.erase`).
+  Partial-control corridors (code 2) are kept: a driveway there needs an
+  SHA entrance permit, which the `state` authority flag already implies.
+- **Roads carried as assessment accounts.** Many road, alley and rail
+  corridors have a real ACCTID (owner: the county, MDOT, CSX), so they
+  survive the placeholder filter and sit next to farms as "neighbours".
+  Stage 4 treats a neighbour whose polygon is mostly public ROW
+  (`row_parcel_overlap`, 0.5) as the road itself: a probe that hits it is
+  road contact, and it is never a reserve-strip candidate. Strip candidates
+  longer than `strip_max_length_ft` (5,000 ft) are skipped for the same
+  reason. Before this fix the pre-verification run reported 718 "reserve
+  strips", nearly all of them road and rail corridors.
 - **Overlapping FCA sources.** The state compilation and the three county
   layers overlap. Stage 2 reports each as its own row (`source_layer`) and
   unions by implication before summing acres; Stage 3 unions all hostile
