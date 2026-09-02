@@ -256,8 +256,10 @@ def fetch_layer_to_cache(source: LayerSource, bbox_4326: tuple[float, float, flo
         log.warning("%s: cached without %d unservable features (ids %s...)", source.name, len(missing), missing[:5])
     if source.where:
         cols = {c for c in gdf.columns if c != gdf.geometry.name}
-        referenced = set(re.findall(r"[A-Za-z_][A-Za-z0-9_]*", source.where)) - {"in", "not", "and", "or", "isnull", "notnull", "True", "False", "None"}
-        unknown = sorted(r for r in referenced if r not in cols and r[0].isupper())
+        quoted = set(re.findall(r"`([^`]+)`", source.where))
+        bare = set(re.findall(r"[A-Za-z_][A-Za-z0-9_]*", re.sub(r"`[^`]+`", " ", source.where)))
+        referenced = (quoted | bare) - {"in", "not", "and", "or", "isnull", "notnull", "isna", "notna", "True", "False", "None"}
+        unknown = sorted(r for r in referenced if r not in cols and (r in quoted or r[0].isupper()))
         if unknown:
             log.warning("%s: `where` references columns not in the layer: %s (layer columns: %s)",
                         source.name, unknown, sorted(cols)[:30])

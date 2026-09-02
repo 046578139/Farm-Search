@@ -722,3 +722,15 @@ def test_dem_min_valid_masks_artefacts(monkeypatch):
     parcel = box(1000, 1000, 1200, 1200)
     assert steep_polygons_from_imageserver(dem, parcel, "EPSG:26985", 15, resample_m=5.0, margin_m=30) is not None
     assert steep_polygons_from_imageserver(dem, parcel, "EPSG:26985", 15, resample_m=5.0, margin_m=30, min_valid=30) is None
+
+
+def test_dotted_column_names_survive_gpkg_and_backticked_where(tmp_path):
+    """USFWS NWI fields are joined-table names like Wetlands.WETLAND_TYPE."""
+    from farmsearch.config import LayerSource
+    from farmsearch.io.loaders import read_layer
+    g = gpd.GeoDataFrame({"Wetlands.WETLAND_TYPE": ["Riverine", "Freshwater Pond", "Lake"]},
+                         geometry=[box(-77.5 + i * 0.01, 39.4, -77.49 + i * 0.01, 39.41) for i in range(3)], crs="EPSG:4326")
+    g.to_file(str(tmp_path / "nwi.gpkg"), driver="GPKG")
+    src = LayerSource("wetlands", path=tmp_path / "nwi.gpkg", where="`Wetlands.WETLAND_TYPE` != 'Riverine'")
+    out = read_layer(src, "EPSG:26985")
+    assert len(out) == 2 and "Wetlands.WETLAND_TYPE" in out.columns and "Riverine" not in set(out["Wetlands.WETLAND_TYPE"])
