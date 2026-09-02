@@ -19,10 +19,14 @@
 #     the per-parcel SDAT page for the shortlist. If you obtain a licensed
 #     MdProperty View / FINDER Quantum extract with names, list its field
 #     under owner_name and everything upgrades automatically.
-#   * Rows whose ACCTID is null or the literal 'ROW' are tax-map road
-#     right-of-way slivers and unlinked polygons, not accounts (FRED ~18k,
-#     CARR ~6k, WASH ~1k). They are split off by `farmsearch fetch-parcels`
-#     and excluded by Stage 1 (parcels.non_parcel_account_ids).
+#   * Placeholder ACCTIDs: 'ROW' / 'ROW_ALLEY' (road right-of-way; FRED ~18k,
+#     CARR ~6k, WASH ~1k; split off by `farmsearch fetch-parcels` into the
+#     parcels_row layer) and WATER, WATER_CANAL, WATER_IS, RAILROAD, RR, UNK,
+#     UNKNOWN, 'NO ID', GCE, LCE, COMMON, OS, SWM, PARK, 'PRIVATE ROW', null.
+#     None is an account; Stage 1 excludes them all (farmsearch.accounts).
+#   * Exemption class (EXCLASS / DESCEXCL) is the only owner-type signal
+#     when names are absent: 'STA/PUB/MUN/JUR ...' -> government,
+#     'NPF ...' / 'PVT Church...' -> religious_nonprofit.
 
 required:
   account_id: [ACCTID, ACCT_ID, ACCOUNT_ID]

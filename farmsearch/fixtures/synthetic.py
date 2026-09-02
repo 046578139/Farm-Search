@@ -164,7 +164,8 @@ def build_fixture(out: Path) -> Path:
     cfg = {
         "acreage_min": 40, "acreage_max": None, "slope_max_pct": 15,
         "study_area": "study_area.geojson", "study_area_selection": "intersects", "working_crs": CRS,
-        "parcels": {"path": "raw/parcels", "schema": "schema/parcels.yaml", "acreage_source": "sdat", "acreage_disagreement_pct": 10},
+        "parcels": {"path": "raw/parcels", "schema": "schema/parcels.yaml", "acreage_source": "sdat", "acreage_disagreement_pct": 10,
+                    "account_id_regex": None},   # synthetic ids like FRED-A are not SDAT-shaped
         "counties": {"FRED": "Frederick", "CARR": "Carroll", "WASH": "Washington"},
         "zoning": [
             {"county": "Frederick", "path": "raw/zoning/frederick.gpkg", "code_field": "ZONING", "mapping": "zoning/frederick.yaml"},

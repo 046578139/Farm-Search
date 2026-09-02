@@ -88,11 +88,19 @@ service tree (same paths) and is what the config uses.
    **Owner names are not public.** The parcel layer, the Parcel Points layer
    and the SDAT open-data extract all publish the owner's mailing address but
    not the owner's name. `owner_name` is therefore optional: without it
-   `owner_type` is `unknown`, `owner_key` and the Stage 4 same-owner tests use
-   the normalized mailing address (plus the deed liber/folio, `deed_ref`),
-   and every parcel carries the flag `owner_name_unavailable_lookup_sdat`
-   with its SDAT page URL (`sdat_url`) for the shortlist. A licensed extract
-   with `OWNNAME1` upgrades everything automatically.
+   `owner_type` comes from SDAT's exemption class where there is one
+   (state / county / municipal / federal → `government`, nonprofit or church
+   → `religious_nonprofit`; `owner_type_basis` says so) and is `unknown`
+   otherwise; `owner_key` and the Stage 4 same-owner tests use the
+   normalized mailing address (plus the deed liber/folio, `deed_ref`); and
+   every parcel carries the flag `owner_name_unavailable_lookup_sdat` with
+   its SDAT page URL (`sdat_url`) for the shortlist. A licensed extract with
+   `OWNNAME1` upgrades everything automatically.
+
+   **Placeholder account IDs** (`ROW`, `WATER`, `RAILROAD`, `UNK`, condominium
+   common elements, …) are not parcels: `parcels.account_id_regex` keeps
+   only SDAT-shaped IDs, and `row_account_ids` route the road right-of-way
+   rows to a ROW layer.
 4. **Zoning.** Each county's own GIS layer is configured (Frederick County
    GIS `TYPE`, Carroll County `Zoning`, Washington County `Zone`). The code
    lists in `config/zoning/<county>.yaml` were generated from the live layers:

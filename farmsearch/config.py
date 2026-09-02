@@ -53,11 +53,15 @@ class ParcelsConfig:
     schema_path: Path
     acreage_source: str = "sdat"
     acreage_disagreement_pct: float = 10.0
-    # Account IDs that mark non-parcel polygons in the source (the MD parcel
-    # layer uses the literal 'ROW' for tax-map road right-of-way slivers).
-    # Rows with these IDs, or with a null ID, are not accounts and are
-    # excluded from the parcel set (counted in the Stage 1 summary).
-    non_parcel_account_ids: list[str] = field(default_factory=lambda: ["ROW"])
+    # Placeholder IDs that mark ROAD RIGHT-OF-WAY polygons in the source (the
+    # MD parcel layer uses 'ROW' / 'ROW_ALLEY'); `fetch-parcels` splits them
+    # into the parcels_row layer.
+    row_account_ids: list[str] = field(default_factory=lambda: ["ROW", "ROW_ALLEY"])
+    # Further placeholder IDs to exclude from the parcel set in Stage 1, on
+    # top of account_id_regex (farmsearch.accounts): anything that does not
+    # match the pattern is not an account. null disables the pattern.
+    non_parcel_account_ids: list[str] = field(default_factory=list)
+    account_id_regex: Optional[str] = r"^(?=.*\d)[0-9A-Za-z]{8,}$"
     # Optional ArcGIS REST layer the parcels can be pulled from with
     # `farmsearch fetch-parcels` (paginated per county into `path`).
     url: Optional[str] = None
@@ -231,7 +235,9 @@ class Config:
                 schema_path=_opt_path(base, p.get("schema", "schema/parcels.yaml")),
                 acreage_source=p.get("acreage_source", "sdat"),
                 acreage_disagreement_pct=float(p.get("acreage_disagreement_pct", 10)),
-                non_parcel_account_ids=[str(x) for x in (p.get("non_parcel_account_ids") or ["ROW"])],
+                row_account_ids=[str(x) for x in (p.get("row_account_ids") or ["ROW", "ROW_ALLEY"])],
+                non_parcel_account_ids=[str(x) for x in (p.get("non_parcel_account_ids") or [])],
+                account_id_regex=(p["account_id_regex"] if "account_id_regex" in p else r"^(?=.*\d)[0-9A-Za-z]{8,}$"),
                 url=p.get("url"),
             )
             if parcels.acreage_source not in ("sdat", "geometry"):

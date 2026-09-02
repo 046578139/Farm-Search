@@ -46,12 +46,23 @@ previous one stopped without the old conversation. Read `README.md` first.
    signal, and every parcel gets `owner_name_unavailable_lookup_sdat` plus
    `sdat_url`. A licensed MdProperty View extract with `OWNNAME1` restores
    the original behaviour with no code change.
-3. **Non-parcel rows.** ~18k Frederick, ~6k Carroll and ~1k Washington rows
-   have `ACCTID` null or the literal `ROW`: tax-map road right-of-way
-   slivers and unlinked polygons. `farmsearch fetch-parcels` splits them into
-   `data/raw/parcels_row/` (used as a ROW layer in Stage 4) and Stage 1
-   excludes them (`parcels.non_parcel_account_ids`); they must never become
-   "neighbouring parcels".
+3. **Placeholder account IDs.** Besides `ROW` (~18k Frederick, ~6k Carroll,
+   ~1k Washington road right-of-way slivers, split by `farmsearch
+   fetch-parcels` into `data/raw/parcels_row/` and reused as a ROW layer),
+   the layer carries `WATER`, `WATER_CANAL`, `WATER_IS`, `RAILROAD`, `RR`,
+   `UNK`, `UNKNOWN`, `NO ID`, `GCE`/`LCE` (condominium common elements),
+   `COMMON`, `OS`, `SWM`, `PARK`, `PRIVATE ROW`, `ROW_ALLEY` and nulls.
+   Dissolved by ID these became a 2,642-acre "WATER" parcel in Washington
+   and an 1,801-acre "UNK" parcel in Carroll that passed Stage 1. A real
+   SDAT account ID is 8+ alphanumerics with a digit (`1101000098`,
+   `1102502WH`); `parcels.account_id_regex` (see `farmsearch/accounts.py`)
+   now excludes everything else, and the fixture sets it to null.
+3b. **Owner type without names.** SDAT's exemption class (`DESCEXCL`, e.g.
+   `STA Parks`, `JUR Schools`, `MUN Public Works Properties`, `NPF Other`,
+   `PVT Churches, Synagogues, & Parsonages`) identifies government and
+   nonprofit/church holders. `owner_type` is filled from it when no name is
+   available (`owner_type_basis` = `exemption_class`); private taxable land
+   stays `unknown`.
 4. **How these ArcGIS servers actually page (all learned the hard way).**
    - GeoJSON output (`f=geojson`) was 24 s/page on the parcel layer and
      unparseable on the county-boundary MapServer; ESRI JSON (`f=json`) is
@@ -73,8 +84,11 @@ previous one stopped without the old conversation. Read `README.md` first.
    - Pages come back short **without** `exceededTransferLimit`; the pager
      stops only on an empty page.
    - The FEMA floodplain MapServer (and FEMA's own NFHL service) return
-     `error 500` for any page-style query with geometry over this area, but
-     serve `objectIds` chunks of ~50 fine (`page_size: 50` in the config).
+     `error 500` for any page-style query with geometry over this area, and
+     for some `objectIds` chunks of 50 too. The ID fetch splits a failing
+     chunk in halves down to single features (then tries a generalized
+     geometry, then records the id as unservable). All 2,821 floodplain
+     polygons in the study area came through this way, none generalized.
    - When every retry fails the fetch **raises** and `farmsearch fetch`
      reports `FAILED <layer>`; the run then lists it under `missing_layers`.
 5. **Zoning layers publish codes, not always names.** Frederick's `TYPE`

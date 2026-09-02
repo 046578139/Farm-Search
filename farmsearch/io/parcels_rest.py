@@ -8,11 +8,11 @@ a few minutes of paging rather than a bulk-license download, and the field
 schema is exactly the one `farmsearch verify-schema` checks against.
 
 Two outputs per county:
-  <parcels_dir>/parcels_<CODE>.gpkg       rows with a real account ID
-  <row_dir>/parcel_row_<CODE>.gpkg        rows whose account ID is null or one
-                                          of parcels.non_parcel_account_ids
-                                          ('ROW'): tax-map road right-of-way
-                                          slivers, usable as a ROW layer
+  <parcels_dir>/parcels_<CODE>.gpkg       every row except road right-of-way
+  <row_dir>/parcel_row_<CODE>.gpkg        rows whose account ID is one of
+                                          parcels.row_account_ids ('ROW',
+                                          'ROW_ALLEY'): tax-map road right-of-
+                                          way slivers, usable as a ROW layer
 Pages are parsed with GDAL's ESRIJSON driver (via pyogrio) from a temp file.
 """
 from __future__ import annotations
@@ -58,10 +58,13 @@ def wanted_fields(cfg: Config, live_fields: Iterable[str], extra: Iterable[str] 
     return out
 
 
-def _split_non_parcel(gdf: gpd.GeoDataFrame, account_field: str, non_parcel_ids: Iterable[str]):
+def _split_row(gdf: gpd.GeoDataFrame, account_field: str, row_ids: Iterable[str]):
+    """Separate road right-of-way placeholder rows (parcels_row layer) from
+    everything else. Other placeholders (WATER, RAILROAD, UNK, ...) stay in
+    the parcel file and are excluded by Stage 1's non_account_mask."""
     acct = gdf[account_field]
-    bad = acct.isna() | acct.astype(str).str.strip().str.upper().isin({"", "NONE", "NAN", "NULL"} | {str(x).upper() for x in non_parcel_ids})
-    return gdf[~bad].reset_index(drop=True), gdf[bad].reset_index(drop=True)
+    is_row = acct.astype("string").fillna("").str.strip().str.upper().isin({str(x).upper() for x in row_ids})
+    return gdf[~is_row].reset_index(drop=True), gdf[is_row].reset_index(drop=True)
 
 
 def fetch_county_pages(layer: ArcGISLayer, where: str, out_fields: list[str], out_epsg: int,
@@ -117,12 +120,12 @@ def fetch_parcels(cfg: Config, county_codes: Optional[Iterable[str]] = None, par
             summary["counties"][code] = {"features": 0}
             continue
         gdf = gpd.GeoDataFrame(pd.concat(pages, ignore_index=True), geometry=pages[0].geometry.name, crs=pages[0].crs)
-        keep, row = _split_non_parcel(gdf, account_field, cfg.parcels.non_parcel_account_ids)
+        keep, row = _split_row(gdf, account_field, cfg.parcels.row_account_ids)
         keep.to_file(str(out), driver="GPKG")
         if len(row):
             row.to_file(str(out_row), driver="GPKG")
         dups = int(keep[account_field].duplicated().sum())
-        summary["counties"][code] = {"features": int(len(gdf)), "parcels": int(len(keep)), "non_parcel_polygons": int(len(row)),
+        summary["counties"][code] = {"features": int(len(gdf)), "parcels": int(len(keep)), "row_polygons": int(len(row)),
                                      "multi_polygon_account_rows": dups, "path": str(out),
                                      "row_path": str(out_row) if len(row) else None,
                                      "elapsed_s": round(time.time() - t0, 1)}

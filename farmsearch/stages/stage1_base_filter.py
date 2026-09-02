@@ -19,6 +19,7 @@ from shapely.geometry.base import BaseGeometry
 from ..config import Config, ConfigError
 from ..io.loaders import LayerNotAvailable, clean_geometries, read_layer
 from ..io.schema import SchemaError, apply_schema, verify_parcels_schema
+from ..accounts import non_account_mask, owner_type_from_exemption
 from ..owners import classify_owner, join_address, owner_key
 from ..units import ACRE_M2, m2_to_acres
 
@@ -48,15 +49,15 @@ def load_parcels(cfg: Config, study_geom: BaseGeometry, parcels_raw: Optional[gp
         idx = gdf.sindex.query(study_geom, predicate="intersects")
         gdf = gdf.iloc[sorted(idx)].reset_index(drop=True)
     gdf = apply_schema(gdf, res)
-    # Non-parcel polygons: null account IDs (unlinked polygons) and the IDs
-    # listed in parcels.non_parcel_account_ids (the MD layer's 'ROW' slivers).
-    # They are not accounts and must not become "neighbouring parcels".
-    acct = gdf["account_id"]
-    non_parcel = acct.isna() | acct.astype(str).str.strip().str.upper().isin(
-        {"", "NONE", "NAN", "NULL"} | {x.upper() for x in cfg.parcels.non_parcel_account_ids})
+    # Non-parcel polygons: null / placeholder account IDs ('ROW', 'WATER',
+    # 'RAILROAD', 'UNK', condominium common elements, ...). They are not
+    # accounts and must not become "parcels" or "neighbouring parcels".
+    non_parcel = non_account_mask(gdf["account_id"],
+                                  list(cfg.parcels.row_account_ids) + list(cfg.parcels.non_parcel_account_ids),
+                                  cfg.parcels.account_id_regex)
     if non_parcel.any():
-        log.info("excluding %d non-parcel polygons (null account or %s)", int(non_parcel.sum()),
-                 cfg.parcels.non_parcel_account_ids)
+        seen = gdf.loc[non_parcel, "account_id"].astype("string").fillna("<null>").value_counts().head(12).to_dict()
+        log.info("excluding %d non-parcel polygons (placeholder ids: %s)", int(non_parcel.sum()), seen)
     n_non_parcel = int(non_parcel.sum())
     gdf = gdf[~non_parcel].copy()
     gdf["account_id"] = gdf["account_id"].astype(str).str.strip()
@@ -141,6 +142,14 @@ def attribute_owners(gdf: gpd.GeoDataFrame) -> gpd.GeoDataFrame:
     gdf["owner_mailing_address"] = (addr.str.replace(r"\s+", " ", regex=True).str.strip() if addr is not None
                                     else pd.Series("", index=gdf.index, dtype="string")).astype(str)
     gdf["owner_type"] = gdf["owner_name"].map(classify_owner)
+    gdf["owner_type_basis"] = np.where(gdf["owner_type"] != "unknown", "name", "none")
+    # No name: SDAT's exemption class still says who holds exempt land
+    # (state / county / municipal / federal -> government, nonprofit, church).
+    if "exempt_class_desc" in gdf.columns:
+        from_ex = gdf["exempt_class_desc"].map(owner_type_from_exemption)
+        use = (gdf["owner_type"] == "unknown") & from_ex.notna()
+        gdf.loc[use, "owner_type"] = from_ex[use]
+        gdf.loc[use, "owner_type_basis"] = "exemption_class"
     gdf["owner_key"] = [owner_key(n, a) for n, a in zip(gdf["owner_name"], gdf["owner_mailing_address"])]
     gdf["owner_name_available"] = gdf["owner_name"].astype(str).str.strip().ne("")
     # Deed reference: parcels conveyed by the same instrument share an owner

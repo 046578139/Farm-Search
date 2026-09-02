@@ -90,7 +90,16 @@ parcels:
   # Field map. Every field named here is VERIFIED against the live schema
   # before Stage 1 runs; a mismatch aborts with the actual field list printed.
   schema: schema/parcels.yaml
-  non_parcel_account_ids: [ROW]
+  # Placeholder account IDs. row_account_ids become the parcels_row ROW layer.
+  # Anything not matching account_id_regex (8+ alphanumerics with a digit —
+  # so WATER, WATER_CANAL, RAILROAD, RR, UNK, UNKNOWN, 'NO ID', GCE/LCE,
+  # COMMON, OS, SWM, PARK, 'PRIVATE ROW' and nulls) is excluded by Stage 1;
+  # list extra IDs under non_parcel_account_ids if a county invents new ones
+  # that look like accounts. Set account_id_regex: null for data without IDs
+  # in this form.
+  row_account_ids: [ROW, ROW_ALLEY]
+  non_parcel_account_ids: []
+  account_id_regex: "^(?=.*\\d)[0-9A-Za-z]{8,}$"
   # Which acreage drives the Stage 1 filter:
   #   sdat     — assessment acreage field when present and > 0, else geometry
   #   geometry — always computed from the polygon

@@ -79,7 +79,10 @@ def run_stage2(cfg: Config, parcels: gpd.GeoDataFrame, layers: dict[str, gpd.Geo
         by_parcel: dict[int, list[int]] = {}
         for a, b in zip(pairs[0], pairs[1]):
             by_parcel.setdefault(int(a), []).append(int(b))
-        names_col = layer[spec.name_field].astype(str).values if spec.name_field and spec.name_field in layer.columns else None
+        # fillna first: pandas 3 keeps missing values as NaN through astype(str),
+        # and a NaN among strings breaks sorted()
+        names_col = (layer[spec.name_field].fillna("").astype(str).str.strip().values
+                     if spec.name_field and spec.name_field in layer.columns else None)
         for a, blist in by_parcel.items():
             pg = pgeoms[a]
             feat = unary_union(list(layer.geometry.values[blist]))
@@ -100,7 +103,7 @@ def run_stage2(cfg: Config, parcels: gpd.GeoDataFrame, layers: dict[str, gpd.Geo
                 "pct_of_parcel": round(100 * inter.area / pg.area, 1),
                 "position": describe_position(pos),
                 **pos,
-                "feature_names": ("; ".join(sorted({names_col[b] for b in blist})) if names_col is not None else None),
+                "feature_names": ("; ".join(sorted({names_col[b] for b in blist if names_col[b]})) if names_col is not None else None),
                 "feature_count": len(blist),
             })
 

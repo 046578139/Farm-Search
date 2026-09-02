@@ -78,23 +78,25 @@ def test_wanted_fields_are_live_spellings(tmp_path):
 def _parcels_raw():
     sq = lambda x, y, s=300: Polygon([(x, y), (x + s, y), (x + s, y + s), (x, y + s)])
     return gpd.GeoDataFrame({
-        "ACCTID": ["1101000001", "1101000002", "ROW", None, "1101000002"],
-        "JURSCODE": ["FRED"] * 5,
-        "OWNADD1": ["1 FARM RD", "PO BOX 9", None, None, "PO BOX 9"],
-        "OWNCITY": ["FREDERICK", "MOUNT AIRY", None, None, "MOUNT AIRY"],
-        "OWNSTATE": ["MD", "MD", None, None, "MD"],
-        "OWNERZIP": ["21701", "21771", None, None, "21771"],
-        "ACRES": [22.2, 44.5, None, None, 44.5],
-        "DR1LIBER": ["01234", "09876", None, None, "09876"],
-        "DR1FOLIO": ["0010", "0450", None, None, "0450"],
-    }, geometry=[sq(0, 0), sq(1000, 0), sq(0, 1000, 50), sq(2000, 2000, 10), sq(1400, 0)], crs="EPSG:26985")
+        "ACCTID": ["1101000001", "1101000002", "ROW", None, "1101000002", "WATER", "RAILROAD", "GCE", "1102502WH"],
+        "JURSCODE": ["FRED"] * 9,
+        "OWNADD1": ["1 FARM RD", "PO BOX 9", None, None, "PO BOX 9", None, None, None, "9 RAIL ST"],
+        "OWNCITY": ["FREDERICK", "MOUNT AIRY", None, None, "MOUNT AIRY", None, None, None, "BRUNSWICK"],
+        "OWNSTATE": ["MD", "MD", None, None, "MD", None, None, None, "MD"],
+        "OWNERZIP": ["21701", "21771", None, None, "21771", None, None, None, "21716"],
+        "ACRES": [22.2, 44.5, None, None, 44.5, 2600.0, 700.0, 1.0, 50.0],
+        "DR1LIBER": ["01234", "09876", None, None, "09876", None, None, None, None],
+        "DR1FOLIO": ["0010", "0450", None, None, "0450", None, None, None, None],
+        "DESCEXCL": [None, None, None, None, None, None, None, None, "STA Parks"],
+    }, geometry=[sq(0, 0), sq(1000, 0), sq(0, 1000, 50), sq(2000, 2000, 10), sq(1400, 0),
+                 sq(3000, 0, 400), sq(3000, 500, 400), sq(3000, 1000, 20), sq(4000, 0)], crs="EPSG:26985")
 
 
 def test_stage1_excludes_row_and_null_accounts_and_dissolves(tmp_path):
     cfg = _cfg(tmp_path)
     gdf = load_parcels(cfg, box(-10, -10, 5000, 5000), parcels_raw=_parcels_raw())
-    assert sorted(gdf["account_id"]) == ["1101000001", "1101000002"]
-    assert gdf.attrs["non_parcel_polygons_excluded"] == 2
+    assert sorted(gdf["account_id"]) == ["1101000001", "1101000002", "1102502WH"]   # letters are fine, digits required
+    assert gdf.attrs["non_parcel_polygons_excluded"] == 5                            # ROW, null, WATER, RAILROAD, GCE
     two = gdf.set_index("account_id").loc["1101000002"]
     assert two.geometry.geom_type == "MultiPolygon"          # two rows dissolved into one account
 
@@ -104,7 +106,8 @@ def test_stage1_without_owner_name_degrades_to_address(tmp_path):
     gdf = load_parcels(cfg, box(-10, -10, 5000, 5000), parcels_raw=_parcels_raw())
     assert "owner_name" not in gdf.columns or gdf["owner_name"].isna().all()
     out = attribute_owners(gdf).set_index("account_id")
-    assert set(out["owner_type"]) == {"unknown"}
+    assert out.loc["1101000002", "owner_type"] == "unknown" and out.loc["1101000002", "owner_type_basis"] == "none"
+    assert out.loc["1102502WH", "owner_type"] == "government" and out.loc["1102502WH", "owner_type_basis"] == "exemption_class"
     assert not out["owner_name_available"].any()
     assert out.loc["1101000002", "owner_key"] == "|POBOX 9 MOUNT AIRY MD 21771"
     assert out.loc["1101000002", "deed_ref"] == "9876/450"
@@ -408,3 +411,21 @@ def test_null_zoning_code_polygons_are_ignored(tmp_path):
     layer = gpd.GeoDataFrame({"TYPE": ["A", None]}, geometry=[box(0, 0, 100, 100), box(10, 10, 12, 12)], crs="EPSG:26985")
     out = assign_zoning(parcels, {"Frederick": layer}, cfg)
     assert out.loc[0, "zoning"] == "A" and out.loc[0, "is_agricultural"] is True and not out.loc[0, "zoning_unmapped"]
+
+
+def test_non_account_mask_and_exemption_typing():
+    from farmsearch.accounts import non_account_mask, owner_type_from_exemption
+    import pandas as pd
+    acct = pd.Series(["1101000098", "1102502WH", "ROW", "WATER_CANAL", "PRIVATE ROW", "RAILROAD", "UNK", None, "", "12345678", "1234567"])
+    m = non_account_mask(acct, ["ROW"])
+    assert list(m) == [False, False, True, True, True, True, True, True, True, False, True]
+    assert list(non_account_mask(pd.Series(["FRED-A", "ROW", None]), ["ROW"], regex=None)) == [False, True, True]
+    assert owner_type_from_exemption("STA Parks") == "government"
+    assert owner_type_from_exemption("JUR Schools (Public, including Junior College)") == "government"
+    assert owner_type_from_exemption("MUN Public Works Properties") == "government"
+    assert owner_type_from_exemption("PUB Military Installations") == "government"
+    assert owner_type_from_exemption("NPF Private Schools") == "religious_nonprofit"
+    assert owner_type_from_exemption("PVT Churches, Synagogues, & Parsonages") == "religious_nonprofit"
+    assert owner_type_from_exemption("PVT Other") is None
+    assert owner_type_from_exemption("OTH Conservation Tax Credit") is None
+    assert owner_type_from_exemption(None) is None and owner_type_from_exemption("nan") is None
