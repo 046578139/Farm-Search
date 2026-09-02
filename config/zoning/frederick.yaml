@@ -1,0 +1,15 @@
+# Frederick County zoning district codes -> is_agricultural.
+#
+# DO NOT type codes from memory. Generate this file from the live layer with:
+#     farmsearch zoning-domains --config config/pipeline.yaml --county Frederick
+# which writes every observed code (and coded-value domain description, when
+# the layer publishes one) with is_agricultural: null. Fill in true/false.
+# Stage 1 aborts (on_unmapped_zoning: error) if any code seen in the data is
+# missing or null here.
+code_field: null          # set from zoning-domains output
+codes: {}
+# Example of the filled-in form:
+# codes:
+#   A:   {description: "Agricultural", is_agricultural: true}
+#   RC:  {description: "Resource Conservation", is_agricultural: true}
+#   R1:  {description: "Residential", is_agricultural: false}

@@ -1,0 +1,257 @@
+# =============================================================================
+# Farmland Acquisition Screening Pipeline — configuration
+#
+# Everything tunable lives here. Stage logic never hardcodes a threshold,
+# a field name, or a zoning code.
+#
+# Paths are relative to the directory containing this file unless absolute.
+# Any layer may be given as `path:` (local file readable by GDAL: .gpkg,
+# .shp, .geojson, .gdb) or `url:` (ArcGIS REST FeatureServer/MapServer layer,
+# fetched with `farmsearch fetch` and cached under data/raw/).
+# =============================================================================
+
+# --- Configuration block (spec) ---------------------------------------------
+acreage_min: 40
+acreage_max: null            # TBD — set a practical ceiling (null = no ceiling)
+price_ceiling: null          # TBD — total, or per-acre band (Stage 9; unused in Stages 1-4)
+slope_max_pct: 15            # above this, treat as non-usable for the envelope
+safety_buffer_yards: 150     # statutory hunting minimum; raise for comfort (Stage 5)
+school_buffer_yards: 300     # statutory (Stage 5)
+min_dischargeable_acres: 10  # Stage 5
+min_envelope_length_yards: 200   # longest usable dimension for a shooting bay (Stage 5)
+mprp_exclusion_buffer_ft: 2000   # Stage 8
+commute_destinations:            # Stage 10 — reported column, NEVER a filter
+  - BWI
+  - Langley, VA
+  - Northern Virginia (TBD specific)
+
+# --- Study area ---------------------------------------------------------------
+# User-supplied polygon. Swap this one line for an expanded northern-Carroll run
+# (e.g. config/study_area_expanded_carroll.geojson).
+study_area: study_area.geojson
+# How a parcel qualifies as "in" the study area:
+#   intersects — any overlap (default; parcels are never geometrically cut,
+#                that would corrupt acreage)
+#   centroid   — parcel centroid inside the polygon
+#   within     — entire parcel inside the polygon
+study_area_selection: intersects
+
+# Working CRS for all geometry math. NAD83 / Maryland (meters).
+working_crs: "EPSG:26985"
+
+# --- Parcels and ownership (foundation layer) ---------------------------------
+parcels:
+  # Bulk MdProperty View / FINDER Quantum download (per-county shapefile or gdb).
+  # A directory is accepted: every readable layer inside is concatenated.
+  # DO NOT point this at the iMAP REST layer for a production run — MaxRecordCount
+  # is 1000 and you need three full counties. Read the dataset license first.
+  path: ../data/raw/parcels
+  layer: null                       # layer name inside a .gdb/.gpkg, if needed
+  # Field map. Every field named here is VERIFIED against the live schema
+  # before Stage 1 runs; a mismatch aborts with the actual field list printed.
+  schema: schema/parcels.yaml
+  # Which acreage drives the Stage 1 filter:
+  #   sdat     — assessment acreage field when present and > 0, else geometry
+  #   geometry — always computed from the polygon
+  # Both are always reported; a >10% disagreement raises a manual flag.
+  acreage_source: sdat
+  acreage_disagreement_pct: 10
+
+# --- Counties -----------------------------------------------------------------
+# Jurisdiction code (as it appears in the parcel data) -> county name.
+# Verified at runtime: any code seen in the data that is not listed here aborts.
+counties:
+  FRED: Frederick
+  CARR: Carroll
+  WASH: Washington
+
+# --- Zoning -------------------------------------------------------------------
+# One entry per county. `mapping:` is a YAML file listing EVERY district code
+# observed in that county's layer with an is_agricultural boolean. Generate the
+# template with `farmsearch zoning-domains` — never type codes from memory.
+# Parcels that are split-zoned take the district with the largest overlap;
+# zoning_ag_pct is reported alongside.
+zoning:
+  - county: Frederick
+    path: ../data/raw/zoning/frederick.gpkg
+    url: null                       # VERIFY: Frederick County GIS zoning layer
+    code_field: null                # VERIFY: set from `farmsearch zoning-domains`
+    mapping: zoning/frederick.yaml
+  - county: Carroll
+    path: ../data/raw/zoning/carroll.gpkg
+    url: null                       # VERIFY: Carroll County GIS zoning layer
+    code_field: null
+    mapping: zoning/carroll.yaml
+  - county: Washington
+    path: ../data/raw/zoning/washington.gpkg
+    url: null                       # VERIFY: Washington County zoning layer
+    code_field: null
+    mapping: zoning/washington.yaml
+# What to do when a parcel's zoning code is not in the mapping file:
+#   error — abort (default; forces the mapping to be complete)
+#   flag  — is_agricultural=null (unknown), parcel retained, manual flag `zoning_unmapped`
+on_unmapped_zoning: error
+
+# --- Constraint stack ---------------------------------------------------------
+# These are DIFFERENT legal instruments with OPPOSITE implications. Each is
+# tagged separately in Stage 2 and never collapsed into one "conservation" flag.
+#
+#   type                 free-text tag reported per encumbrance row
+#   category             legal | physical
+#   implication          favorable | hostile | varies | physical
+#   subtract_from_usable Stage 3 subtracts this from the parcel
+#   crossable_with_permit Stage 4: an island separated ONLY by this kind of
+#                        constraint is reported as reconnectable via an MDE
+#                        nontidal wetlands/waterways permit (routinely granted
+#                        for agricultural crossings)
+#   where                optional attribute filter (pandas query syntax)
+#   name_field           optional attribute copied into the encumbrance row
+constraints:
+  - name: malpf
+    type: ag_preservation_malpf
+    category: legal
+    implication: favorable          # restricts subdivision; NOT farming/vehicles
+    subtract_from_usable: false
+    crossable_with_permit: false
+    path: ../data/raw/constraints/malpf.gpkg
+    url: null                       # VERIFY: MDA MALPF easements (or filter MD_ProtectedLands)
+  - name: county_ag_preservation
+    type: ag_preservation_county
+    category: legal
+    implication: favorable
+    subtract_from_usable: false
+    crossable_with_permit: false
+    path: ../data/raw/constraints/county_ag_easements.gpkg
+    url: null                       # VERIFY: Carroll + Frederick county programs
+  - name: rural_legacy
+    type: rural_legacy
+    category: legal
+    implication: favorable
+    subtract_from_usable: false
+    crossable_with_permit: false
+    path: ../data/raw/constraints/rural_legacy.gpkg
+    url: null                       # VERIFY: DNR Rural Legacy
+  - name: met
+    type: met_easement
+    category: legal
+    implication: varies             # donated; read each instrument
+    subtract_from_usable: false
+    crossable_with_permit: false
+    manual_flag: met_easement_read_terms
+    path: ../data/raw/constraints/met.gpkg
+    url: null                       # VERIFY: Maryland Environmental Trust
+  - name: forest_conservation
+    type: forest_conservation       # HOSTILE: bars clearing, structures, crossing
+    category: legal
+    implication: hostile
+    subtract_from_usable: true
+    crossable_with_permit: false
+    path: ../data/raw/constraints/fca_easements.gpkg
+    url: null                       # VERIFY: county FCA layers (coverage varies — expect gaps)
+  - name: protected_lands
+    type: protected_lands
+    category: legal
+    implication: varies
+    subtract_from_usable: false
+    crossable_with_permit: false
+    path: ../data/raw/constraints/md_protected_lands.gpkg
+    url: "https://geodata.md.gov/imap/rest/services/Environment/MD_ProtectedLands/MapServer/0"
+  - name: wetlands
+    type: wetlands
+    category: physical
+    implication: physical
+    subtract_from_usable: true
+    crossable_with_permit: true
+    path: ../data/raw/constraints/nwi_wetlands.gpkg
+    url: null                       # VERIFY: USFWS National Wetlands Inventory
+  - name: floodplain
+    type: floodplain
+    category: physical
+    implication: physical
+    subtract_from_usable: true
+    crossable_with_permit: true
+    path: ../data/raw/constraints/fema_nfhl.gpkg
+    url: null                       # VERIFY: FEMA NFHL S_FLD_HAZ_AR
+    where: null                     # e.g. "FLD_ZONE in ['A','AE','AO','AH']"
+  # CREP riparian buffers: FSA enrollment is federally protected and not
+  # available parcel-by-parcel. Inferred here as a fixed-width strip along NHD
+  # flowlines; every parcel that receives one gets the manual flag
+  # `riparian_buffer_presumed_confirm_with_seller`.
+  - name: riparian_presumed
+    type: riparian_buffer
+    category: physical
+    implication: hostile
+    subtract_from_usable: true
+    crossable_with_permit: true
+    manual_flag: riparian_buffer_presumed_confirm_with_seller
+    derive_from_lines:
+      path: ../data/raw/hydro/nhd_flowlines.gpkg
+      url: null                     # VERIFY: NHD flowlines
+      buffer_ft: 100                # each side of the stream centerline
+
+# --- Slope (Stage 3) ----------------------------------------------------------
+slope:
+  # Either a DEM (statewide LiDAR; GeoTIFF / VRT / COG; /vsicurl/ URLs work)
+  # from which slope > slope_max_pct is derived per parcel, OR a precomputed
+  # polygon layer of steep areas. DEM must be in a projected CRS.
+  dem_path: ../data/raw/lidar/md_dem.vrt
+  dem_vertical_unit_to_m: 1.0       # 0.3048 if the DEM is in feet
+  dem_resample_m: 5                 # resample before slope; null = native
+  steep_polygons_path: null         # alternative to dem_path
+  crossable: false                  # Stage 4 crossings-permitted variant: treat steep ground as crossable?
+
+# --- Access (Stage 4) ---------------------------------------------------------
+access:
+  # Right-of-way layers. Polygons are used as-is; line layers (centerlines)
+  # are buffered by row_width_ft / 2 to approximate the ROW.
+  row_layers:
+    - name: sha_row_polygons
+      authority: state
+      public: true
+      geometry: polygon
+      path: ../data/raw/access/sha_row_polygons.gpkg
+      url: null                     # VERIFY: MDOT SHA Right-of-Way (Polygons), data.imap.maryland.gov
+    - name: sha_plat_boundary
+      authority: state
+      public: true
+      geometry: polygon
+      path: ../data/raw/access/sha_plat_boundary.gpkg
+      url: null                     # VERIFY: MDOT SHA Plat Boundary Polygon (reserve strips, access-control takings)
+    - name: county_roads_frederick
+      authority: county
+      public: true
+      geometry: line
+      row_width_ft: 50
+      path: ../data/raw/access/frederick_centerlines.gpkg
+      url: null                     # VERIFY
+      where: null                   # e.g. exclude private roads: "OWNERSHIP != 'PRIVATE'"
+    - name: county_roads_carroll
+      authority: county
+      public: true
+      geometry: line
+      row_width_ft: 50
+      path: ../data/raw/access/carroll_centerlines.gpkg
+      url: null
+    - name: county_roads_washington
+      authority: county
+      public: true
+      geometry: line
+      row_width_ft: 50
+      path: ../data/raw/access/washington_centerlines.gpkg
+      url: null
+  contact_tolerance_ft: 3           # parcel edge within this of ROW = touching
+  open_gap_ft: 25                   # unparcelled gap between edge and ROW still counted as direct contact
+  min_contact_ft: 20                # less direct ROW contact than this = landlocked_apparent
+  frontage_search_ft: 250           # boundary within this of a public ROW is "road-facing"
+  frontage_sample_ft: 15            # sampling interval along road-facing boundary
+  frontage_blocked_threshold: 0.95  # foreign-parcel share above this -> flag
+  strip_max_width_ft: 100           # reserve-strip detector: estimated width
+  strip_min_aspect: 6               # reserve-strip detector: length / width
+  sliver_acres: 0.25                # usable fragments below this are noise, not islands
+
+# --- Run control --------------------------------------------------------------
+run:
+  # Stages 2-4 run on parcels with stage1_pass == True. Set true to score every
+  # parcel in the study area (slow; only useful for auditing the filter).
+  process_all: false
+  output_dir: ../outputs
