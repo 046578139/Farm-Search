@@ -48,6 +48,17 @@ def load_parcels(cfg: Config, study_geom: BaseGeometry, parcels_raw: Optional[gp
         idx = gdf.sindex.query(study_geom, predicate="intersects")
         gdf = gdf.iloc[sorted(idx)].reset_index(drop=True)
     gdf = apply_schema(gdf, res)
+    # Non-parcel polygons: null account IDs (unlinked polygons) and the IDs
+    # listed in parcels.non_parcel_account_ids (the MD layer's 'ROW' slivers).
+    # They are not accounts and must not become "neighbouring parcels".
+    acct = gdf["account_id"]
+    non_parcel = acct.isna() | acct.astype(str).str.strip().str.upper().isin(
+        {"", "NONE", "NAN", "NULL"} | {x.upper() for x in cfg.parcels.non_parcel_account_ids})
+    if non_parcel.any():
+        log.info("excluding %d non-parcel polygons (null account or %s)", int(non_parcel.sum()),
+                 cfg.parcels.non_parcel_account_ids)
+    n_non_parcel = int(non_parcel.sum())
+    gdf = gdf[~non_parcel].copy()
     gdf["account_id"] = gdf["account_id"].astype(str).str.strip()
     # Keep only areal geometry
     gdf = gdf[gdf.geometry.geom_type.isin(["Polygon", "MultiPolygon"])]
@@ -83,7 +94,9 @@ def load_parcels(cfg: Config, study_geom: BaseGeometry, parcels_raw: Optional[gp
                 elif pd.notna(first) and abs(total - g) / g < abs(first - g) / g and abs(total - g) / g <= thr:
                     gdf.at[i, "acreage_sdat"] = total
                     gdf.at[i, "sdat_acreage_summed"] = True
-    return gdf.reset_index(drop=True)
+    gdf = gdf.reset_index(drop=True)
+    gdf.attrs["non_parcel_polygons_excluded"] = n_non_parcel   # set last: constructors above drop attrs
+    return gdf
 
 
 def load_zoning_layers(cfg: Config, study_geom: BaseGeometry) -> dict[str, gpd.GeoDataFrame]:
@@ -100,7 +113,17 @@ def load_zoning_layers(cfg: Config, study_geom: BaseGeometry) -> dict[str, gpd.G
 
 # ----------------------------------------------------------------------------
 def attribute_owners(gdf: gpd.GeoDataFrame) -> gpd.GeoDataFrame:
+    """Owner name, mailing address, entity type and collapse key.
+
+    The public Maryland parcel layer publishes the owner's MAILING ADDRESS but
+    not the owner's NAME (owner_name is optional in the schema map). Without a
+    name, owner_type is "unknown", owner_key and the Stage 4 same-owner tests
+    fall back to the normalized mailing address, and the parcel is flagged
+    owner_name_unavailable_lookup_sdat so the shortlist gets a name lookup.
+    """
     gdf = gdf.copy()
+    if "owner_name" not in gdf.columns:
+        gdf["owner_name"] = None
     name2 = gdf["owner_name2"] if "owner_name2" in gdf.columns else None
     full = gdf["owner_name"].astype("string").fillna("")
     if name2 is not None:
@@ -110,6 +133,15 @@ def attribute_owners(gdf: gpd.GeoDataFrame) -> gpd.GeoDataFrame:
     gdf["owner_mailing_address"] = gdf.apply(lambda r: join_address(r, ADDRESS_FIELDS), axis=1)
     gdf["owner_type"] = gdf["owner_name"].map(classify_owner)
     gdf["owner_key"] = [owner_key(n, a) for n, a in zip(gdf["owner_name"], gdf["owner_mailing_address"])]
+    gdf["owner_name_available"] = gdf["owner_name"].astype(str).str.strip().ne("")
+    # Deed reference: parcels conveyed by the same instrument share an owner
+    # even when no name is published (used alongside the address key).
+    if "deed_liber" in gdf.columns and "deed_folio" in gdf.columns:
+        lib = gdf["deed_liber"].astype("string").fillna("").str.strip().str.lstrip("0")
+        fol = gdf["deed_folio"].astype("string").fillna("").str.strip().str.lstrip("0")
+        gdf["deed_ref"] = np.where((lib != "") & (fol != ""), lib + "/" + fol, None)
+    else:
+        gdf["deed_ref"] = None
     return gdf
 
 
@@ -194,11 +226,22 @@ def assign_zoning(gdf: gpd.GeoDataFrame, zoning_layers: dict[str, gpd.GeoDataFra
         by_parcel: dict[int, list[int]] = {}
         for a, b in zip(pairs[0], pairs[1]):
             by_parcel.setdefault(int(a), []).append(int(b))
-        codes_col = layer[spec.code_field].astype(str).values
+        raw_codes = layer[spec.code_field]
+        # A zoning polygon with no code (seen once in the live Frederick layer:
+        # a 0.003 ac sliver) carries no information; it must not become the
+        # unmapped code "None" and abort the run.
+        has_code = raw_codes.notna() & (raw_codes.astype(str).str.strip() != "")
+        codes_col = raw_codes.astype(str).values
+        n_blank = int((~has_code).sum())
+        if n_blank:
+            log.warning("zoning %s: %d polygons with a null/blank %s ignored", county, n_blank, spec.code_field)
+        has_code = has_code.values
         for a, blist in by_parcel.items():
             pg = pgeoms[a]
             areas: dict[str, float] = {}
             for b in blist:
+                if not has_code[b]:
+                    continue
                 x = pg.intersection(layer.geometry.values[b])
                 if x.is_empty:
                     continue
@@ -240,6 +283,7 @@ def run_stage1(cfg: Config, study_geom: BaseGeometry, parcels_raw: Optional[gpd.
                zoning_layers: Optional[dict[str, gpd.GeoDataFrame]] = None) -> Stage1Result:
     gdf = load_parcels(cfg, study_geom, parcels_raw)
     n_loaded = len(gdf)
+    excluded = gdf.attrs.get("non_parcel_polygons_excluded", 0)
     gdf = attribute_study_area(gdf, study_geom, cfg.study_area_selection)
     gdf = gdf[gdf["in_study_area"]].reset_index(drop=True)
     gdf = attribute_county(gdf, cfg)
@@ -252,6 +296,8 @@ def run_stage1(cfg: Config, study_geom: BaseGeometry, parcels_raw: Optional[gpd.
     flags = [[] for _ in range(len(gdf))]
     for i, (dis, unm, miss, inc) in enumerate(zip(gdf["acreage_disagrees"], gdf["zoning_unmapped"],
                                                    gdf["zoning_layer_missing"], gdf["sdat_acreage_inconsistent"])):
+        if not gdf["owner_name_available"].iloc[i]:
+            flags[i].append("owner_name_unavailable_lookup_sdat")
         if inc:
             flags[i].append("sdat_acreage_inconsistent_across_rows")
         if gdf["sdat_acreage_summed"].iloc[i]:
@@ -272,6 +318,8 @@ def run_stage1(cfg: Config, study_geom: BaseGeometry, parcels_raw: Optional[gpd.
         default="pass")
 
     summary = summarize_stage1(gdf, n_loaded, cfg)
+    summary["non_parcel_polygons_excluded"] = int(excluded)
+    summary["owner_name_available_pct"] = round(100 * float(gdf["owner_name_available"].mean()), 1) if len(gdf) else None
     return Stage1Result(parcels=gdf, summary=summary)
 
 

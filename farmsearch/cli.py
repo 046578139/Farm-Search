@@ -4,6 +4,8 @@
   farmsearch verify-schema   --config config/pipeline.yaml
   farmsearch zoning-domains  --config config/pipeline.yaml --county Frederick [--code-field ZONING] [--write]
   farmsearch fetch           --config config/pipeline.yaml [--only name ...]
+  farmsearch fetch-parcels   --config config/pipeline.yaml [--county FRED ...] [--force]
+  farmsearch build-study-area --config config/pipeline.yaml [--variant initial] [--out path]
   farmsearch make-fixture    --out data/fixture
 """
 from __future__ import annotations
@@ -110,7 +112,11 @@ def cmd_fetch(args) -> int:
         if only and s.name not in only:
             continue
         if not s.url:
-            print(f"skip {s.name}: no url configured (VERIFY and set it in the config)")
+            if s.path and s.path.exists():
+                print(f"skip {s.name}: local layer at {s.path}")
+            else:
+                print(f"skip {s.name}: no url configured and nothing at {s.path} "
+                      f"(set url:, or produce it locally — parcel_row_polygons comes from `farmsearch fetch-parcels`)")
             continue
         if s.path and s.path.exists() and not args.force:
             print(f"skip {s.name}: cached at {s.path}")
@@ -121,8 +127,37 @@ def cmd_fetch(args) -> int:
         except Exception as e:  # noqa: BLE001 - report and continue
             print(f"FAILED {s.name}: {e}", file=sys.stderr)
             rc = 1
-    print("Parcels are a manual bulk download (license acceptance required): see README.")
+    print("Parcels: run `farmsearch fetch-parcels` (paginated per county from parcels.url).")
     return rc
+
+
+def _study_bbox_4326(cfg: Config) -> tuple[float, float, float, float]:
+    import geopandas as gpd
+    sa = gpd.read_file(str(cfg.study_area_path))
+    if sa.crs is None:
+        sa = sa.set_crs("EPSG:4326")
+    return tuple(float(x) for x in sa.to_crs("EPSG:4326").total_bounds)
+
+
+def cmd_fetch_parcels(args) -> int:
+    import json
+    from .io.parcels_rest import fetch_parcels
+    cfg = Config.load(args.config)
+    if not cfg.parcels.url:
+        print("parcels.url is not set in the config", file=sys.stderr)
+        return 2
+    bbox = None if args.no_bbox else _study_bbox_4326(cfg)
+    summary = fetch_parcels(cfg, county_codes=args.county, bbox_4326=bbox, force=args.force, page_size=args.page_size)
+    print(json.dumps(summary, indent=2))
+    return 0
+
+
+def cmd_build_study_area(args) -> int:
+    from .io.study_area import build_study_area
+    cfg = Config.load(args.config)
+    out = build_study_area(cfg, args.variant, out=Path(args.out) if args.out else None)
+    print(f"wrote {out}")
+    return 0
 
 
 def cmd_make_fixture(args) -> int:
@@ -160,6 +195,20 @@ def main(argv=None) -> int:
     f.add_argument("--only", nargs="*")
     f.add_argument("--force", action="store_true")
     f.set_defaults(func=cmd_fetch)
+
+    fp = sub.add_parser("fetch-parcels", help="pull the parcel layer per county from parcels.url into data/raw/parcels")
+    fp.add_argument("--config", default="config/pipeline.yaml")
+    fp.add_argument("--county", nargs="*", help="jurisdiction codes (default: every key under counties:)")
+    fp.add_argument("--force", action="store_true")
+    fp.add_argument("--no-bbox", action="store_true", help="do not restrict to the study-area bbox")
+    fp.add_argument("--page-size", type=int, default=None)
+    fp.set_defaults(func=cmd_fetch_parcels)
+
+    bs = sub.add_parser("build-study-area", help="assemble the study polygon from county boundaries (study_area_build)")
+    bs.add_argument("--config", default="config/pipeline.yaml")
+    bs.add_argument("--variant", default="initial")
+    bs.add_argument("--out", default=None, help="output GeoJSON (default: the config's study_area path)")
+    bs.set_defaults(func=cmd_build_study_area)
 
     m = sub.add_parser("make-fixture", help="write the synthetic validation dataset")
     m.add_argument("--out", default="data/fixture")

@@ -1,33 +1,81 @@
-# Parcel layer field map: canonical name -> field name in the source data.
+# Parcel layer field map: canonical name -> field name(s) in the source data.
 #
-# THESE ARE PLACEHOLDERS drawn from the Maryland Parcel Boundaries / MdProperty
-# View attribute conventions. They are NOT assumed correct: `farmsearch
-# verify-schema` compares every entry against the live field list and Stage 1
-# refuses to run until every required field resolves. Run
+# RECONCILED against the live Maryland Parcel Boundaries layer
+# (PlanningCadastre/MD_ParcelBoundaries/MapServer/0 on mdgeodata.md.gov,
+# 117 fields, MDPVDATE 2024AUG / POLYDATE 2024NOV at the time of writing) with
 #     farmsearch verify-schema --config config/pipeline.yaml
-# and edit this file to match what it prints.
+# which still runs before Stage 1 and aborts on any required field that does
+# not resolve. A canonical field may list several candidates; the first one
+# present wins (case-insensitive).
 #
-# A canonical field may list several candidates; the first one present wins.
+# What the live layer does NOT carry:
+#   * Owner NAMES. The public parcel layer, the iMAP Parcel Points layer and
+#     the SDAT open-data extract ("Maryland Real Property Assessments: Hidden
+#     Property Owner Names", opendata.maryland.gov ed4q-f8tm) all omit
+#     OWNNAME1/OWNNAME2. Only the owner MAILING ADDRESS is published. Hence
+#     owner_name is OPTIONAL here: when absent, owner_type is "unknown",
+#     owner_key / same-owner tests fall back to the mailing address, and every
+#     parcel gets the flag owner_name_unavailable_lookup_sdat. SDATWEBADR gives
+#     the per-parcel SDAT page for the shortlist. If you obtain a licensed
+#     MdProperty View / FINDER Quantum extract with names, list its field
+#     under owner_name and everything upgrades automatically.
+#   * Rows whose ACCTID is null or the literal 'ROW' are tax-map road
+#     right-of-way slivers and unlinked polygons, not accounts (FRED ~18k,
+#     CARR ~6k, WASH ~1k). They are split off by `farmsearch fetch-parcels`
+#     and excluded by Stage 1 (parcels.non_parcel_account_ids).
 
 required:
   account_id: [ACCTID, ACCT_ID, ACCOUNT_ID]
   county_code: [JURSCODE, JURIS_CODE, COUNTY]
-  owner_name: [OWNNAME1, OWNER_NAME, OWNNAME]
   # Mailing address pieces. Used for owner de-duplication and same-owner tests.
   owner_addr_line1: [OWNADD1, OWNER_ADDR1, OWNADDR1]
   owner_city: [OWNCITY, OWNER_CITY]
   owner_state: [OWNSTATE, OWNER_STATE]
-  owner_zip: [OWNZIP, OWNER_ZIP]
+  owner_zip: [OWNERZIP, OWNZIP, OWNER_ZIP]
 
 optional:
+  owner_name: [OWNNAME1, OWNER_NAME, OWNNAME]      # absent from the public layer (see above)
   owner_name2: [OWNNAME2, OWNER_NAME2]
   owner_addr_line2: [OWNADD2, OWNER_ADDR2]
-  acreage_sdat: [ACRES, LANDAREA, LAND_ACRES]
+  owner_zip4: [OWNZIP2]
+  owner_occupied: [OOI]                             # Owner Occupied Indicator (H/D/N)
+  # Acreage. ACRES is the SDAT assessment acreage; LANDAREA + LUOM is the raw
+  # land area and its unit (A = acres, S = sq ft); POLYACRES is MDP's own
+  # polygon acreage (matches the geometry to ~0.1%).
+  acreage_sdat: [ACRES, LAND_ACRES]
+  land_area: [LANDAREA]
+  land_area_unit: [LUOM]
+  polygon_acres: [POLYACRES]
+  polygon_id: [POLYID]
+  polygon_type: [PTYPE]                             # Type of Digitized Parcel
   land_use_code: [LU, LANDUSE, LAND_USE]
-  zoning_sdat: [ZONING, ZONE]
+  land_use_desc: [DESCLU]
+  zoning_sdat: [ZONING, ZONE]                       # SDAT's zoning text; the county layer governs Stage 1
+  exempt_class: [EXCLASS]
+  exempt_class_desc: [DESCEXCL]
+  commercial_use_code: [CIUSE]
   assessed_land_value: [NFMLNDVL, LANDVAL, LAND_VALUE]
   assessed_improvement_value: [NFMIMPVL, IMPVAL, IMPROVEMENT_VALUE]
   assessed_total_value: [NFMTTLVL, TOTALVAL, TOTAL_VALUE]
   situs_address: [ADDRESS, PREMSNUM, SITE_ADDRESS]
   map_page: [MAP]
   parcel_number: [PARCEL]
+  # Deed reference of the current owner: parcels conveyed by the same deed
+  # (same liber/folio) belong to the same owner even without a name.
+  deed_liber: [DR1LIBER]
+  deed_folio: [DR1FOLIO]
+  transfer_date: [TRADATE]
+  consideration: [CONSIDR1]
+  # SDAT program codes that corroborate Stage 2 layers.
+  fcma_code: [FCMACODE]                             # Forest Conservation Management Agreement (Y)
+  malpf_area: [AGFNDAREA]                           # Ag Preservation Foundation acreage on the account
+  critical_area_code: [CRTARCOD]
+  street_paved: [PFSP]
+  street_unpaved: [PFSU]
+  waterfront: [PFLW]
+  year_built: [YEARBLT]
+  structure_sqft: [SQFTSTRC]
+  sdat_url: [SDATWEBADR]                            # per-parcel SDAT real property page
+  sdat_date: [SDATDATE]
+  mdpv_date: [MDPVDATE]
+  polygon_date: [POLYDATE]

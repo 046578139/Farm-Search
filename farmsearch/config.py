@@ -31,13 +31,17 @@ class LayerSource:
     path: Optional[Path] = None
     url: Optional[str] = None
     layer: Optional[str] = None
-    where: Optional[str] = None
+    where: Optional[str] = None        # pandas-query filter applied AFTER download / on read
+    rest_where: Optional[str] = None   # SQL-92 filter sent to the REST service at fetch time
+    page_size: Optional[int] = None    # override the service maxRecordCount when paging (heavy geometries)
 
     @classmethod
     def from_dict(cls, base: Path, d: dict, name: Optional[str] = None) -> "LayerSource":
         return cls(name=name or d.get("name") or "layer",
                    path=_opt_path(base, d.get("path")),
-                   url=d.get("url"), layer=d.get("layer"), where=d.get("where"))
+                   url=d.get("url"), layer=d.get("layer"), where=d.get("where"),
+                   rest_where=d.get("rest_where"),
+                   page_size=(int(d["page_size"]) if d.get("page_size") else None))
 
     def available(self) -> bool:
         return self.path is not None and self.path.exists()
@@ -49,6 +53,14 @@ class ParcelsConfig:
     schema_path: Path
     acreage_source: str = "sdat"
     acreage_disagreement_pct: float = 10.0
+    # Account IDs that mark non-parcel polygons in the source (the MD parcel
+    # layer uses the literal 'ROW' for tax-map road right-of-way slivers).
+    # Rows with these IDs, or with a null ID, are not accounts and are
+    # excluded from the parcel set (counted in the Stage 1 summary).
+    non_parcel_account_ids: list[str] = field(default_factory=lambda: ["ROW"])
+    # Optional ArcGIS REST layer the parcels can be pulled from with
+    # `farmsearch fetch-parcels` (paginated per county into `path`).
+    url: Optional[str] = None
 
 
 @dataclass
@@ -128,6 +140,26 @@ class SlopeConfig:
     dem_resample_m: Optional[float] = None
     steep_polygons_path: Optional[Path] = None
     crossable: bool = False       # can a >slope_max_pct area be driven across? (Stage 4 crossings variant)
+    # ArcGIS ImageServer DEM (Maryland statewide LiDAR), read per parcel with
+    # exportImage when no local dem_path exists. Windows are cached under
+    # dem_cache_dir.
+    dem_url: Optional[str] = None
+    dem_cache_dir: Optional[Path] = None
+
+
+@dataclass
+class StudyAreaPart:
+    county: str
+    clip_bbox: Optional[tuple[float, float, float, float]] = None   # lon/lat box the county is clipped to
+
+
+@dataclass
+class StudyAreaBuild:
+    """How `farmsearch build-study-area` assembles the study polygon from a
+    county-boundary layer: one part per county, optionally clipped to a box."""
+    boundaries_url: str
+    county_field: str
+    variants: dict[str, list[StudyAreaPart]]
 
 
 @dataclass
@@ -176,6 +208,7 @@ class Config:
     slope: SlopeConfig
     access: AccessConfig
     run: RunConfig
+    study_area_build: Optional[StudyAreaBuild] = None
     raw: dict = field(default_factory=dict)   # untouched YAML for later stages
 
     # ------------------------------------------------------------------
@@ -198,6 +231,8 @@ class Config:
                 schema_path=_opt_path(base, p.get("schema", "schema/parcels.yaml")),
                 acreage_source=p.get("acreage_source", "sdat"),
                 acreage_disagreement_pct=float(p.get("acreage_disagreement_pct", 10)),
+                non_parcel_account_ids=[str(x) for x in (p.get("non_parcel_account_ids") or ["ROW"])],
+                url=p.get("url"),
             )
             if parcels.acreage_source not in ("sdat", "geometry"):
                 raise ConfigError("parcels.acreage_source must be sdat|geometry")
@@ -216,7 +251,26 @@ class Config:
                                 dem_vertical_unit_to_m=float(s.get("dem_vertical_unit_to_m", 1.0)),
                                 dem_resample_m=(None if s.get("dem_resample_m") in (None, "null") else float(s["dem_resample_m"])),
                                 steep_polygons_path=_opt_path(base, s.get("steep_polygons_path")),
-                                crossable=bool(s.get("crossable", False)))
+                                crossable=bool(s.get("crossable", False)),
+                                dem_url=s.get("dem_url") or None,
+                                dem_cache_dir=_opt_path(base, s.get("dem_cache_dir")))
+            sab = None
+            sb = raw.get("study_area_build")
+            if sb:
+                variants = {}
+                for vname, parts in (sb.get("variants") or {}).items():
+                    lst = []
+                    for pt in parts or []:
+                        bb = pt.get("clip_bbox")
+                        if bb is not None and len(bb) != 4:
+                            raise ConfigError(f"study_area_build variant {vname}: clip_bbox needs 4 numbers")
+                        lst.append(StudyAreaPart(county=str(pt["county"]),
+                                                 clip_bbox=tuple(float(x) for x in bb) if bb else None))
+                    variants[str(vname)] = lst
+                if not sb.get("boundaries_url") or not variants:
+                    raise ConfigError("study_area_build needs boundaries_url and at least one variant")
+                sab = StudyAreaBuild(boundaries_url=str(sb["boundaries_url"]),
+                                     county_field=str(sb.get("county_field", "COUNTY")), variants=variants)
             a = raw.get("access", {}) or {}
             rows = []
             for r in a.get("row_layers", []) or []:
@@ -264,6 +318,7 @@ class Config:
                 slope=slope,
                 access=access,
                 run=run,
+                study_area_build=sab,
                 raw=raw,
             )
         except KeyError as e:

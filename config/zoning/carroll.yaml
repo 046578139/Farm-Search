@@ -1,15 +1,82 @@
-# Carroll County zoning district codes -> is_agricultural.
+# Carroll County zoning codes -> is_agricultural.
 #
-# DO NOT type codes from memory. Generate this file from the live layer with:
-#     farmsearch zoning-domains --config config/pipeline.yaml --county Carroll
-# which writes every observed code (and coded-value domain description, when
-# the layer publishes one) with is_agricultural: null. Fill in true/false.
-# Stage 1 aborts (on_unmapped_zoning: error) if any code seen in the data is
-# missing or null here.
-code_field: null          # set from zoning-domains output
-codes: {}
-# Example of the filled-in form:
-# codes:
-#   A:   {description: "Agricultural", is_agricultural: true}
-#   RC:  {description: "Resource Conservation", is_agricultural: true}
-#   R1:  {description: "Residential", is_agricultural: false}
+# Codes were generated from the live county layer with
+#     farmsearch zoning-domains --config config/pipeline.yaml --county Carroll --write
+# (https://services.arcgis.com/Uf0DiYpD9NOFO5YH/arcgis/rest/services/Zoning/FeatureServer/0, field Zoning).
+# is_agricultural was decided per code from the county zoning ordinance / official
+# district descriptions (see `citation`), then independently re-checked. Rule:
+# true for districts whose purpose is agriculture / rural or resource conservation
+# where a 40+ acre working farm is the intended use; false for residential (any
+# density), village, commercial, industrial, institutional, mixed-use, planned,
+# mining, recreation, airport, overlay districts and non-district placeholders.
+# Sources read:
+#   https://www.carrollcountymd.gov/media/10972/chapter158-fullchapter-final-dec10-2019.pdf
+#   https://www.carrollcountymd.gov/media/17551/a-citizen-s-guide-to-zoning_online.pdf
+# Stage 1 aborts (on_unmapped_zoning: error) if a code seen in the data is missing here.
+code_field: Zoning
+codes:
+  Agriculture:
+    description: A Agricultural District
+    is_agricultural: true
+    confidence: high
+    citation: https://www.carrollcountymd.gov/media/10972/chapter158-fullchapter-final-dec10-2019.pdf — Chapter 158 § 158.015 (Districts Established) and § 158.070(A) A Agricultural District, Purpose
+  C-1:
+    description: C-1 Commercial Low Intensity District
+    is_agricultural: false
+    confidence: high
+    citation: https://www.carrollcountymd.gov/media/10972/chapter158-fullchapter-final-dec10-2019.pdf — Chapter 158 § 158.077(A) C-1 Commercial Low Intensity District, Purpose and intent
+  C-2:
+    description: C-2 Commercial Medium Intensity District
+    is_agricultural: false
+    confidence: high
+    citation: https://www.carrollcountymd.gov/media/10972/chapter158-fullchapter-final-dec10-2019.pdf — Chapter 158 § 158.078(A) C-2 Commercial Medium Intensity District, Purpose and intent
+  C-3:
+    description: C-3 Commercial High Intensity District
+    is_agricultural: false
+    confidence: high
+    citation: https://www.carrollcountymd.gov/media/10972/chapter158-fullchapter-final-dec10-2019.pdf — Chapter 158 § 158.078.01(A) C-3 Commercial High Intensity District, Purpose and intent
+  Conservation:
+    description: C Conservation District
+    is_agricultural: true
+    confidence: high
+    citation: https://www.carrollcountymd.gov/media/10972/chapter158-fullchapter-final-dec10-2019.pdf — Chapter 158 § 158.071(A) and (C)(1) C Conservation District; also https://www.carrollcountymd.gov/media/17551/a-citizen-s-guide-to-zoning_online.pdf p.11 'C Conservation District'
+  Employment Campus:
+    description: EC Employment Campus District
+    is_agricultural: false
+    confidence: high
+    citation: https://www.carrollcountymd.gov/media/10972/chapter158-fullchapter-final-dec10-2019.pdf — Chapter 158 § 158.081(A) EC Employment Campus District, Purpose and intent
+  Heritage:
+    description: H Heritage District (Heritage Zoning District)
+    is_agricultural: false
+    confidence: medium
+    citation: https://www.carrollcountymd.gov/media/10972/chapter158-fullchapter-final-dec10-2019.pdf — Chapter 158 § 158.097 H Heritage District (B) Principal permitted uses and (F) Bulk requirements; https://www.carrollcountymd.gov/media/17551/a-citizen-s-guide-to-zoning_online.pdf p.4 district summary table ('H Heritage')
+  I-1:
+    description: I-1 Light Industrial District
+    is_agricultural: false
+    confidence: high
+    citation: https://www.carrollcountymd.gov/media/10972/chapter158-fullchapter-final-dec10-2019.pdf — Chapter 158 § 158.079(A) I-1 Light Industrial District, Purpose and intent
+  I-2:
+    description: I-2 Heavy Industrial District
+    is_agricultural: false
+    confidence: high
+    citation: https://www.carrollcountymd.gov/media/10972/chapter158-fullchapter-final-dec10-2019.pdf — Chapter 158 § 158.080(A) I-2 Heavy Industrial District, Purpose and intent
+  R-10,000:
+    description: R-10,000 Residence District
+    is_agricultural: false
+    confidence: high
+    citation: https://www.carrollcountymd.gov/media/10972/chapter158-fullchapter-final-dec10-2019.pdf — Chapter 158 § 158.074(A) R-10,000 Residence District, Purpose
+  R-20,000:
+    description: R-20,000 Residence District
+    is_agricultural: false
+    confidence: high
+    citation: https://www.carrollcountymd.gov/media/10972/chapter158-fullchapter-final-dec10-2019.pdf — Chapter 158 § 158.073(A) R-20,000 Residence District, Purpose
+  R-40,000:
+    description: R-40,000 Residence District
+    is_agricultural: false
+    confidence: high
+    citation: https://www.carrollcountymd.gov/media/10972/chapter158-fullchapter-final-dec10-2019.pdf — Chapter 158 § 158.072(A) and (C)(1) R-40,000 Residence District, Purpose
+  R-7,500:
+    description: R-7,500 Residence District
+    is_agricultural: false
+    confidence: high
+    citation: https://www.carrollcountymd.gov/media/10972/chapter158-fullchapter-final-dec10-2019.pdf — Chapter 158 § 158.075(A) R-7,500 Residence District, Purpose

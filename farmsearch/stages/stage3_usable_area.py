@@ -65,9 +65,19 @@ class SlopeProvider:
             self.mode = "polygons"
         elif s.dem_path is not None and s.dem_path.exists():
             self.mode = "dem"
+        elif s.dem_url:
+            from ..slope import ImageServerDEM
+            self.dem_service = ImageServerDEM(s.dem_url, cache_dir=s.dem_cache_dir)
+            try:
+                info = self.dem_service.info()
+                log.info("slope from ImageServer %s (pixel %.3g, sr %s)", info.get("name"), info.get("pixelSizeX"),
+                         (info.get("spatialReference") or {}).get("latestWkid"))
+                self.mode = "imageserver"
+            except Exception as e:  # noqa: BLE001 - degrade, do not fail the run
+                log.warning("DEM ImageServer %s unreachable (%s); slope not evaluated", s.dem_url, e)
         else:
-            log.warning("no slope source available (dem_path=%s, steep_polygons_path=%s); slope not evaluated",
-                        s.dem_path, s.steep_polygons_path)
+            log.warning("no slope source available (dem_path=%s, dem_url=%s, steep_polygons_path=%s); slope not evaluated",
+                        s.dem_path, s.dem_url, s.steep_polygons_path)
 
     def steep(self, geom: BaseGeometry) -> Optional[BaseGeometry]:
         if self.mode == "polygons":
@@ -80,6 +90,17 @@ class SlopeProvider:
             s = self.cfg.slope
             return steep_polygons_from_dem(s.dem_path, geom, self.cfg.working_crs, self.cfg.slope_max_pct,
                                            vertical_factor=s.dem_vertical_unit_to_m, resample_m=s.dem_resample_m)
+        if self.mode == "imageserver":
+            from ..slope import steep_polygons_from_imageserver
+            s = self.cfg.slope
+            try:
+                return steep_polygons_from_imageserver(self.dem_service, geom, self.cfg.working_crs, self.cfg.slope_max_pct,
+                                                       vertical_factor=s.dem_vertical_unit_to_m,
+                                                       resample_m=s.dem_resample_m or 5.0)
+            except Exception as e:  # noqa: BLE001 - one bad window must not kill the run
+                log.warning("slope window failed for parcel bounds %s: %s", geom.bounds, e)
+                self.failures = getattr(self, "failures", 0) + 1
+                return None
         return None
 
 

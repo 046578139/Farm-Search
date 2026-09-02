@@ -8,6 +8,21 @@
 # Any layer may be given as `path:` (local file readable by GDAL: .gpkg,
 # .shp, .geojson, .gdb) or `url:` (ArcGIS REST FeatureServer/MapServer layer,
 # fetched with `farmsearch fetch` and cached under data/raw/).
+#
+# Per-layer keys:
+#   where       pandas-query filter applied when the cached file is READ
+#   rest_where  SQL-92 filter sent to the REST service at FETCH time (optional)
+#   page_size   page size override for heavy polygon layers (optional)
+#   name_field  attribute copied into each encumbrance row (optional)
+#
+# HOSTS. geodata.md.gov (the host the spec cites) was returning HTTP 503
+# "Site Maintenance" when this file was written; mdgeodata.md.gov serves the
+# identical iMAP service tree and is used throughout. Swap the host back if
+# it recovers; the paths are the same.
+#
+# Every url below was verified live on 2026-09-02: the layer JSON was read,
+# the field list checked, and a bbox count over the study area returned
+# features. See docs/HANDOFF.md for the verification notes per layer.
 # =============================================================================
 
 # --- Configuration block (spec) ---------------------------------------------
@@ -26,8 +41,9 @@ commute_destinations:            # Stage 10 — reported column, NEVER a filter
   - Northern Virginia (TBD specific)
 
 # --- Study area ---------------------------------------------------------------
-# User-supplied polygon. Swap this one line for an expanded northern-Carroll run
-# (e.g. config/study_area_expanded_carroll.geojson).
+# Built from real county boundaries with `farmsearch build-study-area`
+# (see study_area_build below). Swap this one line for the expanded
+# northern-Carroll run.
 study_area: study_area.geojson
 # How a parcel qualifies as "in" the study area:
 #   intersects — any overlap (default; parcels are never geometrically cut,
@@ -36,20 +52,45 @@ study_area: study_area.geojson
 #   within     — entire parcel inside the polygon
 study_area_selection: intersects
 
+# `farmsearch build-study-area --variant initial` pulls these county polygons
+# from the iMAP detailed county-boundary layer, clips each to its box (lon/lat)
+# where one is given, unions them and writes study_area.geojson.
+study_area_build:
+  boundaries_url: "https://mdgeodata.md.gov/imap/rest/services/Boundaries/MD_PhysicalBoundaries/MapServer/0"
+  county_field: COUNTY
+  variants:
+    initial:
+      - county: Frederick
+      - county: Carroll
+        clip_bbox: [-77.17, 39.30, -76.98, 39.47]    # Mount Airy corner
+      - county: Washington
+        clip_bbox: [-77.86, 39.36, -77.69, 39.58]    # Sharpsburg / Keedysville / Boonsboro / Rohrersville
+    expanded_carroll:
+      - county: Frederick
+      - county: Carroll
+      - county: Washington
+        clip_bbox: [-77.86, 39.36, -77.69, 39.58]
+
 # Working CRS for all geometry math. NAD83 / Maryland (meters).
 working_crs: "EPSG:26985"
 
 # --- Parcels and ownership (foundation layer) ---------------------------------
 parcels:
-  # Bulk MdProperty View / FINDER Quantum download (per-county shapefile or gdb).
-  # A directory is accepted: every readable layer inside is concatenated.
-  # DO NOT point this at the iMAP REST layer for a production run — MaxRecordCount
-  # is 1000 and you need three full counties. Read the dataset license first.
+  # Maryland Parcel Boundaries (MDP/SDAT), statewide, 2.29M polygons, 117 fields.
+  # Pulled per county with `farmsearch fetch-parcels`: the service pages 1000
+  # records at a time (~1 s/page with the slim field list below), so the three
+  # counties are ~220 pages. Rows with ACCTID null or 'ROW' (tax-map road
+  # right-of-way slivers / unlinked polygons) are split into data/raw/parcels_row
+  # and reused as a ROW layer (see access.row_layers).
+  # The bulk MdProperty View / FINDER Quantum pages on planning.maryland.gov
+  # returned 404 at the time of writing; nothing here depends on them.
+  url: "https://mdgeodata.md.gov/imap/rest/services/PlanningCadastre/MD_ParcelBoundaries/MapServer/0"
   path: ../data/raw/parcels
   layer: null                       # layer name inside a .gdb/.gpkg, if needed
   # Field map. Every field named here is VERIFIED against the live schema
   # before Stage 1 runs; a mismatch aborts with the actual field list printed.
   schema: schema/parcels.yaml
+  non_parcel_account_ids: [ROW]
   # Which acreage drives the Stage 1 filter:
   #   sdat     — assessment acreage field when present and > 0, else geometry
   #   geometry — always computed from the polygon
@@ -59,7 +100,9 @@ parcels:
 
 # --- Counties -----------------------------------------------------------------
 # Jurisdiction code (as it appears in the parcel data) -> county name.
-# Verified at runtime: any code seen in the data that is not listed here aborts.
+# Verified against the live JURSCODE domain: FRED 124,459 / CARR 76,249 /
+# WASH 62,327 polygons statewide. Any code seen in the data that is not
+# listed here aborts.
 counties:
   FRED: Frederick
   CARR: Carroll
@@ -73,19 +116,25 @@ counties:
 # zoning_ag_pct is reported alongside.
 zoning:
   - county: Frederick
+    # Frederick County GIS, county zoning (layer 1; layer 0 is municipal
+    # zoning, layer 2 a Geocortex copy). TYPE carries a 22-code coded-value
+    # domain; municipal areas are coded MUN.
     path: ../data/raw/zoning/frederick.gpkg
-    url: null                       # VERIFY: Frederick County GIS zoning layer
-    code_field: null                # VERIFY: set from `farmsearch zoning-domains`
+    url: "https://fcgis.frederickcountymd.gov/server_pub/rest/services/PlanningAndPermitting/Zoning/MapServer/1"
+    code_field: TYPE
     mapping: zoning/frederick.yaml
   - county: Carroll
+    # Carroll County AGOL "Zoning Carroll County" (CarrollCo_MD_LRM).
     path: ../data/raw/zoning/carroll.gpkg
-    url: null                       # VERIFY: Carroll County GIS zoning layer
-    code_field: null
+    url: "https://services.arcgis.com/Uf0DiYpD9NOFO5YH/arcgis/rest/services/Zoning/FeatureServer/0"
+    code_field: Zoning
     mapping: zoning/carroll.yaml
   - county: Washington
+    # Washington County "Planning Zones and Overlays", sublayer 21 Zoning
+    # (Zone = code, Zone_Full = district name).
     path: ../data/raw/zoning/washington.gpkg
-    url: null                       # VERIFY: Washington County zoning layer
-    code_field: null
+    url: "https://services2.arcgis.com/uxxyl33jRTSmjre5/arcgis/rest/services/Washington_County_Zoning/FeatureServer/21"
+    code_field: Zone
     mapping: zoning/washington.yaml
 # What to do when a parcel's zoning code is not in the mapping file:
 #   error — abort (default; forces the mapping to be complete)
@@ -106,6 +155,11 @@ on_unmapped_zoning: error
 #                        for agricultural crossings)
 #   where                optional attribute filter (pandas query syntax)
 #   name_field           optional attribute copied into the encumbrance row
+#
+# The MD Protected Lands service (MDP/DNR) carries one sublayer per
+# instrument, which is exactly the separation the spec wants:
+#   0 DNR lands  1 Rural Legacy  2 MET  3 FCA easements  4 MALPF
+#   5 Local protected lands (parks, HOA open space)  9 PDR/TDR (county programs)
 constraints:
   - name: malpf
     type: ag_preservation_malpf
@@ -114,15 +168,24 @@ constraints:
     subtract_from_usable: false
     crossable_with_permit: false
     path: ../data/raw/constraints/malpf.gpkg
-    url: null                       # VERIFY: MDA MALPF easements (or filter MD_ProtectedLands)
+    url: "https://mdgeodata.md.gov/imap/rest/services/Environment/MD_ProtectedLands/MapServer/4"
+    rest_where: "JURSCODE IN ('FRED','CARR','WASH')"
+    name_field: Loc_Nm
   - name: county_ag_preservation
+    # County PDR / TDR / IPP / Critical Farms / Next Generation easements as
+    # compiled by MDP. OthrPrgNm names the program; CREP enrollments are in
+    # the same layer and are split out below (they are restrictive strips,
+    # not a favorable easement).
     type: ag_preservation_county
     category: legal
     implication: favorable
     subtract_from_usable: false
     crossable_with_permit: false
     path: ../data/raw/constraints/county_ag_easements.gpkg
-    url: null                       # VERIFY: Carroll + Frederick county programs
+    url: "https://mdgeodata.md.gov/imap/rest/services/Environment/MD_ProtectedLands/MapServer/9"
+    rest_where: "JURSCODE IN ('FRED','CARR','WASH')"
+    where: "OthrPrgNm != 'CREP'"
+    name_field: OthrPrgNm
   - name: rural_legacy
     type: rural_legacy
     category: legal
@@ -130,7 +193,9 @@ constraints:
     subtract_from_usable: false
     crossable_with_permit: false
     path: ../data/raw/constraints/rural_legacy.gpkg
-    url: null                       # VERIFY: DNR Rural Legacy
+    url: "https://mdgeodata.md.gov/imap/rest/services/Environment/MD_ProtectedLands/MapServer/1"
+    rest_where: "County IN ('Frederick','Carroll','Washington')"
+    name_field: RLArea
   - name: met
     type: met_easement
     category: legal
@@ -139,23 +204,83 @@ constraints:
     crossable_with_permit: false
     manual_flag: met_easement_read_terms
     path: ../data/raw/constraints/met.gpkg
-    url: null                       # VERIFY: Maryland Environmental Trust
+    url: "https://mdgeodata.md.gov/imap/rest/services/Environment/MD_ProtectedLands/MapServer/2"
+    rest_where: "County IN ('Frederick','Carroll','Washington')"
+    name_field: Easement
+  # Forest conservation easements: the statewide DNR compilation plus each
+  # county's own recorded-easement layer (coverage differs; overlaps are
+  # reported per source_layer and unioned before Stage 3 subtracts them).
   - name: forest_conservation
     type: forest_conservation       # HOSTILE: bars clearing, structures, crossing
     category: legal
     implication: hostile
     subtract_from_usable: true
     crossable_with_permit: false
-    path: ../data/raw/constraints/fca_easements.gpkg
-    url: null                       # VERIFY: county FCA layers (coverage varies — expect gaps)
-  - name: protected_lands
-    type: protected_lands
+    path: ../data/raw/constraints/fca_easements_state.gpkg
+    url: "https://mdgeodata.md.gov/imap/rest/services/Environment/MD_ProtectedLands/MapServer/3"
+    name_field: Name
+  - name: forest_conservation_frederick
+    type: forest_conservation
+    category: legal
+    implication: hostile
+    subtract_from_usable: true
+    crossable_with_permit: false
+    path: ../data/raw/constraints/fca_easements_frederick.gpkg
+    url: "https://fcgis.frederickcountymd.gov/server_pub/rest/services/PlanningAndPermitting/ForestResource/MapServer/2"
+    name_field: NAME
+  - name: forest_conservation_carroll
+    type: forest_conservation
+    category: legal
+    implication: hostile
+    subtract_from_usable: true
+    crossable_with_permit: false
+    path: ../data/raw/constraints/fca_easements_carroll.gpkg
+    url: "https://services.arcgis.com/Uf0DiYpD9NOFO5YH/arcgis/rest/services/Forest_Conservation_Easement/FeatureServer/0"
+    where: "STATUS == 'RECORDED'"
+    name_field: PROJECT
+  - name: forest_conservation_washington
+    type: forest_conservation
+    category: legal
+    implication: hostile
+    subtract_from_usable: true
+    crossable_with_permit: false
+    path: ../data/raw/constraints/fca_easements_washington.gpkg
+    url: "https://services2.arcgis.com/uxxyl33jRTSmjre5/arcgis/rest/services/Forest_Conservation_Easements_View/FeatureServer/0"
+    where: "RELEASE_DATE.isnull()"
+    name_field: DEVELOPMENT_NAME
+  - name: crep_enrolled
+    # CREP enrollments that MDP has mapped (Frederick publishes them); the
+    # presumed-buffer layer below covers what is not mapped.
+    type: riparian_buffer_crep
+    category: legal
+    implication: hostile
+    subtract_from_usable: true
+    crossable_with_permit: true
+    manual_flag: crep_enrollment_confirm_contract_term
+    path: ../data/raw/constraints/crep.gpkg
+    url: "https://mdgeodata.md.gov/imap/rest/services/Environment/MD_ProtectedLands/MapServer/9"
+    rest_where: "OthrPrgNm = 'CREP'"
+    where: "OthrPrgNm == 'CREP'"
+    name_field: EsmtHldr
+  - name: protected_lands_dnr
+    type: dnr_lands
     category: legal
     implication: varies
     subtract_from_usable: false
     crossable_with_permit: false
-    path: ../data/raw/constraints/md_protected_lands.gpkg
-    url: "https://geodata.md.gov/imap/rest/services/Environment/MD_ProtectedLands/MapServer/0"
+    path: ../data/raw/constraints/md_dnr_lands.gpkg
+    url: "https://mdgeodata.md.gov/imap/rest/services/Environment/MD_ProtectedLands/MapServer/0"
+    name_field: DNRName
+  - name: other_easements_frederick
+    type: other_easement
+    category: legal
+    implication: varies
+    subtract_from_usable: false
+    crossable_with_permit: false
+    manual_flag: other_easement_read_terms
+    path: ../data/raw/constraints/frederick_other_easements.gpkg
+    url: "https://fcgis.frederickcountymd.gov/server_pub/rest/services/PlanningAndPermitting/OtherEasementsOrRestrictions/MapServer/0"
+    name_field: RestrictionOrEasementPrograms
   - name: wetlands
     type: wetlands
     category: physical
@@ -163,7 +288,9 @@ constraints:
     subtract_from_usable: true
     crossable_with_permit: true
     path: ../data/raw/constraints/nwi_wetlands.gpkg
-    url: null                       # VERIFY: USFWS National Wetlands Inventory
+    url: "https://mdgeodata.md.gov/imap/rest/services/Hydrology/MD_Wetlands/MapServer/2"   # USFWS NWI
+    page_size: 1000                 # the service truncates larger pages silently
+    name_field: Wetland
   - name: floodplain
     type: floodplain
     category: physical
@@ -171,11 +298,13 @@ constraints:
     subtract_from_usable: true
     crossable_with_permit: true
     path: ../data/raw/constraints/fema_nfhl.gpkg
-    url: null                       # VERIFY: FEMA NFHL S_FLD_HAZ_AR
-    where: null                     # e.g. "FLD_ZONE in ['A','AE','AO','AH']"
+    url: "https://mdgeodata.md.gov/imap/rest/services/Hydrology/MD_Floodplain/MapServer/1"  # FEMA DFIRM S_FLD_HAZ_AR
+    page_size: 50                   # this service errors on any page query; it serves objectIds chunks of ~50
+    where: "FLD_ZONE in ['A', 'AE', 'AH', 'AO']"     # 1% annual chance; X (0.2%) excluded
+    name_field: FLD_ZONE
   # CREP riparian buffers: FSA enrollment is federally protected and not
-  # available parcel-by-parcel. Inferred here as a fixed-width strip along NHD
-  # flowlines; every parcel that receives one gets the manual flag
+  # available parcel-by-parcel. Inferred here as a fixed-width strip along
+  # stream centerlines; every parcel that receives one gets the manual flag
   # `riparian_buffer_presumed_confirm_with_seller`.
   - name: riparian_presumed
     type: riparian_buffer
@@ -185,19 +314,24 @@ constraints:
     crossable_with_permit: true
     manual_flag: riparian_buffer_presumed_confirm_with_seller
     derive_from_lines:
-      path: ../data/raw/hydro/nhd_flowlines.gpkg
-      url: null                     # VERIFY: NHD flowlines
+      path: ../data/raw/hydro/streams_detailed.gpkg
+      url: "https://mdgeodata.md.gov/imap/rest/services/Hydrology/MD_Waterbodies/MapServer/2"  # Rivers and Streams - Detailed
+      page_size: 2000
       buffer_ft: 100                # each side of the stream centerline
 
 # --- Slope (Stage 3) ----------------------------------------------------------
 slope:
-  # Either a DEM (statewide LiDAR; GeoTIFF / VRT / COG; /vsicurl/ URLs work)
-  # from which slope > slope_max_pct is derived per parcel, OR a precomputed
-  # polygon layer of steep areas. DEM must be in a projected CRS.
-  dem_path: ../data/raw/lidar/md_dem.vrt
-  dem_vertical_unit_to_m: 1.0       # 0.3048 if the DEM is in feet
-  dem_resample_m: 5                 # resample before slope; null = native
-  steep_polygons_path: null         # alternative to dem_path
+  # Maryland statewide LiDAR DEM (ESRGC mosaic) as an ArcGIS ImageServer,
+  # read one parcel window at a time with exportImage in the working CRS at
+  # dem_resample_m. Verified: returns Float32 GeoTIFF in EPSG:26985, meters,
+  # nodata -9999 outside coverage. A local DEM (dem_path) takes precedence
+  # when it exists; a precomputed steep-polygon layer takes precedence over both.
+  dem_url: "https://mdgeodata.md.gov/lidar/rest/services/Statewide/MD_statewide_dem_m/ImageServer"
+  dem_cache_dir: ../data/raw/lidar/cache
+  dem_path: null                    # e.g. ../data/raw/lidar/md_dem.vrt (GeoTIFF/VRT/COG; /vsicurl/ works)
+  dem_vertical_unit_to_m: 1.0       # 0.3048 if using MD_statewide_dem_ft or a DEM in feet
+  dem_resample_m: 5                 # cell size requested from the service / resample target
+  steep_polygons_path: null         # alternative to dem_path / dem_url
   crossable: false                  # Stage 4 crossings-permitted variant: treat steep ground as crossable?
 
 # --- Access (Stage 4) ---------------------------------------------------------
@@ -206,39 +340,54 @@ access:
   # are buffered by row_width_ft / 2 to approximate the ROW.
   row_layers:
     - name: sha_row_polygons
+      # MDOT SHA Right-Of-Way (Polygons Master): state-road ROW polygons,
+      # dissolved per SHA grid tile (one multipolygon per GRID_ID, ~20k
+      # vertices each), EPSG:2893. Includes interstate ROW, on which frontage
+      # is not access — see docs/HANDOFF.md.
       authority: state
       public: true
       geometry: polygon
       path: ../data/raw/access/sha_row_polygons.gpkg
-      url: null                     # VERIFY: MDOT SHA Right-of-Way (Polygons), data.imap.maryland.gov
-    - name: sha_plat_boundary
-      authority: state
+      url: "https://services.arcgis.com/njFNhDsUCentVYJW/arcgis/rest/services/MDOT_SHA_Right-Of-Way_(Polygons)/FeatureServer/32"
+      page_size: 20
+    - name: parcel_row_polygons
+      # Tax-map road right-of-way polygons: the ACCTID='ROW' rows of the
+      # parcel layer, written by `farmsearch fetch-parcels`. All road classes,
+      # authority unknown; state roads are additionally covered above.
+      authority: unknown
       public: true
       geometry: polygon
-      path: ../data/raw/access/sha_plat_boundary.gpkg
-      url: null                     # VERIFY: MDOT SHA Plat Boundary Polygon (reserve strips, access-control takings)
+      path: ../data/raw/parcels_row
+      url: null
     - name: county_roads_frederick
+      # Frederick County centerlines with OWNERSHIP / ROADTYPE. Public roads
+      # only; interstates and ramps excluded (frontage there is not access).
       authority: county
       public: true
       geometry: line
       row_width_ft: 50
       path: ../data/raw/access/frederick_centerlines.gpkg
-      url: null                     # VERIFY
-      where: null                   # e.g. exclude private roads: "OWNERSHIP != 'PRIVATE'"
+      url: "https://fcgis.frederickcountymd.gov/server_pub/rest/services/Basemap/Centerlines/MapServer/0"
+      where: "OWNERSHIP in ['COUNTY','STATE','FEDERAL','OUTOFCOUNTY','BRUNSWICK','BURKITTSVILLE','EMMITSBURG','FREDERICK','MIDDLETOWN','MOUNT AIRY','MYERSVILLE','NEW MARKET','ROSEMONT','THURMONT','WALKERSVILLE','WOODSBORO'] and ROADTYPE not in ['INTERSTATE','RAMP']"
     - name: county_roads_carroll
+      # Carroll County centerlines; ROADCLASS COUNTY / STATE / PRIVATE / blank.
       authority: county
       public: true
       geometry: line
       row_width_ft: 50
       path: ../data/raw/access/carroll_centerlines.gpkg
-      url: null
+      url: "https://services.arcgis.com/Uf0DiYpD9NOFO5YH/arcgis/rest/services/Roads_CarrollCounty/FeatureServer/0"
+      where: "ROADCLASS in ['COUNTY','STATE']"
     - name: county_roads_washington
+      # Washington County centerlines; Road_Code names the owner. Private,
+      # not-built and vacated roads and A1 (interstate) excluded.
       authority: county
       public: true
       geometry: line
       row_width_ft: 50
       path: ../data/raw/access/washington_centerlines.gpkg
-      url: null
+      url: "https://services2.arcgis.com/uxxyl33jRTSmjre5/arcgis/rest/services/Road_Centerlines_Public_View/FeatureServer/0"
+      where: "Road_Code in ['County Road','State Road','Conditional County','Boonsboro','Clear Spring','Funkstown','Hagerstown','Hancock','Keedysville','Sharpsburg','Smithsburg','Williamsport'] and RoadClass != 'A1'"
   contact_tolerance_ft: 3           # parcel edge within this of ROW = touching
   open_gap_ft: 25                   # unparcelled gap between edge and ROW still counted as direct contact
   min_contact_ft: 20                # less direct ROW contact than this = landlocked_apparent
@@ -248,6 +397,56 @@ access:
   strip_max_width_ft: 100           # reserve-strip detector: estimated width
   strip_min_aspect: 6               # reserve-strip detector: length / width
   sliver_acres: 0.25                # usable fragments below this are noise, not islands
+
+# --- Reference layers (located and verified; not consumed by Stages 1-4 yet) --
+# Kept here so later stages and the dossier step do not have to rediscover them.
+reference_layers:
+  sha_plat_boundaries:
+    # MDOT SHA Recorded Plats: extents of georeferenced ROW plats (PL_PLAT_TYPE,
+    # PR_ROAD_NM, PR_COUNTY). Where reserve strips and access-control takings
+    # are recorded; 32k plats intersect the study bbox.
+    url: "https://utility.arcgis.com/usrsvcs/servers/cb9897ee731549e3b09d8a822163307a/rest/services/OHD_PSD/RecordedPlats_Maryland_MDOTSHA/MapServer/0"
+  sha_row_lines:
+    url: "https://maps.roads.maryland.gov/arcgis/rest/services/OHD_PSD/PSD_Right_of_Way_Maryland_MDOTSHA/FeatureServer/0"
+  roadway_access_control:
+    # HPMS Roadway Access Control: to exclude limited-access frontage in Stage 4.
+    url: "https://mdgeodata.md.gov/imap/rest/services/Transportation/MD_HighwayPerformanceMonitoringSystem/MapServer/0"
+  statewide_centerlines:
+    # Fallback for county centerlines; ID_PREFIX semantics undocumented
+    # (CO county, MU municipal, MD/US/IS state, RP ramp, PV private; GV/OP/LL/SP/SR/XO unverified).
+    url: "https://mdgeodata.md.gov/imap/rest/services/Transportation/MD_RoadCenterlinesComprehensive/MapServer/0"
+  mdp_generalized_zoning_2025:
+    url: "https://mdpgis.mdp.state.md.us/arcgis/rest/services/PlanningCadastre/Generalized_Zoning_2025/MapServer/0"
+  frederick_ag_preservation_all:
+    # County-published per-program layers (2 County Held, 3 Critical Farms,
+    # 5 IPP, 7 MALPF District, 8 MALPF Easement, 9 MET, 10 Rural Legacy, 11 Next Generation).
+    url: "https://fcgis.frederickcountymd.gov/server_pub/rest/services/PlanningAndPermitting/AgPreservation/MapServer"
+  frederick_mprp:
+    url: "https://fcgis.frederickcountymd.gov/server_pub/rest/services/PlanningAndPermitting/MPRP/MapServer"
+  frederick_residential_pipeline:
+    url: "https://fcgis.frederickcountymd.gov/server_pub/rest/services/PlanningAndPermitting/ResidentialDevelopmentPipeline/MapServer"
+  frederick_forest_banking_easements:
+    url: "https://fcgis.frederickcountymd.gov/server_pub/rest/services/PlanningAndPermitting/ForestResource/MapServer/0"
+  frederick_forest_releases:
+    url: "https://fcgis.frederickcountymd.gov/server_pub/rest/services/PlanningAndPermitting/ForestResource/MapServer/3"
+  carroll_ag_preservation:
+    url: "https://services.arcgis.com/Uf0DiYpD9NOFO5YH/arcgis/rest/services/AgPreservation_CarrollCounty/FeatureServer/0"
+  carroll_floodplain_easements:
+    url: "https://services.arcgis.com/Uf0DiYpD9NOFO5YH/arcgis/rest/services/Easements_Floodplain/FeatureServer/0"
+  washington_ag_preservation:
+    url: "https://services2.arcgis.com/uxxyl33jRTSmjre5/arcgis/rest/services/Agricultural_Preservation_View/FeatureServer/0"
+  washington_rural_legacy_properties:
+    url: "https://services2.arcgis.com/uxxyl33jRTSmjre5/arcgis/rest/services/Rural_Legacy_Properties_View/FeatureServer/0"
+  dnr_wetlands_polygons:
+    url: "https://mdgeodata.md.gov/imap/rest/services/Hydrology/MD_Wetlands/MapServer/1"
+  municipal_boundaries:
+    url: "https://mdgeodata.md.gov/imap/rest/services/Boundaries/MD_PoliticalBoundaries/MapServer/5"
+  building_footprints:
+    url: "https://mdgeodata.md.gov/imap/rest/services/PlanningCadastre/MD_BuildingFootprints/MapServer/0"
+  ssurgo_soils:
+    url: "https://mdgeodata.md.gov/imap/rest/services/Geoscientific/MD_SSURGOSoils/MapServer/0"
+  statewide_slope_m:
+    url: "https://mdgeodata.md.gov/lidar/rest/services/Statewide/MD_statewide_slope_m/ImageServer"
 
 # --- Run control --------------------------------------------------------------
 run:

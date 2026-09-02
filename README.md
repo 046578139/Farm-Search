@@ -48,55 +48,116 @@ cat data/fixture/outputs/summary.md
 
 ## Running on real data
 
-1. **Parcels (foundation layer).** Download the MdProperty View / FINDER
-   Quantum bulk files for Frederick, Carroll and Washington from
-   <https://planning.maryland.gov/Pages/OurProducts/DownloadFiles.aspx> and
-   put them under `data/raw/parcels/`. Read the dataset's custom license
-   first. Do not point the pipeline at the iMAP REST layer for a production
-   run: `MaxRecordCount` is 1000 against ~2.29M records.
-2. **Verify the schema.** Nothing about field names is assumed.
+Every source below was located and verified live (layer JSON read, field
+list checked, feature count over the study area confirmed) on 2026-09-02;
+`config/pipeline.yaml` carries the URLs and `docs/HANDOFF.md` the notes.
+
+**Host note.** The spec cites `geodata.md.gov`; that host was returning
+HTTP 503 "Site Maintenance". `mdgeodata.md.gov` serves the identical iMAP
+service tree (same paths) and is what the config uses.
+
+1. **Study area.** Built from real county boundaries, not hand-drawn:
+   ```bash
+   farmsearch build-study-area --config config/pipeline.yaml                 # initial
+   farmsearch build-study-area --config config/pipeline.yaml --variant expanded_carroll \
+       --out config/study_area_expanded_carroll.geojson
+   ```
+   `study_area_build:` in the config lists one part per county with an
+   optional lon/lat clip box (Mount Airy corner of Carroll, SE Washington).
+2. **Parcels (foundation layer).** The MDP/SDAT Maryland Parcel Boundaries
+   layer is pulled per county straight from the iMAP REST service:
+   ```bash
+   farmsearch fetch-parcels --config config/pipeline.yaml        # ~220 pages, a few minutes
+   ```
+   The service pages 1000 records at ~1 s/page once `outFields` is limited
+   to the schema-mapped fields, so the "MaxRecordCount is 1000" warning in
+   the spec is a non-issue per county. Rows whose `ACCTID` is null or the
+   literal `ROW` (tax-map road right-of-way slivers) are split into
+   `data/raw/parcels_row/` and reused as a right-of-way layer in Stage 4.
+   The MdProperty View / FINDER Quantum bulk download pages on
+   planning.maryland.gov returned 404; nothing depends on them.
+3. **Verify the schema.** Nothing about field names is assumed.
    ```bash
    farmsearch verify-schema --config config/pipeline.yaml
    ```
-   prints how each canonical field resolved and, on failure, the real field
-   list. Edit `config/schema/parcels.yaml` until every required field resolves.
-   Stage 1 refuses to run otherwise. Also confirm the jurisdiction codes in
-   the data match `counties:` in the config (a code not listed there aborts).
-3. **Zoning.** Set each county's layer `url:`/`path:` in `config/pipeline.yaml`,
-   then pull the district codes from the live layer into a mapping template:
+   `config/schema/parcels.yaml` has been reconciled with the live 117-field
+   layer (e.g. the owner zip is `OWNERZIP`, not `OWNZIP`; `POLYACRES`,
+   `LANDAREA`/`LUOM`, `DR1LIBER`/`DR1FOLIO`, `FCMACODE`, `AGFNDAREA`,
+   `SDATWEBADR` are mapped). Jurisdiction codes are `FRED`, `CARR`, `WASH`.
+
+   **Owner names are not public.** The parcel layer, the Parcel Points layer
+   and the SDAT open-data extract all publish the owner's mailing address but
+   not the owner's name. `owner_name` is therefore optional: without it
+   `owner_type` is `unknown`, `owner_key` and the Stage 4 same-owner tests use
+   the normalized mailing address (plus the deed liber/folio, `deed_ref`),
+   and every parcel carries the flag `owner_name_unavailable_lookup_sdat`
+   with its SDAT page URL (`sdat_url`) for the shortlist. A licensed extract
+   with `OWNNAME1` upgrades everything automatically.
+4. **Zoning.** Each county's own GIS layer is configured (Frederick County
+   GIS `TYPE`, Carroll County `Zoning`, Washington County `Zone`). The code
+   lists in `config/zoning/<county>.yaml` were generated from the live layers:
    ```bash
-   farmsearch zoning-domains --config config/pipeline.yaml --county Frederick --code-field <FIELD> --write
+   farmsearch zoning-domains --config config/pipeline.yaml --county Frederick --write
    ```
-   Fill in `is_agricultural: true/false` for every code in
-   `config/zoning/<county>.yaml`. A code seen in the data but left unmapped
-   aborts Stage 1 (`on_unmapped_zoning: error`) so the mapping cannot be
-   silently incomplete.
-4. **Other layers.** Set `url:` for each constraint / ROW layer (the config
-   marks each with `VERIFY`), then
+   `is_agricultural` per code was filled in from each county's zoning
+   ordinance (citations in the YAML). A code seen in the data but left
+   unmapped aborts Stage 1 (`on_unmapped_zoning: error`).
+5. **Other layers.**
    ```bash
    farmsearch fetch --config config/pipeline.yaml
    ```
-   downloads them clipped to the study-area bbox into `data/raw/`. A layer
-   that is missing at run time is skipped with a warning and listed under
-   `missing_layers` in the summary; the affected stage degrades rather than
-   fails. Local files (`path:`) work for anything you already have.
-5. **Slope.** Point `slope.dem_path` at the statewide LiDAR DEM (GeoTIFF/VRT/COG;
-   `/vsicurl/` URLs work). It is read one parcel window at a time. Set
-   `dem_vertical_unit_to_m: 0.3048` if the DEM is in feet.
-6. **Run.**
+   downloads every constraint / ROW layer clipped to the study-area bbox
+   into `data/raw/` (ESRI JSON pages through GDAL; `rest_where` is sent to
+   the service, `where` is applied on read). A layer that is missing at run
+   time is skipped with a warning and listed under `missing_layers` in the
+   summary; the affected stage degrades rather than fails.
+6. **Slope.** The statewide LiDAR DEM is read from the iMAP ImageServer one
+   parcel window at a time (`slope.dem_url`, `exportImage` in the working
+   CRS at `dem_resample_m`, cached under `data/raw/lidar/cache/`). A local
+   DEM (`dem_path`) or precomputed steep polygons take precedence when
+   present. The meters service is configured; set
+   `dem_vertical_unit_to_m: 0.3048` if you switch to `MD_statewide_dem_ft`.
+7. **Run.**
    ```bash
    farmsearch run --config config/pipeline.yaml --stages 1-4
    ```
    Check `outputs/summary.md` — the per-county counts are the Stage 1 sanity
    check the spec asks for.
 
+### Data sources used (all verified live)
+
+| Need | Source | Layer / filter |
+|---|---|---|
+| Parcels | iMAP `PlanningCadastre/MD_ParcelBoundaries/MapServer/0` | per county, `JURSCODE` |
+| Zoning, Frederick | Frederick County GIS `PlanningAndPermitting/Zoning/MapServer/1` | `TYPE` (coded domain) |
+| Zoning, Carroll | Carroll County AGOL `Zoning/FeatureServer/0` | `Zoning` |
+| Zoning, Washington | Washington County AGOL `Washington_County_Zoning/FeatureServer/21` | `Zone` / `Zone_Full` |
+| MALPF easements | iMAP `Environment/MD_ProtectedLands/MapServer/4` | favorable |
+| County PDR/TDR/IPP/Critical Farms | `MD_ProtectedLands/MapServer/9` | favorable, `OthrPrgNm != 'CREP'` |
+| Rural Legacy | `MD_ProtectedLands/MapServer/1` | favorable |
+| MET easements | `MD_ProtectedLands/MapServer/2` | varies |
+| Forest conservation easements | `MD_ProtectedLands/MapServer/3` + Frederick `ForestResource/2`, Carroll `Forest_Conservation_Easement/0` (recorded), Washington `Forest_Conservation_Easements_View/0` (unreleased) | hostile |
+| CREP enrollments (mapped) | `MD_ProtectedLands/MapServer/9`, `OthrPrgNm == 'CREP'` | hostile strip |
+| DNR lands, Frederick other easements | `MD_ProtectedLands/MapServer/0`, Frederick `OtherEasementsOrRestrictions/0` | varies |
+| Wetlands | iMAP `Hydrology/MD_Wetlands/MapServer/2` (NWI) | physical |
+| Floodplain | iMAP `Hydrology/MD_Floodplain/MapServer/1` | `FLD_ZONE in A, AE, AH, AO` |
+| Streams (riparian inference) | iMAP `Hydrology/MD_Waterbodies/MapServer/2` (detailed) | 100 ft each side |
+| State road ROW | MDOT SHA `MDOT_SHA_Right-Of-Way_(Polygons)/FeatureServer/32` | polygons per SHA grid |
+| Tax-map road ROW | `ACCTID = 'ROW'` rows of the parcel layer | polygons |
+| County roads | Frederick `Basemap/Centerlines/0` (`OWNERSHIP`), Carroll `Roads_CarrollCounty/0` (`ROADCLASS`), Washington `Road_Centerlines_Public_View/0` (`Road_Code`) | public only, no interstates/ramps |
+| DEM | iMAP LiDAR `Statewide/MD_statewide_dem_m/ImageServer` | per-parcel `exportImage` |
+| County boundaries | iMAP `Boundaries/MD_PhysicalBoundaries/MapServer/0` | study area |
+
+SHA plat boundaries, the HPMS access-control layer, statewide centerlines,
+MDP generalized zoning, the MPRP route, the residential pipeline and other
+later-stage layers are listed under `reference_layers:` in the config.
+
 ### Study area
 
-`config/study_area.geojson` is a **placeholder envelope** shaped to the spec
-(all of Frederick, only the Mount Airy corner of Carroll, and the
-Sharpsburg / Keedysville / Boonsboro / Rohrersville area of Washington).
-Replace it with real county-boundary geometry before a production run. An
-expanded northern-Carroll run is a one-line change:
+`config/study_area.geojson` is built from the iMAP detailed county
+boundaries (all of Frederick, the Mount Airy corner of Carroll, and the
+Sharpsburg / Keedysville / Boonsboro / Rohrersville area of Washington;
+2,109 km²). An expanded northern-Carroll run (3,102 km²) is a one-line change:
 
 ```yaml
 study_area: study_area_expanded_carroll.geojson
@@ -155,8 +216,9 @@ deduplicated owner list.
 `entrance_permit_sha_state_road`, `frontage_indeterminate_row_gap`,
 `hostile_constraint_bisects_parcel`,
 `riparian_buffer_presumed_confirm_with_seller`, `met_easement_read_terms`,
-`sdat_acreage_disagrees_with_geometry`, `zoning_unmapped`,
-`zoning_layer_missing`.
+`other_easement_read_terms`, `crep_enrollment_confirm_contract_term`,
+`owner_name_unavailable_lookup_sdat`, `sdat_acreage_disagrees_with_geometry`,
+`zoning_unmapped`, `zoning_layer_missing`.
 
 ## Design notes
 
@@ -192,10 +254,11 @@ deduplicated owner list.
 ```
 config/            pipeline.yaml, study areas, parcel schema map, zoning mappings
 farmsearch/        package
-  io/              ArcGIS REST client, loaders, runtime schema verification
+  io/              ArcGIS REST client (ESRI JSON paging), loaders, schema verification,
+                   per-county parcel pull, study-area builder
   geometry/        encumbrance position, frontage probing, reserve strips, connectivity
   stages/          stage1..stage4
-  slope.py         DEM → steep-area polygons
+  slope.py         DEM (local file or iMAP ImageServer) → steep-area polygons
   pipeline.py      orchestration + outputs
   fixtures/        synthetic validation dataset
 tests/             pytest suite (runs against the fixture)
