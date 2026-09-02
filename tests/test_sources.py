@@ -795,3 +795,22 @@ def test_reserve_strip_must_be_vacant_and_between_parcel_and_road(tmp_path):
     res2 = run_stage4(cfg2, parcels, mask, {}, rows)
     assert set(res2.strips["strip_account_id"]) == {"STRIP1", "STRIP2"}
     assert _cfg(tmp_path).access.strip_exclude_improved is True
+
+
+def test_placeholder_blockers_are_not_dissolved_into_one_polygon(tmp_path):
+    """262 'UNK' polygons scattered over a county share an id but are not one
+    account: each stays its own row, while real multi-row accounts dissolve."""
+    from farmsearch.stages.stage1_base_filter import run_stage1
+    raw = _parcels_raw()
+    extra = gpd.GeoDataFrame({c: [None, None] for c in raw.columns if c != raw.geometry.name},
+                             geometry=[box(0, 3000, 100, 3010), box(2500, 3000, 2510, 3200)], crs=raw.crs)
+    extra["ACCTID"] = ["UNK", "UNK"]; extra["JURSCODE"] = ["FRED", "FRED"]
+    raw = gpd.GeoDataFrame(pd.concat([raw, extra], ignore_index=True), geometry=raw.geometry.name, crs=raw.crs)
+    gdf = load_parcels(_cfg(tmp_path), box(-10, -10, 5000, 5000), parcels_raw=raw)
+    unk = gdf[gdf["account_id"] == "UNK"]
+    assert len(unk) == 2 and (~unk["is_account"]).all() and set(unk.geometry.geom_type) == {"Polygon"}
+    assert gdf.set_index("account_id").loc["1101000002"].geometry.geom_type == "MultiPolygon"
+    assert gdf["account_id"][gdf["is_account"]].is_unique
+    cfg = _cfg(tmp_path, zoning=[], on_unmapped_zoning="flag")
+    res = run_stage1(cfg, box(-10, -10, 5000, 5000), parcels_raw=raw, zoning_layers={})
+    assert res.summary["blocker_polygons_retained"] == 5 and res.summary["parcels_in_study_area"] == 3

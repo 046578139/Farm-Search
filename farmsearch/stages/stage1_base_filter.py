@@ -81,10 +81,15 @@ def load_parcels(cfg: Config, study_geom: BaseGeometry, parcels_raw: Optional[gp
     gdf["account_id"] = gdf["account_id"].astype(str).str.strip()
     # Keep only areal geometry
     gdf = gdf[gdf.geometry.geom_type.isin(["Polygon", "MultiPolygon"])]
-    # Dissolve multi-row accounts (an account can be several polygons)
-    dup = gdf["account_id"].duplicated(keep=False)
+    # Dissolve multi-row accounts (an account can be several polygons).
+    # Placeholder blockers (UNK, GCE, WATER, RAILROAD, ...) share an id but
+    # are unrelated polygons scattered over the county: never dissolved, one
+    # row each, so Stage 4 meets them one polygon at a time.
     gdf["sdat_acreage_inconsistent"] = False
     gdf["sdat_acreage_summed"] = False
+    blockers = gdf[~gdf["is_account"].values].copy()
+    gdf = gdf[gdf["is_account"].values].copy()
+    dup = gdf["account_id"].duplicated(keep=False)
     if dup.any():
         log.info("dissolving %d rows belonging to multi-polygon accounts", int(dup.sum()))
         per_acct = None
@@ -113,6 +118,8 @@ def load_parcels(cfg: Config, study_geom: BaseGeometry, parcels_raw: Optional[gp
                 elif pd.notna(first) and abs(total - g) / g < abs(first - g) / g and abs(total - g) / g <= thr:
                     gdf.at[i, "acreage_sdat"] = total
                     gdf.at[i, "sdat_acreage_summed"] = True
+    if len(blockers):
+        gdf = gpd.GeoDataFrame(pd.concat([gdf, blockers], ignore_index=True), geometry=gdf.geometry.name, crs=gdf.crs)
     gdf = gdf.reset_index(drop=True)
     gdf.attrs["non_parcel_polygons_excluded"] = n_non_parcel   # set last: constructors above drop attrs
     gdf.attrs["unlinked_polygons_excluded"] = n_unlinked
