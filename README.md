@@ -147,7 +147,7 @@ service tree (same paths) and is what the config uses.
 | Rural Legacy | `MD_ProtectedLands/MapServer/1` | favorable |
 | MET easements | `MD_ProtectedLands/MapServer/2` | varies |
 | Forest conservation easements | `MD_ProtectedLands/MapServer/3` + Frederick `ForestResource/2`, Carroll `Forest_Conservation_Easement/0` (recorded), Washington `Forest_Conservation_Easements_View/0` (unreleased) | hostile |
-| CREP enrollments (mapped) | `MD_ProtectedLands/MapServer/9`, `OthrPrgNm == 'CREP'` | hostile strip |
+| CREP enrolled farms (mapped) | `MD_ProtectedLands/MapServer/9`, `OthrPrgNm == 'CREP'` | varies: whole farms, flag only |
 | DNR lands, Frederick other easements | `MD_ProtectedLands/MapServer/0`, Frederick `OtherEasementsOrRestrictions/0` | varies |
 | Wetlands | iMAP `Hydrology/MD_Wetlands/MapServer/2` (NWI) | physical |
 | Floodplain | iMAP `Hydrology/MD_Floodplain/MapServer/1` | `FLD_ZONE in A, AE, AH, AO` |

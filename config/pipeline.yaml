@@ -258,13 +258,17 @@ constraints:
     where: "RELEASE_DATE.isnull()"
     name_field: DEVELOPMENT_NAME
   - name: crep_enrolled
-    # CREP enrollments that MDP has mapped (Frederick publishes them); the
-    # presumed-buffer layer below covers what is not mapped.
-    type: riparian_buffer_crep
+    # CREP enrollments that MDP has mapped (Frederick publishes them). The
+    # polygons are the ENROLLED FARMS, not the buffer strips: 34 of the 44 in
+    # the study area cover >90% of a parcel (median 98 ac). So this layer
+    # says "a CREP contract exists on this farm" and is a read-the-contract
+    # flag, never a subtraction; the presumed 100 ft stream buffer below is
+    # what is subtracted.
+    type: crep_enrolled_farm
     category: legal
-    implication: hostile
-    subtract_from_usable: true
-    crossable_with_permit: true
+    implication: varies
+    subtract_from_usable: false
+    crossable_with_permit: false
     manual_flag: crep_enrollment_confirm_contract_term
     path: ../data/raw/constraints/crep.gpkg
     url: "https://mdgeodata.md.gov/imap/rest/services/Environment/MD_ProtectedLands/MapServer/9"

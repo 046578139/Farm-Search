@@ -24,13 +24,14 @@ import numpy as np
 import pandas as pd
 from shapely.geometry import LineString, Point
 from shapely.geometry.base import BaseGeometry
-from shapely.ops import linemerge, unary_union
+from shapely.ops import unary_union
 
 from ..config import Config
 from ..geometry.connectivity import connected_components, reachable_usable_via, seed_components
 from ..geometry.frontage import analyze_frontage
 from ..geometry.strips import is_strip, strip_metrics
 from ..io.loaders import LayerNotAvailable, clean_geometries, read_layer
+from ..geometry.position import merge_lines
 from ..owners import owners_match
 from ..units import ACRE_M2, ft_to_m, m2_to_acres, m_to_ft
 
@@ -75,9 +76,12 @@ def load_row_layers(cfg: Config, study_geom: BaseGeometry) -> tuple[gpd.GeoDataF
 
 
 def _merge_count(lines: list[LineString]) -> int:
+    """Number of connected runs in a set of line pieces."""
     if not lines:
         return 0
-    m = linemerge(unary_union(lines))
+    m = merge_lines(unary_union(lines))
+    if m.is_empty:
+        return 0
     return 1 if isinstance(m, LineString) else len(m.geoms)
 
 

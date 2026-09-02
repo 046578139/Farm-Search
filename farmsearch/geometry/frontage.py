@@ -31,8 +31,9 @@ import geopandas as gpd
 import numpy as np
 from shapely.geometry import LineString, MultiLineString, Point
 from shapely.geometry.base import BaseGeometry
-from shapely.ops import linemerge, nearest_points, unary_union
+from shapely.ops import nearest_points, unary_union
 
+from .position import merge_lines
 from ..owners import owners_match
 from ..units import ft_to_m, m_to_ft
 
@@ -185,7 +186,9 @@ def analyze_frontage(subject_idx: int, subject: BaseGeometry, subject_owner: Opt
     facing = boundary.intersection(row_union.buffer(search_m))
     if facing.is_empty:
         return res
-    facing = linemerge(facing) if not isinstance(facing, LineString) else facing
+    facing = merge_lines(facing)
+    if facing.is_empty:
+        return res
 
     hostile_items = [(k, g) for k, g in hostile.items() if g is not None and not g.is_empty]
     for line in _lines(facing):

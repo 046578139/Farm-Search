@@ -195,9 +195,13 @@ spatial index), which is the difference between 15 minutes and 71 seconds.
   layers overlap. Stage 2 reports each as its own row (`source_layer`) and
   unions by implication before summing acres; Stage 3 unions all hostile
   geometry before subtracting, so usable area is not double-counted.
-- **CREP.** MDP maps CREP enrollments for Frederick (`OthrPrgNm='CREP'`);
-  Carroll/Washington enrollments are not mapped, so the presumed 100 ft
-  stream buffer still applies everywhere and is still flagged.
+- **CREP.** MDP maps CREP enrollments for Frederick (`OthrPrgNm='CREP'`),
+  but as whole enrolled farms, not buffer strips (34 of 44 polygons cover
+  >90% of a parcel; median 98 ac, up to 305 ac). The layer is therefore a
+  `varies` flag (`crep_enrollment_confirm_contract_term`), not a
+  subtraction; the presumed 100 ft stream buffer is what Stage 3 subtracts,
+  everywhere, and is still flagged. Carroll/Washington enrollments are not
+  mapped at all.
 - **Statewide centerline `ID_PREFIX` codes** (CO, MU, MD, US, IS, RP, PV,
   GV, OP, LL, SP, SR, XO) are undocumented; the county layers were used
   instead because they carry explicit ownership.

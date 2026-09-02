@@ -87,3 +87,28 @@ def describe_position(info: dict) -> str:
     if info["touches_boundary"]:
         return f"{info['position']} edge"
     return f"{info['position']} interior"
+
+
+def line_parts(geom):
+    """Lineal parts of any geometry (LineString / MultiLineString /
+    GeometryCollection with stray points), as a list of LineStrings."""
+    from shapely import get_parts
+    from shapely.geometry import LineString
+    if geom is None or geom.is_empty:
+        return []
+    return [g for g in get_parts(geom) if isinstance(g, LineString) and not g.is_empty]
+
+
+def merge_lines(geom):
+    """linemerge that tolerates a bare LineString, a GeometryCollection and
+    an empty input (shapely.ops.linemerge raises on a single LineString).
+    Returns a LineString, a MultiLineString, or an empty LineString."""
+    from shapely.geometry import LineString, MultiLineString
+    from shapely.ops import linemerge
+    parts = line_parts(geom)
+    if not parts:
+        return LineString()
+    if len(parts) == 1:
+        return parts[0]
+    merged = linemerge(MultiLineString(parts))
+    return merged

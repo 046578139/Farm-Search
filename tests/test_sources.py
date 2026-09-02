@@ -612,3 +612,17 @@ def test_washington_clip_box_contains_the_named_towns():
         x0, y0, x1, y1 = wash["clip_bbox"]
         for name, (lon, lat) in towns.items():
             assert x0 < lon < x1 and y0 < lat < y1, f"{name} outside the Washington box in variant {variant}"
+
+
+def test_merge_lines_tolerates_single_lines_and_collections():
+    from shapely.geometry import GeometryCollection, LineString, MultiLineString, Point
+    from farmsearch.geometry.position import merge_lines
+    from farmsearch.stages.stage4_access import _merge_count
+    single = LineString([(0, 0), (1, 0), (2, 0)])
+    assert merge_lines(single).equals(single)                       # shapely.ops.linemerge raises here
+    assert _merge_count([single]) == 1
+    gc = GeometryCollection([Point(5, 5), LineString([(0, 0), (1, 0)]), LineString([(1, 0), (2, 0)]), LineString([(10, 0), (11, 0)])])
+    m = merge_lines(gc)
+    assert isinstance(m, MultiLineString) and len(m.geoms) == 2
+    assert merge_lines(GeometryCollection([Point(1, 1)])).is_empty
+    assert _merge_count([]) == 0
