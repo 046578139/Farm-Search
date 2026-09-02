@@ -62,7 +62,17 @@ def build_study_area(cfg: Config, variant: str, out: Optional[Path] = None, sess
           "features": [{"type": "Feature",
                         "properties": {"name": variant, "built_from": sab.boundaries_url, "parts": desc},
                         "geometry": mapping(geom)}]}
-    out = Path(out) if out else cfg.study_area_path
+    if out is None:
+        base = cfg.study_area_path
+        out = base if variant == "initial" else base.with_name(f"{base.stem}_{variant}{base.suffix}")
+        if out.exists():
+            try:
+                prev = json.loads(out.read_text())["features"][0]["properties"].get("name")
+            except Exception:  # noqa: BLE001
+                prev = None
+            if prev and prev != variant:
+                raise ConfigError(f"{out} was built for variant {prev!r}; pass --out to overwrite it with {variant!r}")
+    out = Path(out)
     out.write_text(json.dumps(fc))
     area_km2 = gpd.GeoSeries([geom], crs="EPSG:4326").to_crs(cfg.working_crs).area.iloc[0] / 1e6
     log.info("wrote %s (%s; %.0f km2)", out, desc, area_km2)

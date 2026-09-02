@@ -131,6 +131,15 @@ class ArcGISLayer:
     def fetch_geojson(self, **kw) -> dict:
         return {"type": "FeatureCollection", "features": list(self.iter_features(**kw))}
 
+    def distinct_values(self, field: str, where: str = "1=1") -> list[Any]:
+        """Distinct attribute values (for zoning-domain discovery when the
+        service publishes no coded-value domain). NB: on the iMAP MapServers
+        returnDistinctValues ignores any spatial filter."""
+        d = self._get(f"{self.url}/query", {"where": where, "outFields": field, "returnGeometry": "false",
+                                            "returnDistinctValues": "true"})
+        vals = [f.get("attributes", {}).get(field) for f in d.get("features", [])]
+        return sorted({v for v in vals if v is not None}, key=str)
+
     # ------------------------------------------------------------------
     def object_ids(self, where: str = "1=1", bbox_4326: Optional[tuple[float, float, float, float]] = None) -> list[int]:
         """All object ids matching the query (returnIdsOnly). Not subject to
@@ -325,12 +334,20 @@ def count_features(payload: bytes) -> int:
 
 def esrijson_to_gdf(payload: bytes, tmp_dir: Optional[Path] = None):
     """Parse an ESRI JSON FeatureSet (f=json) into a GeoDataFrame via GDAL's
-    ESRIJSON driver (pyogrio needs a file path for this driver)."""
+    ESRIJSON driver (pyogrio needs a file path for this driver). The file is
+    closed before GDAL opens it (re-opening an open temp file fails on Windows)."""
+    import os
     import pyogrio
-    with tempfile.NamedTemporaryFile("wb", suffix=".json", dir=str(tmp_dir) if tmp_dir else None, delete=True) as f:
-        f.write(payload)
-        f.flush()
-        return pyogrio.read_dataframe(f.name)
+    fd, name = tempfile.mkstemp(suffix=".json", dir=str(tmp_dir) if tmp_dir else None)
+    try:
+        with os.fdopen(fd, "wb") as f:
+            f.write(payload)
+        return pyogrio.read_dataframe(name)
+    finally:
+        try:
+            os.unlink(name)
+        except OSError:
+            pass
 
 
 def fetch_layer_gdf(layer: "ArcGISLayer", where: str = "1=1", bbox_4326=None, out_fields: str = "*",
@@ -345,14 +362,10 @@ def fetch_layer_gdf(layer: "ArcGISLayer", where: str = "1=1", bbox_4326=None, ou
                                                                       page_size=page_size, mode=mode)]
     parts = [g for g in parts if len(g)]
     if not parts:
-        return gpd.GeoDataFrame({"_empty": []}, geometry=[], crs=f"EPSG:{out_sr}")
+        # Empty result: keep the service's attribute columns so a `where`
+        # on the cached file still evaluates (to nothing) instead of failing.
+        cols = [f["name"] for f in layer.info().fields if f.get("type") not in ("esriFieldTypeGeometry",)
+                and "(" not in f["name"]]
+        return gpd.GeoDataFrame({c: pd.Series([], dtype="object") for c in cols}, geometry=[], crs=f"EPSG:{out_sr}")
     gdf = gpd.GeoDataFrame(pd.concat(parts, ignore_index=True), geometry=parts[0].geometry.name, crs=parts[0].crs)
     return gdf
-
-    def distinct_values(self, field: str, where: str = "1=1") -> list[Any]:
-        """Distinct attribute values (for zoning-domain discovery when the
-        service publishes no coded-value domain)."""
-        d = self._get(f"{self.url}/query", {"where": where, "outFields": field, "returnGeometry": "false",
-                                            "returnDistinctValues": "true"})
-        vals = [f.get("attributes", {}).get(field) for f in d.get("features", [])]
-        return sorted({v for v in vals if v is not None}, key=str)

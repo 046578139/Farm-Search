@@ -41,6 +41,7 @@ class Stage3Result:
     usable: gpd.GeoDataFrame
     geoms: dict[str, dict] = field(default_factory=dict)   # account_id -> {usable, traversable, hostile: {name: geom}}
     slope_source: str = "none"
+    slope_windows_failed: int = 0
 
 
 def _areal(geom: BaseGeometry) -> BaseGeometry:
@@ -48,6 +49,11 @@ def _areal(geom: BaseGeometry) -> BaseGeometry:
     if not parts:
         return MultiPolygon()
     return parts[0] if len(parts) == 1 else MultiPolygon(parts)
+
+
+class SlopeWindowError(RuntimeError):
+    """The slope source could not be read for one parcel (network / service
+    failure). The parcel is reported as NOT slope-evaluated, never as flat."""
 
 
 class SlopeProvider:
@@ -100,7 +106,7 @@ class SlopeProvider:
             except Exception as e:  # noqa: BLE001 - one bad window must not kill the run
                 log.warning("slope window failed for parcel bounds %s: %s", geom.bounds, e)
                 self.failures = getattr(self, "failures", 0) + 1
-                return None
+                raise SlopeWindowError(str(e)) from e
         return None
 
 
@@ -132,7 +138,16 @@ def run_stage3(cfg: Config, parcels: gpd.GeoDataFrame, enc_geoms: dict[str, dict
             if g is not None and not g.is_empty:
                 hostile[c.name] = g
                 parcels.at[i, f"subtracted_{c.name}_acres"] = round(m2_to_acres(g.area), 2)
-        steep = sp.steep(pg)
+        try:
+            steep = sp.steep(pg)
+        except SlopeWindowError:
+            steep = None
+            parcels.at[i, "slope_evaluated"] = False
+            flags = parcels.at[i, "manual_flags"] if "manual_flags" in parcels.columns else None
+            if isinstance(flags, list):
+                flags.append("slope_window_failed_not_evaluated")
+            else:
+                parcels.at[i, "manual_flags"] = ["slope_window_failed_not_evaluated"]
         if steep is not None and not steep.is_empty:
             hostile[STEEP_KEY] = steep
             parcels.at[i, "steep_slope_acres"] = round(m2_to_acres(steep.area), 2)
@@ -152,4 +167,5 @@ def run_stage3(cfg: Config, parcels: gpd.GeoDataFrame, enc_geoms: dict[str, dict
 
     usable_gdf = gpd.GeoDataFrame(usable_rows, geometry="geometry", crs=parcels.crs) if usable_rows else \
         gpd.GeoDataFrame({"account_id": [], "usable_acres": []}, geometry=[], crs=parcels.crs)
-    return Stage3Result(parcels=parcels, usable=usable_gdf, geoms=geoms, slope_source=sp.mode)
+    return Stage3Result(parcels=parcels, usable=usable_gdf, geoms=geoms, slope_source=sp.mode,
+                        slope_windows_failed=int(getattr(sp, "failures", 0)))

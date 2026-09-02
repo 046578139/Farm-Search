@@ -92,8 +92,11 @@ def steep_polygons_from_array(arr: np.ndarray, transform, px_m: float, py_m: flo
     of cells with slope > slope_max_pct, clipped to `geom`, in geom_crs."""
     if arr.size == 0 or np.all(np.isnan(arr)):
         return None
+    nodata = np.isnan(arr)
     slope = slope_percent(np.nan_to_num(arr, nan=np.nanmean(arr)), px_m, py_m, vertical_factor)
-    mask = (slope > slope_max_pct) & ~np.isnan(arr)
+    # Cells next to nodata see a fake step (their neighbour was filled with the
+    # window mean): exclude the one-cell ring around nodata from the mask.
+    mask = (slope > slope_max_pct) & ~_dilate(nodata)
     if not mask.any():
         return None
     polys = [shape(s) for s, v in features.shapes(mask.astype("uint8"), mask=mask, transform=transform) if v == 1]
@@ -103,6 +106,18 @@ def steep_polygons_from_array(arr: np.ndarray, transform, px_m: float, py_m: flo
     steep = gpd.GeoSeries([steep], crs=arr_crs).to_crs(geom_crs).iloc[0]
     steep = steep.intersection(geom)
     return None if steep.is_empty else steep
+
+
+def _dilate(mask: np.ndarray) -> np.ndarray:
+    """3x3 binary dilation without scipy (edges are not wrapped)."""
+    if not mask.any():
+        return mask
+    padded = np.pad(mask, 1, mode="constant", constant_values=False)
+    out = np.zeros_like(mask)
+    for dy in (0, 1, 2):
+        for dx in (0, 1, 2):
+            out |= padded[dy:dy + mask.shape[0], dx:dx + mask.shape[1]]
+    return out
 
 
 # ----------------------------------------------------------------------------
@@ -157,7 +172,7 @@ class ImageServerDEM:
             return cp.read_bytes()
         params = {"bbox": f"{minx},{miny},{maxx},{maxy}", "bboxSR": epsg, "imageSR": epsg, "size": f"{w},{h}",
                   "format": "tiff", "pixelType": "F32", "noData": int(IMAGESERVER_NODATA),
-                  "interpolation": "RS_BilinearInterpolation", "f": "image"}
+                  "interpolation": "RSP_BilinearInterpolation", "f": "image"}
         r = self.session.get(f"{self.url}/exportImage", params=params, timeout=self.timeout)
         r.raise_for_status()
         if not r.headers.get("content-type", "").startswith("image/tiff"):

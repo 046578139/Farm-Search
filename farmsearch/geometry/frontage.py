@@ -162,7 +162,8 @@ def _offset_points(parcel: BaseGeometry, mid: Point, tangent: tuple[float, float
 # ----------------------------------------------------------------------------
 def analyze_frontage(subject_idx: int, subject: BaseGeometry, subject_owner: Optional[str], subject_addr: Optional[str],
                      parcels: gpd.GeoDataFrame, rows: gpd.GeoDataFrame, hostile: dict[str, BaseGeometry],
-                     search_ft: float, sample_ft: float, contact_tol_ft: float, open_gap_ft: float) -> FrontageResult:
+                     search_ft: float, sample_ft: float, contact_tol_ft: float, open_gap_ft: float,
+                     subject_deed: Optional[str] = None) -> FrontageResult:
     """Classify the road-facing boundary of one parcel.
 
     parcels: all parcels (account_id, owner_name, owner_mailing_address, geometry) with a spatial index
@@ -237,7 +238,8 @@ def analyze_frontage(subject_idx: int, subject: BaseGeometry, subject_owner: Opt
                 sub.blocking_index = hit_idx
                 sub.blocking_account_id = str(rowc.get("account_id"))
                 sub.blocking_owner = rowc.get("owner_name")
-                same = owners_match(subject_owner, rowc.get("owner_name"), subject_addr, rowc.get("owner_mailing_address"))
+                same = owners_match(subject_owner, rowc.get("owner_name"), subject_addr, rowc.get("owner_mailing_address"),
+                                    deed_a=subject_deed, deed_b=rowc.get("deed_ref"))
                 sub.outside = "same_owner_parcel" if same else "foreign_parcel"
             elif d <= open_gap_m:
                 sub.outside = "row"

@@ -94,14 +94,20 @@ def normalize_address(*parts: Optional[str]) -> str:
 
 def owners_match(name_a: Optional[str], name_b: Optional[str],
                  addr_a: Optional[str] = None, addr_b: Optional[str] = None,
-                 min_jaccard: float = 0.6) -> bool:
+                 min_jaccard: float = 0.6, deed_a: Optional[str] = None, deed_b: Optional[str] = None) -> bool:
     """True when two SDAT owner records plausibly describe the same owner.
+
+    Deed match: identical non-empty deed reference (liber/folio) — the two
+    parcels were conveyed by the same instrument.
 
     Name match: Jaccard similarity of normalized tokens >= min_jaccard, OR one
     token set contains the other (handles "SMITH JOHN" vs "SMITH JOHN A & MARY").
     Address match: identical normalized mailing address (strong signal — one
     farmer's LLC and personal holdings share a mailbox).
     """
+    da, db = (str(deed_a).strip() if deed_a not in (None, "") else ""), (str(deed_b).strip() if deed_b not in (None, "") else "")
+    if da and db and da.lower() not in ("nan", "none") and da == db:
+        return True
     ta, tb = owner_tokens(name_a), owner_tokens(name_b)
     if ta and tb:
         inter = len(ta & tb)

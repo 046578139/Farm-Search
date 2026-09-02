@@ -135,6 +135,8 @@ def run_pipeline(cfg: Config, stages: Iterable[int] = (1, 2, 3, 4), out_dir: Opt
         scored = s3.parcels
         summary["stage3"] = {
             "slope_source": s3.slope_source,
+            "slope_windows_failed": s3.slope_windows_failed,
+            "parcels_not_slope_evaluated": int((~scored["slope_evaluated"].astype(bool)).sum()),
             "usable_acres_total": float(scored["usable_acres"].sum()),
             "gross_acres_total": float(scored["gross_acres"].sum()),
             "parcels_usable_below_acreage_min": int((scored["usable_acres"] < cfg.acreage_min).sum()),
@@ -244,7 +246,7 @@ def render_summary(s: dict) -> str:
     if "stage3" in s:
         s3 = s["stage3"]
         L += ["", "## Stage 3 — usable area", "",
-              f"slope source: {s3['slope_source']} · usable {s3['usable_acres_total']:.0f} of {s3['gross_acres_total']:.0f} gross acres · "
+              f"slope source: {s3['slope_source']} (windows failed: {s3.get('slope_windows_failed', 0)}) · usable {s3['usable_acres_total']:.0f} of {s3['gross_acres_total']:.0f} gross acres · "
               f"parcels whose usable area falls below acreage_min: {s3['parcels_usable_below_acreage_min']}"]
     if "stage4" in s:
         s4 = s["stage4"]

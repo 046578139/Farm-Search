@@ -235,7 +235,7 @@ class Config:
                 schema_path=_opt_path(base, p.get("schema", "schema/parcels.yaml")),
                 acreage_source=p.get("acreage_source", "sdat"),
                 acreage_disagreement_pct=float(p.get("acreage_disagreement_pct", 10)),
-                row_account_ids=[str(x) for x in (p.get("row_account_ids") or ["ROW", "ROW_ALLEY"])],
+                row_account_ids=[str(x) for x in (["ROW", "ROW_ALLEY"] if p.get("row_account_ids") is None else p["row_account_ids"])],
                 non_parcel_account_ids=[str(x) for x in (p.get("non_parcel_account_ids") or [])],
                 account_id_regex=(p["account_id_regex"] if "account_id_regex" in p else r"^(?=.*\d)[0-9A-Za-z]{8,}$"),
                 url=p.get("url"),

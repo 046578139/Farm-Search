@@ -80,17 +80,52 @@ def fetch_county_pages(layer: ArcGISLayer, where: str, out_fields: list[str], ou
             yield gdf
 
 
+def resolve_county_codes(cfg: Config, requested: Optional[Iterable[str]]) -> list[str]:
+    """Jurisdiction codes to fetch: every key of cfg.counties by default;
+    requested values may be codes or county names (case-insensitive)."""
+    if not requested:
+        return list(cfg.counties)
+    by_code = {c.upper(): c for c in cfg.counties}
+    by_name = {n.upper(): c for c, n in cfg.counties.items()}
+    out = []
+    for r in requested:
+        key = str(r).strip().upper()
+        code = by_code.get(key) or by_name.get(key)
+        if code is None:
+            raise ValueError(f"unknown county {r!r}; configured codes: {list(cfg.counties)} "
+                             f"(names: {list(cfg.counties.values())})")
+        if code not in out:
+            out.append(code)
+    return out
+
+
 def fetch_parcels(cfg: Config, county_codes: Optional[Iterable[str]] = None, parcels_dir: Optional[Path] = None,
-                  row_dir: Optional[Path] = None, bbox_4326: Optional[tuple[float, float, float, float]] = None,
-                  force: bool = False, session: Optional[requests.Session] = None,
+                  row_dir: Optional[Path] = None, force: bool = False, session: Optional[requests.Session] = None,
                   page_size: Optional[int] = None) -> dict:
-    """Download every configured county (cfg.counties) from cfg.parcels.url."""
+    """Download every configured county (cfg.counties) from cfg.parcels.url.
+
+    Always the WHOLE county: a cache keyed by county code must not depend on
+    the study area it was fetched for (the county `where` bounds the request
+    and a spatial filter only slows the service down). Both output files are
+    written atomically; a county is skipped only when both exist."""
     if not cfg.parcels.url:
         raise ArcGISError("parcels.url is not set in the config")
     parcels_dir = Path(parcels_dir or cfg.parcels.source.path)
     row_dir = Path(row_dir) if row_dir else parcels_dir.parent / (parcels_dir.name + "_row")
     parcels_dir.mkdir(parents=True, exist_ok=True)
     row_dir.mkdir(parents=True, exist_ok=True)
+    codes = resolve_county_codes(cfg, county_codes)
+    summary: dict = {"url": cfg.parcels.url, "counties": {}}
+    todo = []
+    for code in codes:
+        out, out_row = parcels_dir / f"parcels_{code}.gpkg", row_dir / f"parcel_row_{code}.gpkg"
+        if out.exists() and out_row.exists() and not force:
+            log.info("skip %s: cached at %s", code, out)
+            summary["counties"][code] = {"skipped": True, "path": str(out), "row_path": str(out_row)}
+        else:
+            todo.append(code)
+    if not todo:
+        return summary
     layer = ArcGISLayer(cfg.parcels.url, session=session)
     info = layer.info()
     live = info.field_names()
@@ -102,33 +137,29 @@ def fetch_parcels(cfg: Config, county_codes: Optional[Iterable[str]] = None, par
     account_field = res.mapping["account_id"]
     fields = wanted_fields(cfg, live)
     out_epsg = _epsg(cfg.working_crs)
-    codes = list(county_codes or cfg.counties)
-    summary: dict = {"layer": info.name, "url": cfg.parcels.url, "fields": fields, "counties": {}}
-    log.info("parcel layer %s: %d live fields, %d requested; counties %s", info.name, len(live), len(fields), codes)
-    for code in codes:
-        out = parcels_dir / f"parcels_{code}.gpkg"
-        out_row = row_dir / f"parcel_row_{code}.gpkg"
-        if out.exists() and not force:
-            log.info("skip %s: cached at %s", code, out)
-            summary["counties"][code] = {"skipped": True, "path": str(out)}
-            continue
+    summary.update({"layer": info.name, "fields": fields})
+    log.info("parcel layer %s: %d live fields, %d requested; counties %s", info.name, len(live), len(fields), todo)
+    for code in todo:
+        out, out_row = parcels_dir / f"parcels_{code}.gpkg", row_dir / f"parcel_row_{code}.gpkg"
         where = f"{county_field}='{code}'"
         t0 = time.time()
-        pages = list(fetch_county_pages(layer, where, fields, out_epsg, bbox_4326=bbox_4326, page_size=page_size))
+        pages = list(fetch_county_pages(layer, where, fields, out_epsg, page_size=page_size))
         if not pages:
             log.warning("%s: no features returned for %s", code, where)
             summary["counties"][code] = {"features": 0}
             continue
         gdf = gpd.GeoDataFrame(pd.concat(pages, ignore_index=True), geometry=pages[0].geometry.name, crs=pages[0].crs)
         keep, row = _split_row(gdf, account_field, cfg.parcels.row_account_ids)
-        keep.to_file(str(out), driver="GPKG")
-        if len(row):
-            row.to_file(str(out_row), driver="GPKG")
+        tmp, tmp_row = out.with_suffix(".partial.gpkg"), out_row.with_suffix(".partial.gpkg")
+        keep.to_file(str(tmp), driver="GPKG")
+        # the ROW file is always written (possibly empty) so a stale one can never survive a re-fetch
+        row.to_file(str(tmp_row), driver="GPKG")
+        tmp.replace(out)
+        tmp_row.replace(out_row)
         dups = int(keep[account_field].duplicated().sum())
         summary["counties"][code] = {"features": int(len(gdf)), "parcels": int(len(keep)), "row_polygons": int(len(row)),
-                                     "multi_polygon_account_rows": dups, "path": str(out),
-                                     "row_path": str(out_row) if len(row) else None,
+                                     "multi_polygon_account_rows": dups, "path": str(out), "row_path": str(out_row),
                                      "elapsed_s": round(time.time() - t0, 1)}
-        log.info("%s: %d features -> %d parcels (%s), %d ROW/unlinked polygons (%s) in %.0fs",
+        log.info("%s: %d features -> %d parcels (%s), %d ROW polygons (%s) in %.0fs",
                  code, len(gdf), len(keep), out, len(row), out_row, time.time() - t0)
     return summary

@@ -116,6 +116,7 @@ def run_stage4(cfg: Config, parcels_all: gpd.GeoDataFrame, target_mask: pd.Serie
     front_rows, entry_rows, strip_rows, island_rows = [], [], [], []
     owners = P["owner_name"].values
     addrs = P["owner_mailing_address"].values if "owner_mailing_address" in P.columns else np.array([None] * len(P))
+    deeds = P["deed_ref"].values if "deed_ref" in P.columns else np.array([None] * len(P))
     accts = P["account_id"].values
 
     for i in np.flatnonzero(mask):
@@ -128,7 +129,8 @@ def run_stage4(cfg: Config, parcels_all: gpd.GeoDataFrame, target_mask: pd.Serie
         # -- 1-3. Frontage ------------------------------------------------
         fr = analyze_frontage(int(i), pg, owners[i], addrs[i], P, public_rows, hostile,
                               search_ft=a.frontage_search_ft, sample_ft=a.frontage_sample_ft,
-                              contact_tol_ft=a.contact_tolerance_ft, open_gap_ft=a.open_gap_ft)
+                              contact_tol_ft=a.contact_tolerance_ft, open_gap_ft=a.open_gap_ft,
+                              subject_deed=deeds[i])
         L = fr.length_by_class()
         facing = fr.road_facing_m
         direct = L["open"] + L["encumbered"]
@@ -198,7 +200,7 @@ def run_stage4(cfg: Config, parcels_all: gpd.GeoDataFrame, target_mask: pd.Serie
             blocked_ft = m_to_ft(bl.get(accts[c], 0.0))
             if blocked_ft <= 0 and m_to_ft(shared) < STRIP_MIN_SHARED_FRACTION * m["est_length_ft"]:
                 continue
-            same = owners_match(owners[i], owners[c], addrs[i], addrs[c])
+            same = owners_match(owners[i], owners[c], addrs[i], addrs[c], deed_a=deeds[i], deed_b=deeds[c])
             rec = {"account_id": acct, "strip_account_id": accts[c], "strip_owner": owners[c], "same_owner": bool(same),
                    "frontage_ft_blocked": round(blocked_ft, 1), "shared_boundary_ft": round(m_to_ft(shared), 1), **m}
             strips_here.append(rec)

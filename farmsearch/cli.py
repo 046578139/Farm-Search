@@ -4,7 +4,7 @@
   farmsearch verify-schema   --config config/pipeline.yaml
   farmsearch zoning-domains  --config config/pipeline.yaml --county Frederick [--code-field ZONING] [--write]
   farmsearch fetch           --config config/pipeline.yaml [--only name ...]
-  farmsearch fetch-parcels   --config config/pipeline.yaml [--county FRED ...] [--force]
+  farmsearch fetch-parcels   --config config/pipeline.yaml [--county FRED Carroll ...] [--force]
   farmsearch build-study-area --config config/pipeline.yaml [--variant initial] [--out path]
   farmsearch make-fixture    --out data/fixture
 """
@@ -141,21 +141,41 @@ def _study_bbox_4326(cfg: Config) -> tuple[float, float, float, float]:
 
 def cmd_fetch_parcels(args) -> int:
     import json
-    from .io.parcels_rest import fetch_parcels
+    import requests
+    from .io.arcgis import ArcGISError
+    from .io.parcels_rest import fetch_parcels, resolve_county_codes
     cfg = Config.load(args.config)
     if not cfg.parcels.url:
         print("parcels.url is not set in the config", file=sys.stderr)
         return 2
-    bbox = None if args.no_bbox else _study_bbox_4326(cfg)
-    summary = fetch_parcels(cfg, county_codes=args.county, bbox_4326=bbox, force=args.force, page_size=args.page_size)
+    try:
+        codes = resolve_county_codes(cfg, args.county)
+    except ValueError as e:
+        print(e, file=sys.stderr)
+        return 2
+    try:
+        summary = fetch_parcels(cfg, county_codes=codes, force=args.force, page_size=args.page_size)
+    except (ArcGISError, requests.RequestException) as e:
+        print(f"fetch-parcels failed: {e}", file=sys.stderr)
+        return 1
     print(json.dumps(summary, indent=2))
+    empty = [c for c, v in summary["counties"].items() if v.get("features") == 0]
+    if empty:
+        print(f"no features returned for {empty}", file=sys.stderr)
+        return 1
     return 0
 
 
 def cmd_build_study_area(args) -> int:
+    import requests
+    from .io.arcgis import ArcGISError
     from .io.study_area import build_study_area
     cfg = Config.load(args.config)
-    out = build_study_area(cfg, args.variant, out=Path(args.out) if args.out else None)
+    try:
+        out = build_study_area(cfg, args.variant, out=Path(args.out) if args.out else None)
+    except (ArcGISError, requests.RequestException) as e:
+        print(f"build-study-area failed: {e}", file=sys.stderr)
+        return 1
     print(f"wrote {out}")
     return 0
 
@@ -198,16 +218,16 @@ def main(argv=None) -> int:
 
     fp = sub.add_parser("fetch-parcels", help="pull the parcel layer per county from parcels.url into data/raw/parcels")
     fp.add_argument("--config", default="config/pipeline.yaml")
-    fp.add_argument("--county", nargs="*", help="jurisdiction codes (default: every key under counties:)")
-    fp.add_argument("--force", action="store_true")
-    fp.add_argument("--no-bbox", action="store_true", help="do not restrict to the study-area bbox")
+    fp.add_argument("--county", nargs="*", help="jurisdiction codes or county names (default: every key under counties:)")
+    fp.add_argument("--force", action="store_true", help="re-download counties that are already cached")
     fp.add_argument("--page-size", type=int, default=None)
     fp.set_defaults(func=cmd_fetch_parcels)
 
     bs = sub.add_parser("build-study-area", help="assemble the study polygon from county boundaries (study_area_build)")
     bs.add_argument("--config", default="config/pipeline.yaml")
     bs.add_argument("--variant", default="initial")
-    bs.add_argument("--out", default=None, help="output GeoJSON (default: the config's study_area path)")
+    bs.add_argument("--out", default=None, help="output GeoJSON (default: the config's study_area path for 'initial', "
+                                                 "study_area_<variant>.geojson next to it otherwise)")
     bs.set_defaults(func=cmd_build_study_area)
 
     m = sub.add_parser("make-fixture", help="write the synthetic validation dataset")

@@ -10,6 +10,7 @@ from pathlib import Path
 
 import geopandas as gpd
 import numpy as np
+import pandas as pd
 import pytest
 import rasterio
 from rasterio.io import MemoryFile
@@ -429,3 +430,185 @@ def test_non_account_mask_and_exemption_typing():
     assert owner_type_from_exemption("PVT Other") is None
     assert owner_type_from_exemption("OTH Conservation Tax Credit") is None
     assert owner_type_from_exemption(None) is None and owner_type_from_exemption("nan") is None
+
+
+# ---------------------------------------------------------------------------
+# Regression tests for the adversarial-review findings
+# ---------------------------------------------------------------------------
+def test_distinct_values_is_a_layer_method():
+    info = {"name": "Z", "maxRecordCount": 1000, "advancedQueryCapabilities": {"supportsPagination": True}, "fields": [], "extent": {}}
+    class S(_Session):
+        def get(self, url, params=None, timeout=None):
+            if params and params.get("returnDistinctValues"):
+                return _Resp(json.dumps({"features": [{"attributes": {"Zoning": "Agriculture"}}, {"attributes": {"Zoning": "C-1"}},
+                                                      {"attributes": {"Zoning": None}}]}).encode())
+            return super().get(url, params, timeout)
+    layer = ArcGISLayer("https://example.invalid/FeatureServer/0", session=S(info, {}))
+    assert layer.distinct_values("Zoning") == ["Agriculture", "C-1"]
+
+
+def test_nodata_hole_does_not_create_a_steep_ring():
+    """A flat parcel with a nodata hole must yield no steep area (the ring of
+    cells next to the hole used to see a fake step against the window mean)."""
+    from farmsearch.slope import steep_polygons_from_array
+    from rasterio.transform import from_origin
+    arr = np.full((40, 40), 100.0)
+    arr[15:19, 15:19] = np.nan
+    transform = from_origin(0, 200, 5, 5)
+    steep = steep_polygons_from_array(arr, transform, 5.0, 5.0, "EPSG:26985", box(0, 0, 200, 200), "EPSG:26985", 15.0)
+    assert steep is None
+    # ...but real slope next to nodata is still detected away from the ring
+    arr2 = arr.copy(); arr2[:, 30:] = 100.0 + np.arange(10) * 2.0     # 40% grade on the east side
+    steep2 = steep_polygons_from_array(arr2, transform, 5.0, 5.0, "EPSG:26985", box(0, 0, 200, 200), "EPSG:26985", 15.0)
+    assert steep2 is not None and steep2.bounds[0] >= 140
+
+
+def test_failed_slope_window_is_not_reported_as_flat(tmp_path):
+    from farmsearch.stages.stage3_usable_area import SlopeProvider, SlopeWindowError, run_stage3
+    cfg = _cfg(tmp_path, slope={"dem_url": "https://example.invalid/ImageServer"})
+    class SP(SlopeProvider):
+        def __init__(self):
+            self.cfg = cfg; self.mode = "imageserver"; self.failures = 0
+        def steep(self, geom):
+            self.failures += 1
+            raise SlopeWindowError("boom")
+    parcels = gpd.GeoDataFrame({"account_id": ["p1"], "gross_acres": [50.0], "manual_flags": [["x"]]},
+                               geometry=[box(0, 0, 450, 450)], crs="EPSG:26985")
+    res = run_stage3(cfg, parcels, {}, slope_provider=SP())
+    r = res.parcels.iloc[0]
+    assert r["slope_evaluated"] == False and r["steep_slope_acres"] == 0.0            # noqa: E712
+    assert "slope_window_failed_not_evaluated" in r["manual_flags"] and res.slope_windows_failed == 1
+
+
+def test_imageserver_request_uses_the_documented_interpolation_enum(tmp_path):
+    dem = ImageServerDEM("https://example.invalid/ImageServer", cache_dir=None)
+    seen = {}
+    class S:
+        def get(self, url, params=None, timeout=None):
+            seen.update(params)
+            class R:
+                content = _synthetic_tiff((0, 0, 50, 50), 5.0); headers = {"content-type": "image/tiff"}
+                def raise_for_status(self): pass
+            return R()
+    dem.session = S(); dem.export((0, 0, 50, 50), 26985, 5.0)
+    assert seen["interpolation"] == "RSP_BilinearInterpolation" and seen["noData"] == -9999
+
+
+def test_owner_key_never_collapses_nameless_addressless_parcels(tmp_path):
+    cfg = _cfg(tmp_path)
+    raw = _parcels_raw()
+    raw.loc[raw["ACCTID"] == "1101000001", ["OWNADD1", "OWNCITY", "OWNSTATE", "OWNERZIP"]] = None
+    raw.loc[raw["ACCTID"] == "1102502WH", ["OWNADD1", "OWNCITY", "OWNSTATE", "OWNERZIP"]] = None
+    out = attribute_owners(load_parcels(cfg, box(-10, -10, 5000, 5000), parcels_raw=raw)).set_index("account_id")
+    assert out.loc["1101000001", "owner_key"] == "acct:1101000001" and out.loc["1102502WH", "owner_key"] == "acct:1102502WH"
+    assert not out.loc["1101000001", "owner_key_available"] and out.loc["1101000002", "owner_key_available"]
+
+
+def test_owners_match_on_deed_reference():
+    from farmsearch.owners import owners_match
+    assert owners_match("", "", "", "", deed_a="9876/450", deed_b="9876/450")
+    assert not owners_match("", "", "", "", deed_a="9876/450", deed_b="9876/451")
+    assert not owners_match("", "", "", "", deed_a=None, deed_b=None)
+    assert not owners_match("", "", "", "", deed_a="nan", deed_b="nan")
+
+
+def test_row_account_ids_empty_list_is_respected(tmp_path):
+    cfg = _cfg(tmp_path, parcels={"path": str(tmp_path / "p"), "schema": str(ROOT / "config/schema/parcels.yaml"),
+                                  "row_account_ids": [], "non_parcel_account_ids": ["WATER"]})
+    assert cfg.parcels.row_account_ids == [] and cfg.parcels.non_parcel_account_ids == ["WATER"]
+
+
+def _parcel_service(n_feats=4):
+    info = {"name": "Parcel Boundaries", "maxRecordCount": 1000,
+            "advancedQueryCapabilities": {"supportsPagination": True, "supportsOrderBy": True},
+            "fields": [{"name": f, "type": "esriFieldTypeString"} for f in ["ACCTID", "JURSCODE", "OWNADD1", "OWNCITY", "OWNSTATE", "OWNERZIP"]]
+                      + [{"name": "OBJECTID", "type": "esriFieldTypeOID"}], "extent": {"spatialReference": {"wkid": 3857}}}
+    feats = []
+    for i in range(n_feats):
+        acct = "ROW" if i == n_feats - 1 else f"110100000{i}"
+        feats.append({"attributes": {"OBJECTID": i, "ACCTID": acct, "JURSCODE": "FRED", "OWNADD1": "A", "OWNCITY": "B", "OWNSTATE": "MD", "OWNERZIP": "21701"},
+                      "geometry": {"rings": [[[i * 10, 0], [i * 10, 5], [i * 10 + 5, 5], [i * 10 + 5, 0], [i * 10, 0]]]}})
+    page = {**ESRI_PAGE, "fields": [{"name": "OBJECTID", "type": "esriFieldTypeOID"}, {"name": "ACCTID", "type": "esriFieldTypeString"},
+                                    {"name": "JURSCODE", "type": "esriFieldTypeString"}, {"name": "OWNADD1", "type": "esriFieldTypeString"},
+                                    {"name": "OWNCITY", "type": "esriFieldTypeString"}, {"name": "OWNSTATE", "type": "esriFieldTypeString"},
+                                    {"name": "OWNERZIP", "type": "esriFieldTypeString"}],
+            "features": feats, "exceededTransferLimit": False}
+    empty = {**page, "features": []}
+    return info, {None: json.dumps(page).encode(), n_feats - 1: json.dumps(empty).encode()}
+
+
+def test_fetch_parcels_whole_county_atomic_and_resumable(tmp_path):
+    from farmsearch.io.parcels_rest import fetch_parcels
+    cfg = _cfg(tmp_path, counties={"FRED": "Frederick"})
+    info, pages = _parcel_service()
+    sess = _Session(info, pages)
+    s1 = fetch_parcels(cfg, session=sess, parcels_dir=tmp_path / "parcels", row_dir=tmp_path / "parcels_row")
+    assert s1["counties"]["FRED"]["parcels"] == 3 and s1["counties"]["FRED"]["row_polygons"] == 1
+    q = [c[1] for c in sess.calls if c[0].endswith("/query")]
+    assert all("geometry" not in x for x in q)                       # whole county: no bbox ever
+    assert not list((tmp_path / "parcels").glob("*.partial.gpkg"))     # atomic rename
+    # cached -> skipped without touching the service
+    sess2 = _Session(info, pages)
+    s2 = fetch_parcels(cfg, session=sess2, parcels_dir=tmp_path / "parcels", row_dir=tmp_path / "parcels_row")
+    assert s2["counties"]["FRED"]["skipped"] and sess2.calls == []
+    # a missing ROW file means the county is NOT considered cached
+    (tmp_path / "parcels_row" / "parcel_row_FRED.gpkg").unlink()
+    s3 = fetch_parcels(cfg, session=_Session(info, pages), parcels_dir=tmp_path / "parcels", row_dir=tmp_path / "parcels_row")
+    assert "skipped" not in s3["counties"]["FRED"]
+    # --force with no ROW rows rewrites the ROW file as empty (no stale file)
+    info2, pages2 = _parcel_service(n_feats=1)          # single feature... which is 'ROW' by construction -> 0 parcels, 1 row
+    s4 = fetch_parcels(cfg, session=_Session(info2, pages2), force=True, parcels_dir=tmp_path / "parcels", row_dir=tmp_path / "parcels_row")
+    assert s4["counties"]["FRED"]["parcels"] == 0 and s4["counties"]["FRED"]["row_polygons"] == 1
+    import pyogrio
+    assert pyogrio.read_info(str(tmp_path / "parcels" / "parcels_FRED.gpkg"))["features"] == 0
+
+
+def test_resolve_county_codes_accepts_names_and_rejects_unknown(tmp_path):
+    from farmsearch.io.parcels_rest import resolve_county_codes
+    cfg = _cfg(tmp_path)
+    assert resolve_county_codes(cfg, None) == ["FRED", "CARR", "WASH"]
+    assert resolve_county_codes(cfg, ["frederick", "CARR"]) == ["FRED", "CARR"]
+    with pytest.raises(ValueError, match="unknown county"):
+        resolve_county_codes(cfg, ["Montgomery"])
+
+
+def test_empty_cached_layer_with_where_degrades_cleanly(tmp_path):
+    from farmsearch.config import LayerSource
+    from farmsearch.io.loaders import LayerNotAvailable, read_layer
+    empty = gpd.GeoDataFrame({"FLD_ZONE": pd.Series([], dtype="object")}, geometry=[], crs="EPSG:4326")
+    empty.to_file(str(tmp_path / "fp.gpkg"), driver="GPKG")
+    src = LayerSource("floodplain", path=tmp_path / "fp.gpkg", where="FLD_ZONE in ['A', 'AE']")
+    assert read_layer(src, "EPSG:26985").empty
+    bad = gpd.GeoDataFrame({"OTHER": ["x"]}, geometry=[box(-77.5, 39.4, -77.4, 39.5)], crs="EPSG:4326")
+    bad.to_file(str(tmp_path / "bad.gpkg"), driver="GPKG")
+    with pytest.raises(LayerNotAvailable, match="cannot be evaluated"):
+        read_layer(LayerSource("floodplain", path=tmp_path / "bad.gpkg", where="FLD_ZONE in ['A']"), "EPSG:26985")
+
+
+def test_build_study_area_variant_default_output_and_guard(tmp_path, monkeypatch):
+    from farmsearch.config import ConfigError
+    from farmsearch.io import study_area as sa
+    counties = gpd.GeoDataFrame({"COUNTY": ["Frederick", "Carroll"]},
+                                geometry=[box(-77.7, 39.2, -77.2, 39.7), box(-77.2, 39.2, -76.8, 39.7)], crs="EPSG:4326")
+    monkeypatch.setattr(sa, "fetch_county_polygons", lambda url, field, names, session=None: counties)
+    cfg = _cfg(tmp_path, study_area_build={"boundaries_url": "https://example.invalid/MapServer/0", "county_field": "COUNTY",
+                                           "variants": {"initial": [{"county": "Frederick"}], "expanded_carroll": [{"county": "Frederick"}, {"county": "Carroll"}]}})
+    out_init = sa.build_study_area(cfg, "initial")
+    out_exp = sa.build_study_area(cfg, "expanded_carroll")
+    assert out_init == cfg.study_area_path and out_exp == tmp_path / "sa_expanded_carroll.geojson"
+    # a default-path file built for another variant is never silently overwritten
+    cfg.study_area_path.write_text(out_exp.read_text())          # study_area.geojson now carries name 'expanded_carroll'
+    with pytest.raises(ConfigError, match="was built for variant"):
+        sa.build_study_area(cfg, "initial")
+    assert sa.build_study_area(cfg, "initial", out=cfg.study_area_path) == cfg.study_area_path   # explicit --out wins
+
+
+def test_washington_clip_box_contains_the_named_towns():
+    import yaml
+    raw = yaml.safe_load((ROOT / "config/pipeline.yaml").read_text())
+    towns = {"Sharpsburg": (-77.7497, 39.4573), "Keedysville": (-77.6994, 39.4862), "Boonsboro": (-77.6525, 39.5076), "Rohrersville": (-77.6553, 39.4426)}
+    for variant, parts in raw["study_area_build"]["variants"].items():
+        wash = next(p for p in parts if p["county"] == "Washington")
+        x0, y0, x1, y1 = wash["clip_bbox"]
+        for name, (lon, lat) in towns.items():
+            assert x0 < lon < x1 and y0 < lat < y1, f"{name} outside the Washington box in variant {variant}"

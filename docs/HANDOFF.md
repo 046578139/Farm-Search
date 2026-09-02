@@ -73,8 +73,9 @@ previous one stopped without the old conversation. Read `README.md` first.
      ~20 s/page by page 40. A bbox filter alone made a keyset page 15 s vs
      1.2 s. The parcel pull therefore uses **keyset paging**
      (`WHERE ... AND OBJECTID > last ORDER BY OBJECTID`) with **no bbox**
-     (`fetch-parcels --no-bbox` is the default in the docs; the county
-     `where` is cheap). All three counties: 6 minutes, exact counts.
+     (the county `where` is cheap; `fetch-parcels` never sends a bbox, so
+     the per-county cache is always the whole county). All three counties:
+     6 minutes, exact counts.
    - `returnCountOnly` and `returnDistinctValues` **ignore the spatial
      filter** on the iMAP MapServers (NWI "77,548 in bbox" was the
      statewide count; the true bbox count is 6,830). `returnIdsOnly` does
@@ -105,8 +106,28 @@ previous one stopped without the old conversation. Read `README.md` first.
 7. **Study area.** `farmsearch build-study-area` assembles the polygon from
    the iMAP detailed county boundaries (`study_area_build:` in the config):
    all of Frederick, Carroll clipped to the Mount Airy box, Washington
-   clipped to the SE box. `config/study_area.geojson` (2,109 km²) and
-   `study_area_expanded_carroll.geojson` (3,102 km²) are committed.
+   clipped to the SE box. The previous session's placeholder envelope ended
+   at lon -77.69 and left **Boonsboro and Rohrersville outside**; the box now
+   runs to -77.58 and a test checks all four named towns fall inside.
+   `config/study_area.geojson` (2,248 km²) and
+   `study_area_expanded_carroll.geojson` (3,241 km²) are committed.
+8. **Adversarial code review** (5 reviewers, 2 refuters per finding) confirmed
+   20 defects in the first version of this work, all fixed and covered by
+   tests: the parcel cache depended on the study-area bbox it was fetched
+   with (parcels are now always whole counties, both files written
+   atomically); `distinct_values` had been orphaned outside its class
+   (`zoning-domains` would have crashed for Carroll/Washington); DEM nodata
+   cells filled with the window mean created a false ring of "steep" cells
+   (the ring is now masked); a failed slope window was reported as flat
+   (now `slope_evaluated = False` + `slope_window_failed_not_evaluated`, and
+   `slope_windows_failed` in the summary); the exportImage interpolation
+   enum was misspelled; an empty cached layer crashed a `where` filter;
+   nameless, addressless parcels collapsed into one owner key (now keyed by
+   account, counted as `owner_key_unavailable`); `deed_ref` was reported but
+   never used (identical deed liber/folio is now a same-owner match in the
+   reserve-strip and frontage tests); and a handful of CLI / config edge
+   cases (county-code validation, error exit codes, `[]` vs missing lists,
+   `build-study-area` default output per variant).
 
 ## Verified sources (2026-09-02)
 

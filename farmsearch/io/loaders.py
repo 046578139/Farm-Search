@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import logging
+import re
 from pathlib import Path
 from typing import Optional
 
@@ -137,8 +138,12 @@ def read_layer(source: LayerSource, working_crs: str, clip_geom: Optional[BaseGe
         parts.append(g)
     gdf = pd.concat(parts, ignore_index=True) if len(parts) > 1 else parts[0]
     gdf = gpd.GeoDataFrame(gdf, geometry=parts[0].geometry.name, crs=parts[0].crs)
-    if source.where:
-        gdf = gdf.query(source.where)
+    if source.where and not gdf.empty:
+        try:
+            gdf = gdf.query(source.where)
+        except Exception as e:  # pandas UndefinedVariableError, syntax errors
+            raise LayerNotAvailable(f"{source.name}: `where` {source.where!r} cannot be evaluated on columns "
+                                    f"{[c for c in gdf.columns if c != gdf.geometry.name]}: {e}") from e
     gdf = gdf.to_crs(working_crs)
     gdf = clean_geometries(gdf)
     if clip_geom is not None and not gdf.empty:
@@ -215,5 +220,12 @@ def fetch_layer_to_cache(source: LayerSource, bbox_4326: tuple[float, float, flo
     missing = getattr(layer, "missing_ids", []) or []
     if missing:
         log.warning("%s: cached without %d unservable features (ids %s...)", source.name, len(missing), missing[:5])
+    if source.where:
+        cols = {c for c in gdf.columns if c != gdf.geometry.name}
+        referenced = set(re.findall(r"[A-Za-z_][A-Za-z0-9_]*", source.where)) - {"in", "not", "and", "or", "isnull", "notnull", "True", "False", "None"}
+        unknown = sorted(r for r in referenced if r not in cols and r[0].isupper())
+        if unknown:
+            log.warning("%s: `where` references columns not in the layer: %s (layer columns: %s)",
+                        source.name, unknown, sorted(cols)[:30])
     log.info("wrote %d features to %s", len(gdf), out)
     return out

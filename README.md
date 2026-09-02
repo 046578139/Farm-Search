@@ -67,11 +67,13 @@ service tree (same paths) and is what the config uses.
 2. **Parcels (foundation layer).** The MDP/SDAT Maryland Parcel Boundaries
    layer is pulled per county straight from the iMAP REST service:
    ```bash
-   farmsearch fetch-parcels --config config/pipeline.yaml        # ~220 pages, a few minutes
+   farmsearch fetch-parcels --config config/pipeline.yaml        # ~265 pages, six minutes
    ```
-   The service pages 1000 records at ~1 s/page once `outFields` is limited
-   to the schema-mapped fields, so the "MaxRecordCount is 1000" warning in
-   the spec is a non-issue per county. Rows whose `ACCTID` is null or the
+   Whole counties, always (the cache is keyed by county, so it must not
+   depend on the study area). The service pages 1000 records at ~1 s/page
+   with keyset paging on OBJECTID once `outFields` is limited to the
+   schema-mapped fields, so the "MaxRecordCount is 1000" warning in the
+   spec is a non-issue per county. Rows whose `ACCTID` is null or the
    literal `ROW` (tax-map road right-of-way slivers) are split into
    `data/raw/parcels_row/` and reused as a right-of-way layer in Stage 4.
    The MdProperty View / FINDER Quantum bulk download pages on
@@ -165,7 +167,7 @@ later-stage layers are listed under `reference_layers:` in the config.
 `config/study_area.geojson` is built from the iMAP detailed county
 boundaries (all of Frederick, the Mount Airy corner of Carroll, and the
 Sharpsburg / Keedysville / Boonsboro / Rohrersville area of Washington;
-2,109 km²). An expanded northern-Carroll run (3,102 km²) is a one-line change:
+2,248 km²). An expanded northern-Carroll run (3,241 km²) is a one-line change:
 
 ```yaml
 study_area: study_area_expanded_carroll.geojson
@@ -225,8 +227,9 @@ deduplicated owner list.
 `hostile_constraint_bisects_parcel`,
 `riparian_buffer_presumed_confirm_with_seller`, `met_easement_read_terms`,
 `other_easement_read_terms`, `crep_enrollment_confirm_contract_term`,
-`owner_name_unavailable_lookup_sdat`, `sdat_acreage_disagrees_with_geometry`,
-`zoning_unmapped`, `zoning_layer_missing`.
+`owner_name_unavailable_lookup_sdat`, `slope_window_failed_not_evaluated`,
+`sdat_acreage_disagrees_with_geometry`, `zoning_unmapped`,
+`zoning_layer_missing`.
 
 ## Design notes
 

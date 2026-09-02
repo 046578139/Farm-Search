@@ -150,10 +150,16 @@ def attribute_owners(gdf: gpd.GeoDataFrame) -> gpd.GeoDataFrame:
         use = (gdf["owner_type"] == "unknown") & from_ex.notna()
         gdf.loc[use, "owner_type"] = from_ex[use]
         gdf.loc[use, "owner_type_basis"] = "exemption_class"
-    gdf["owner_key"] = [owner_key(n, a) for n, a in zip(gdf["owner_name"], gdf["owner_mailing_address"])]
+    keys = [owner_key(n, a) for n, a in zip(gdf["owner_name"], gdf["owner_mailing_address"])]
+    # No name AND no mailing address: never collapse those parcels into one
+    # owner ('|'); key them by account instead and count them.
+    keys = [k if k != "|" else f"acct:{acct}" for k, acct in zip(keys, gdf["account_id"])]
+    gdf["owner_key"] = keys
+    gdf["owner_key_available"] = ~gdf["owner_key"].str.startswith("acct:")
     gdf["owner_name_available"] = gdf["owner_name"].astype(str).str.strip().ne("")
     # Deed reference: parcels conveyed by the same instrument share an owner
-    # even when no name is published (used alongside the address key).
+    # even when no name is published (owners_match treats an identical
+    # deed liber/folio as a match, alongside name and address).
     if "deed_liber" in gdf.columns and "deed_folio" in gdf.columns:
         lib = gdf["deed_liber"].astype("string").fillna("").str.strip().str.lstrip("0")
         fol = gdf["deed_folio"].astype("string").fillna("").str.strip().str.lstrip("0")
@@ -357,6 +363,7 @@ def run_stage1(cfg: Config, study_geom: BaseGeometry, parcels_raw: Optional[gpd.
     summary = summarize_stage1(gdf, n_loaded, cfg)
     summary["non_parcel_polygons_excluded"] = int(excluded)
     summary["owner_name_available_pct"] = round(100 * float(gdf["owner_name_available"].mean()), 1) if len(gdf) else None
+    summary["owner_key_unavailable"] = int((~gdf["owner_key_available"]).sum())
     return Stage1Result(parcels=gdf, summary=summary)
 
 
