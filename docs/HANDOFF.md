@@ -151,8 +151,10 @@ of it:
   set as non-account rows (`is_account = False`,
   `stage1_pass_reason = non_parcel_polygon`) so a railroad or canal between
   a farm and the road reports as a foreign blocker; they are excluded from
-  every count. Account-shaped ids with no SDAT record (`PTYPE` null, ~220
-  rows) are dropped (`parcels.require_non_null`).
+  every count. They keep one row per polygon (492 in the study area): the
+  multi-row account dissolve skips them, since 262 `UNK` polygons scattered
+  over a county are not one account. Account-shaped ids with no SDAT record
+  (`PTYPE` null, ~220 rows) are dropped (`parcels.require_non_null`).
 - **Municipal zoning holes are known-unknowns.** Frederick `MUN` and
   Washington `TOWN` are placeholders, not districts (`is_agricultural:
   unknown`); parcels there are retained as `zoning_unknown_retained`
@@ -240,27 +242,65 @@ these servers apply the spatial filter to) and equal the cached feature counts.
 | DEM | `mdgeodata.md.gov/lidar/rest/services/Statewide/MD_statewide_dem_m/ImageServer` | exportImage OK | per-county folders also exist |
 | County boundaries | `.../Boundaries/MD_PhysicalBoundaries/MapServer/0` | 24 counties | |
 
-## Stage 1 on the real data (2026-09-02)
+## Stages 1–4 on the real data (2026-09-02)
 
-`farmsearch run --stages 1` on the initial study area, 71 s:
+`farmsearch run --stages 1-4` on the verified configuration: every parcel
+of the three counties loaded, study area = Frederick County plus the
+Carroll and Washington corners cut from the political boundaries. 29
+minutes with all layers and DEM windows cached (Stage 1 ≈ 6 min, Stage 2
+≈ 7, Stage 3 ≈ 4, Stage 4 ≈ 17). `outputs/prev_run/` (local, not
+versioned) holds the run immediately before the reserve-strip and
+blocker fixes below; the pre-verification run (SDAT acreage, CREP as a
+subtraction, older layers) passed 2,527 parcels against today's 2,616.
+
+### Stage 1
 
 | county | parcels in study area | ≥ 40 ac | ag-zoned | zoning unknown | Stage 1 pass | median ac | acres passing |
 |---|---:|---:|---:|---:|---:|---:|---:|
-| Frederick (whole) | 105,822 | 2,078 | 1,880 | 0 | 1,880 | 88 | 205,525 |
-| Carroll (Mount Airy corner) | 11,143 | 218 | 203 | 2 | 205 | 77 | 21,552 |
-| Washington (SE) | 6,906 | 309 | 308 | 0 | 308 | 102 | 39,722 |
-| total | 123,871 | 2,605 | 2,391 | 2 | 2,393 | | 266,800 |
+| Frederick (whole) | 105,798 | 2,059 | 1,870 | 89 | 1,959 | 88 | 208,538 |
+| Carroll (Mount Airy corner) | 11,151 | 223 | 208 | 2 | 210 | 78 | 20,531 |
+| Washington (SE) | 12,070 | 450 | 439 | 8 | 447 | 94 | 48,746 |
+| total | 129,019 | 2,732 | 2,517 | 99 | 2,616 | | 277,815 |
 
-Sanity: hundreds to low thousands per county, as the spec expects. 1,879
-distinct owner keys (mailing address) among the 2,393. The two "zoning
-unknown" parcels are inside the Town of Mount Airy (municipal zoning; no
-county polygon) and are retained with `zoning_unknown_retained`.
-`owner_name_available_pct` is 0 (see item 2 above).
+Sanity: hundreds to low thousands per county, as the spec expects. 2,041
+distinct owner keys (mailing address) among the 2,616. Acreage is the
+polygon geometry for every parcel (`acreage_basis: geometry`; the SDAT
+`ACRES` field is in square feet for some rows). The 99 "zoning unknown"
+parcels are inside municipalities (Frederick `MUN` 89, Washington `TOWN`
+8, Mount Airy 2), whose zoning the county layers do not carry; they are
+retained with `zoning_unknown_retained`. Owner names are not public
+(`owner_name_available_pct` 0); by exemption class the passing parcels
+are 195 government, 41 religious / non-profit, 2,380 untyped.
+
+### Stages 2–4
+
+| | total |
+|---|---:|
+| encumbrance rows (24 layers, none missing) | 8,812 |
+| parcels with a hostile easement / a favorable easement | 569 / 1,072 |
+| parcels bisected by a hostile constraint | 1,568 |
+| usable acres of gross acres | 191,534 of 277,815 |
+| parcels whose usable area falls below 40 ac | 777 |
+| DEM windows failed | 0 |
+| public ROW features | 39,125 |
+| landlocked_apparent | 179 |
+| frontage blocked by a foreign parcel (≥ 95 %) | 45 |
+| parcels with unreachable islands | 1,807 |
+| largest reachable block ≥ 40 ac / below | 1,290 / 1,326 |
+| reserve strip detected | pending |
+
+| county | scored | landlocked | frontage blocked | reserve strip | usable < 40 ac | largest reachable ≥ 40 ac | with islands |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| Frederick | 1,959 | 91 | 24 | pending | 582 | 987 | 1,341 |
+| Carroll | 210 | 31 | 10 | pending | 66 | 81 | 169 |
+| Washington | 447 | 57 | 11 | pending | 129 | 222 | 297 |
+
+Reserve-strip figures: the re-run with the tightened strip rule was in progress when this was written; the count is filled in from `outputs/summary.json` once it finishes.
 
 Performance note: intersecting every parcel with the detailed county
 boundary took >15 minutes; `attribute_study_area` now intersects only
 parcels that straddle the boundary (interior parcels are found with the
-spatial index), which is the difference between 15 minutes and 71 seconds.
+spatial index), which is the difference between 15 minutes and about one.
 
 ## Caveats to keep in mind
 
@@ -278,8 +318,19 @@ spatial index), which is the difference between 15 minutes and 71 seconds.
   (`row_parcel_overlap`, 0.5) as the road itself: a probe that hits it is
   road contact, and it is never a reserve-strip candidate. Strip candidates
   longer than `strip_max_length_ft` (5,000 ft) are skipped for the same
-  reason. Before this fix the pre-verification run reported 718 "reserve
-  strips", nearly all of them road and rail corridors.
+  reason.
+- **Reserve strips are vacant and in front.** The first full run flagged
+  744 parcels with a "reserve strip"; the 1,187 strip accounts were 84 %
+  residential, 73 % improved, median 1.3 ac: roadside house lots carved off
+  the farm, plus narrow neighbours along a side line that a corner sample
+  probed sideways through. Per the spec ("sitting between the subject
+  parcel and the road") a candidate must now lie behind at least two
+  frontage samples, and one with a dwelling or any assessed improvement
+  (`strip_exclude_improved`) is a house lot, not a strip. Same-owner
+  crossings count, so a strip held by the same family is still listed
+  (unflagged). A genuine 1-ft spite strip is vacant and blocks the whole
+  frontage, so nothing real is lost; a vacant building lot in front of a
+  farm still shows up and needs a look.
 - **Overlapping FCA sources.** The state compilation and the three county
   layers overlap. Stage 2 reports each as its own row (`source_layer`) and
   unions by implication before summing acres; Stage 3 unions all hostile
@@ -301,14 +352,18 @@ spatial index), which is the difference between 15 minutes and 71 seconds.
 
 1. Re-run `farmsearch run --stages 1-4` after any config change and compare
    `outputs/summary.md` with the counts recorded above.
-2. Wire the HPMS access-control layer into Stage 4 (frontage on
-   controlled-access ROW ≠ access).
-3. Continue the spec's build order: MPRP + future encroachment (Stages 7–8;
+2. Open a sample of parcels in QGIS with `frontage.gpkg`, `entry_points.gpkg`
+   and `reserve_strips.csv`: the frontage and strip logic has been tuned
+   against the numbers only, never against a map.
+3. Fill the municipal zoning holes (99 retained `zoning_unknown` parcels):
+   Frederick's municipal layer (11 towns), Mount Airy's own layer, and the
+   Washington towns are listed under "not yet consumed".
+4. Continue the spec's build order: MPRP + future encroachment (Stages 7–8;
    Frederick publishes `PlanningAndPermitting/MPRP` and
    `ResidentialDevelopmentPipeline`), dischargeable envelope + viewshed
    (5–6; `MD_BuildingFootprints`, the DEM ImageServer), valuation (9;
    `MD_PropertySales`), commute (10), dossiers.
-4. If a licensed MdProperty View extract with owner names is obtained, put
+5. If a licensed MdProperty View extract with owner names is obtained, put
    it under `data/raw/parcels/` and list `OWNNAME1` under `owner_name` in
    `config/schema/parcels.yaml`; nothing else changes.
 

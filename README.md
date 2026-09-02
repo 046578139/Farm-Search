@@ -132,7 +132,8 @@ service tree (same paths) and is what the config uses.
    farmsearch run --config config/pipeline.yaml --stages 1-4
    ```
    Check `outputs/summary.md` — the per-county counts are the Stage 1 sanity
-   check the spec asks for.
+   check the spec asks for. The 2026-09-02 run over the three counties
+   (29 minutes with every layer cached) is recorded in `docs/HANDOFF.md`.
 
 ### Data sources used (all verified live)
 
