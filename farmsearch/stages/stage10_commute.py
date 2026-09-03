@@ -174,6 +174,11 @@ class RoadGraph:
         if seg.distance(pt) > max_m:
             return None, None
         a, b = self._edges[j]
+        # networkx yields an undirected edge in node-insertion order, which need not
+        # match the centerline's digitising direction: measure `along` from whichever
+        # endpoint the geometry actually starts at
+        if Point(seg.coords[0]).distance(Point(self._node_xy[b])) < Point(seg.coords[0]).distance(Point(self._node_xy[a])):
+            a, b = b, a
         along = seg.project(pt)
         proj = seg.interpolate(along)
         for end in (a, b):
@@ -288,7 +293,14 @@ def google_durations(api_key: str, origins_ll: list[tuple[float, float]], dests_
     out = np.full((len(origins_ll), len(dests_ll)), np.nan)
     if not len(dests_ll):
         return out
-    batch = batch or max(1, GOOGLE_MAX_ELEMENTS_TRAFFIC_AWARE_OPTIMAL // len(dests_ll))
+    cap = GOOGLE_MAX_ELEMENTS_TRAFFIC_AWARE_OPTIMAL
+    if len(dests_ll) > cap:
+        # more destinations than a single request may carry: split them and merge
+        for k in range(0, len(dests_ll), cap):
+            part = google_durations(api_key, origins_ll, dests_ll[k:k + cap], departure, s, timeout, batch)
+            out[:, k:k + cap] = part
+        return out
+    batch = batch or max(1, cap // len(dests_ll))
     url = "https://routes.googleapis.com/distanceMatrix/v2:computeRouteMatrix"
     headers = {"Content-Type": "application/json", "X-Goog-Api-Key": api_key,
                "X-Goog-FieldMask": "originIndex,destinationIndex,duration,condition"}
@@ -410,7 +422,7 @@ def run_stage10(cfg: Config, scored: gpd.GeoDataFrame, entry_points: Optional[gp
                     log.warning("Google Routes failed (%s); falling back to OSRM free-flow", e)
             else:
                 log.warning("commute provider google: no key in $%s; falling back to OSRM free-flow", c.google_api_key_env)
-        if M is None and c.provider in ("google", "osrm"):
+        if M is None and durations_fn is None and c.provider in ("google", "osrm"):
             try:
                 M = osrm_durations(c.osrm_url, origins_ll[:n], dests_ll, batch=c.osrm_batch)
                 engine = f"osrm_freeflow_x_peak_factor ({c.osrm_url})"

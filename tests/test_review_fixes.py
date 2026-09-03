@@ -396,3 +396,66 @@ def test_stage7_units_counted_across_the_county_line(tmp_path):
     out = run_stage7(cfg, parcels, parcels, {}, layers, missing).parcels.set_index("account_id")
     assert out.loc["C", "approved_unbuilt_units_within_2mi"] == 500         # counted, though Carroll publishes none
     assert "approved_unbuilt_units_partial_no_layer_for_every_county_in_range" in out.loc["C", "encroachment_flags"]
+
+
+def test_stage9_jurscode_fallback_survives_a_mixed_county_column(tmp_path):
+    """With some comps in the fabric and some outside it, the county list holds
+    both strings and None; assigning it to the frame first would turn the Nones
+    into NaN and silently skip the JURSCODE fallback."""
+    import geopandas as gpd
+    from shapely.geometry import Point
+    from farmsearch.stages.stage9_valuation import build_comps
+    rows = [
+        {"ACCTID": "IN1", "CONSIDR1": 1_000_000, "TRADATE": "20250601", "CONVEY1": 1, "ACRES": 40.0,
+         "DESCLU": "Agricultural", "SALIMPVL": 0, "SQFTSTRC": 0, "JURSCODE": "FRED", "geometry": Point(10, 10)},
+        {"ACCTID": "OUT1", "CONSIDR1": 900_000, "TRADATE": "20250602", "CONVEY1": 1, "ACRES": 45.0,
+         "DESCLU": "Agricultural", "SALIMPVL": 0, "SQFTSTRC": 0, "JURSCODE": "CARR", "geometry": Point(900, 10)},
+    ]
+    gpd.GeoDataFrame(rows, geometry="geometry", crs="EPSG:26985").to_file(str(tmp_path / "sales.gpkg"), driver="GPKG")
+    cfg = _cfg(tmp_path, counties={"FRED": "Frederick", "CARR": "Carroll"},
+               valuation={"sales_layers": [{"name": "sales", "path": str(tmp_path / "sales.gpkg")}],
+                          "reference_date": "2025-09-01", "min_comps_per_segment": 1})
+    fabric = gpd.GeoDataFrame({"account_id": ["IN1"], "county": ["Frederick"]},
+                              geometry=[box(0, 0, 100, 100)], crs="EPSG:26985")
+    cs = build_comps(cfg, box(-2000, -2000, 2000, 2000), fabric, None)
+    by = dict(zip(cs.comps["account_id"], cs.comps["county"]))
+    assert by["IN1"] == "Frederick"                    # from the fabric
+    assert by["OUT1"] == "Carroll"                     # from JURSCODE, mapped to the name
+    assert ("Carroll", "uneased") in cs.bands          # so it lands in a county band, not only the pool
+
+
+def test_stage9_acreage_cut_applies_to_the_whole_transfer(tmp_path):
+    """Two 15-acre accounts sold together are a 30-acre comp, not two rejects."""
+    import geopandas as gpd
+    from shapely.geometry import Point
+    from farmsearch.stages.stage9_valuation import build_comps
+    rows = [{"ACCTID": f"A{i}", "CONSIDR1": 600_000, "TRADATE": "20250601", "CONVEY1": 3, "ACRES": 15.0,
+             "DESCLU": "Agricultural", "SALIMPVL": 0, "SQFTSTRC": 0, "JURSCODE": "FRED",
+             "DR1LIBER": "77", "DR1FOLIO": "1", "geometry": Point(10 * i, 0)} for i in range(2)]
+    rows.append({"ACCTID": "S1", "CONSIDR1": 200_000, "TRADATE": "20250701", "CONVEY1": 1, "ACRES": 5.0,
+                 "DESCLU": "Agricultural", "SALIMPVL": 0, "SQFTSTRC": 0, "JURSCODE": "FRED",
+                 "DR1LIBER": "8", "DR1FOLIO": "2", "geometry": Point(500, 0)})
+    gpd.GeoDataFrame(rows, geometry="geometry", crs="EPSG:26985").to_file(str(tmp_path / "sales.gpkg"), driver="GPKG")
+    cfg = _cfg(tmp_path, counties={"FRED": "Frederick"},
+               valuation={"sales_layers": [{"name": "sales", "path": str(tmp_path / "sales.gpkg")}],
+                          "reference_date": "2025-09-01", "min_comp_acres": 20, "min_comps_per_segment": 1})
+    fabric = gpd.GeoDataFrame({"account_id": [], "county": []}, geometry=[], crs="EPSG:26985")
+    cs = build_comps(cfg, box(-2000, -2000, 2000, 2000), fabric, None)
+    assert len(cs.comps) == 1                                   # the pair survives, the lone 5-acre sale does not
+    assert cs.comps["acres"].iloc[0] == 30.0 and cs.comps["land_price_per_acre"].iloc[0] == 20_000.0
+
+
+def test_stage10_split_follows_the_centerline_direction(tmp_path):
+    """The two halves of a split edge must belong to the right endpoints however
+    networkx happens to order the edge tuple."""
+    from farmsearch.stages.stage10_commute import RoadGraph
+    line = LineString([(0, 0), (1000, 0)])
+    roads = gpd.GeoDataFrame({"authority": ["county"], "major": [False]}, geometry=[line], crs="EPSG:26985")
+    g = RoadGraph(roads, ["state"])
+    node, undo = g.attach_origin(Point(900, 5), max_m=50.0)     # 900 m from (0,0), 100 m from (1000,0)
+    assert node is not None
+    lens = {}
+    for nb in g.G[node]:
+        lens[round(g.G.nodes[nb]["x"] if "x" in g.G.nodes[nb] else g._node_xy[nb][0])] = round(g.G[node][nb]["length"])
+    assert lens.get(0) == 900 and lens.get(1000) == 100
+    undo()

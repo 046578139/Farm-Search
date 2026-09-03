@@ -816,7 +816,10 @@ valuation:
     - name: property_sales
       path: ../data/raw/sales/property_sales.gpkg
       url: "https://mdgeodata.md.gov/imap/rest/services/PlanningCadastre/MD_PropertySales/MapServer/0"
-      rest_where: "DESCLU = 'Agricultural' AND ACRES >= 20"
+      # No acreage filter here: a multi-account transfer must be visible in full
+      # before it is collapsed into one comp. min_comp_acres is applied to the
+      # collapsed transfer, in Stage 9.
+      rest_where: "DESCLU = 'Agricultural'"
       fetch_margin_ft: 26400
   arms_length_codes: [1, 2, 3]      # 4 = not arms length (SDAT); re-verify against the MDP data dictionary
   min_comp_acres: 20

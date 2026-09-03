@@ -94,7 +94,9 @@ def build_comps(cfg: Config, clip: BaseGeometry, parcels_all: gpd.GeoDataFrame,
     imp = pd.to_numeric(S[q.improvement_value_field], errors="coerce").fillna(0.0) if q.improvement_value_field in S.columns else pd.Series(0.0, index=S.index)
     sq = pd.to_numeric(S[q.structure_sqft_field], errors="coerce").fillna(0.0) if q.structure_sqft_field in S.columns else pd.Series(0.0, index=S.index)
     age_ok = S["sale_date"].map(lambda d: d is not None and (ref - d).days <= q.max_age_years * 365.25 and d <= ref)
-    keep = (age_ok & S["conv"].isin(q.arms_length_codes) & (S["price"] >= q.min_price) & (S["acres"] >= q.min_comp_acres)
+    # NB the acreage cut is applied AFTER the multi-account collapse below: a
+    # transfer of several accounts must be measured over all of them.
+    keep = (age_ok & S["conv"].isin(q.arms_length_codes) & (S["price"] >= q.min_price)
             & S[q.land_use_field].astype("string").fillna("").isin(q.agricultural_land_uses))
     C = S[keep].copy()
     C["_imp"] = imp[keep].values.astype(float)
@@ -116,6 +118,11 @@ def build_comps(cfg: Config, clip: BaseGeometry, parcels_all: gpd.GeoDataFrame,
         n_multi = int(multi.sum())
         C = gpd.GeoDataFrame(pd.concat([C[~multi], pd.DataFrame(rows)], ignore_index=True), geometry="geometry", crs=C.crs)
         log.info("Stage 9: %d multi-account records (conveyance %s) collapsed into %d transfers", n_multi, q.multi_account_codes, len(rows))
+    small = C["acres"] < q.min_comp_acres
+    if small.any():
+        log.info("Stage 9: %d sales below %.0f acres dropped after collapsing multi-account transfers",
+                 int(small.sum()), q.min_comp_acres)
+        C = C[~small].copy()
     C["improved"] = (C["_sqft"] > 0) | (C["_imp"] > 0)
     land = (C["price"] - C["_imp"]).astype(float)
     # A sale whose assessed improvements account for 80%+ of the price is a
@@ -143,12 +150,14 @@ def build_comps(cfg: Config, clip: BaseGeometry, parcels_all: gpd.GeoDataFrame,
             eased.append(bool(pg.intersection(favorable).area >= q.eased_share_threshold * pg.area))
         counties.append(cty)
     C["eased"] = eased
-    C["county"] = counties
-    # a sale point outside our fabric (a comp in the 5-mile margin) takes its county
-    # from JURSCODE, mapped through `counties:` so it lands in the same band
+    # A sale point outside our fabric (a comp in the 5-mile margin) takes its county
+    # from JURSCODE, mapped through `counties:` so it lands in the same band. The
+    # list is consulted directly: assigning it to the frame first would turn every
+    # None into NaN, and `nan is not None` would skip the fallback entirely.
     if "JURSCODE" in C.columns:
-        C["county"] = [c if c is not None else (cfg.counties.get(str(j).strip(), str(j).strip()) if pd.notna(j) else None)
-                       for c, j in zip(C["county"], C["JURSCODE"].values)]
+        counties = [c if c is not None else (cfg.counties.get(str(j).strip(), str(j).strip()) if pd.notna(j) else None)
+                    for c, j in zip(counties, C["JURSCODE"].values)]
+    C["county"] = counties
     bands: dict[tuple[str, str], dict] = {}
     def band(df):
         v = df["land_price_per_acre"].dropna()
