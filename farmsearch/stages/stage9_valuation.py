@@ -71,7 +71,7 @@ def build_comps(cfg: Config, clip: BaseGeometry, parcels_all: gpd.GeoDataFrame,
     frames = []
     for src in q.sales_layers:
         try:
-            g = clean_geometries(read_layer(src, cfg.working_crs, clip, clip_mode="intersects"), kind="any")
+            g = read_layer(src, cfg.working_crs, clip, clip_mode="intersects", kind="any")
         except LayerNotAvailable as e:
             log.warning("sales layer %s unavailable: %s", src.name, e)
             missing.append(src.name)

@@ -283,6 +283,9 @@ class EncroachmentConfig:
     growth_area_layers: list[LayerSource] = field(default_factory=list)
     pipeline_layers: list[UnitsLayer] = field(default_factory=list)
     pipeline_radius_ft: float = 10560                                   # 2 miles
+    # coverage layers are read this far beyond the study context so a large
+    # adjoining parcel is measured over its whole area, not the part inside it
+    neighbour_reach_ft: float = 5280
     adjacency_tolerance_ft: float = 3
 
 
@@ -594,6 +597,7 @@ class Config:
                 pipeline_layers=[UnitsLayer(source=LayerSource.from_dict(base, d), units_field=str(d["units_field"]),
                                             status_field=d.get("status_field")) for d in (e.get("pipeline_layers") or [])],
                 pipeline_radius_ft=float(e.get("pipeline_radius_ft", 10560)),
+                neighbour_reach_ft=float(e.get("neighbour_reach_ft", 5280)),
                 adjacency_tolerance_ft=float(e.get("adjacency_tolerance_ft", 3)),
             )
             t = raw.get("transmission", {}) or {}

@@ -338,30 +338,68 @@ Decisions to keep in mind:
 - **Context buffer.** Parcels, ROW and every layer are fetched and read out to
   `context_buffer_ft` (2,000 ft) beyond the study polygon; parcels in that band
   are context rows (`stage1_pass_reason = outside_study_area`, never scored or
-  counted). Layers that need more reach carry `fetch_margin_ft`.
+  counted). Layers that need more reach carry `fetch_margin_ft`. After Stage 1
+  the reading extent grows again to cover every parcel that will be scored
+  (plus the frontage search radius), because a 300-acre farm straddling the
+  study line is wider than the band; a parcel reaching past what was fetched
+  keeps the flag `extends_beyond_layer_context_verify_constraints_there`.
+  Zoning is read over the same extent, so a straddling parcel's majority code
+  is computed from full coverage.
 - **Passable vs usable.** `usable` still subtracts every hostile/physical
   constraint; reachability runs through `passable` = parcel minus what stops a
   vehicle (`blocks_travel`, default true; floodplain false). Lanes are never
   sliver-filtered.
-- **Envelope.** Same-owner structures are exempt (`exclude_same_owner`), a
-  conservative reading of the owner/occupant exemption; every footprint ≥ 400 sq
-  ft on a dwelling parcel counts as a candidate occupied building (barns included:
-  pessimistic). Target shooting is flagged on every parcel.
+- **Envelope.** The statute exempts the owner/occupant of the dwelling, and an
+  acquisition buys the subject parcel only, so a house on the seller's *other*
+  parcel constrains the buyer like any neighbour's: `exclude_same_owner` is
+  **false**. Set it true only when the whole holding is bought at once; either
+  way `same_owner_structures_within_safety_zone` reports the dependency and
+  the flag `envelope_assumes_same_owner_dwellings_acquired` marks the parcels
+  it changed. Every footprint ≥ 400 sq ft on a dwelling parcel counts as a
+  candidate occupied building (barns included: pessimistic), and non-residential
+  buildings people occupy (shops, clubhouses, exempt properties) get the same
+  150 yd zone. A zone placed from the parcel's centre because no footprint
+  matched is flagged (`safety_zone_located_by_parcel_point`). Target shooting is
+  flagged on every parcel.
+- **Backstops and viewshed.** A candidate backstop must face away from *every*
+  dwelling within 1,000 yd, not merely the nearest, and is searched inside the
+  parcel only. A line of sight that the DEM cannot answer counts as unevaluated
+  (`dwellings_line_of_sight_unevaluated`), never as terrain shielding.
 - **Stage 8 tiers.** 1 = inside a route corridor (150 ft, or the 550 ft
   alternative corridor polygon); 2 = within 2,000 ft or line of sight (40 m
   conductor height, bare-earth DEM); 3 = within 1 mile of a route, 1,000 ft of an
   HV line or 0.5 mile of a substation.
-- **Stage 9 land price** = consideration − assessed improvement value at sale
-  (floored at 20% of the price); bands by county then pooled when a county has
-  fewer than 5 comps; `est_market_value` adds the subject's own assessed
-  improvements.
+- **Stage 9 land price** = consideration − assessed improvement value at sale;
+  a sale whose improvements exceed 80% of the price is a farmstead, not a land
+  comp, and is dropped. Comps are read as far as the sales layer is fetched
+  (5 miles), and a sale outside the parcel fabric takes its county from
+  `JURSCODE`. A multi-account arms-length transfer (`CONVEY1 = 3`) is collapsed
+  into one comp — acres and improvements summed — because the consideration
+  covers the whole sale. Bands by county then pooled when a county has fewer
+  than 5 comps; `est_market_value` adds the subject's own assessed improvements.
 - **Stage 10** is reported only; shortlist weights for commute are 0. Route
-  redundancy attaches every entrance to the centerline graph (edge split at the
-  projection) and counts edge-disjoint paths to a state road within 5 miles.
+  redundancy attaches every entrance to the real centerline geometry (edge split
+  at the projection, so a curved segment does not push the entrance out of
+  range) and counts road-disjoint paths to a state road within 5 miles as a
+  max flow with unit edge capacities, so a loop through one road is not two
+  routes. The `*_freeflow_min` columns stay empty under a traffic-aware engine.
   Durability = 100 − 45·min(1, units/1000) − 35·min(1, AADT growth/30%) + 20 if
   a CTP capacity project is nearby.
-- **Shortlist** hard rules: MPRP tier 1 excluded (spec), largest reachable
-  block ≥ acreage_min; everything else is a weight.
+- **Shortlist** hard rules: MPRP tier 1 excluded (spec); the largest reachable
+  block must clear `acreage_min` either strictly or with stream crossings
+  permitted (the spec's flag-never-delete rule); government owners are not
+  acquisition candidates. Everything else is a weight. Metrics are min-max
+  scaled between the 5th and 95th percentiles, except booleans and tiers, which
+  keep their full range so a rare flag keeps its penalty; MPRP tiers are mapped
+  to severity (1 worst, then 2, then 3, then 0) before scaling.
+- **Per-county data gaps are null, not zero.** Sewer, growth-area and
+  approved-unbuilt-unit layers are per-county; a parcel in a county whose
+  source did not load gets an empty column and a flag, never a confident
+  "no planned sewer". Approved-unbuilt units are published by Frederick only.
+- **Resume.** Stages 5–10 need the Stage 4 checkpoint; a resume never falls
+  back to an earlier one, and re-running an early stage deletes the later
+  checkpoints so a stale frame can never be reloaded. Stage 6 alone can resume
+  from `envelope.gpkg` and `occupied_structures.gpkg`.
 
 ## Stages 5–10 on the real data
 

@@ -116,12 +116,17 @@ def clean_geometries(gdf: gpd.GeoDataFrame, kind: Optional[str] = None) -> gpd.G
 
 
 def read_layer(source: LayerSource, working_crs: str, clip_geom: Optional[BaseGeometry] = None,
-               clip_mode: str = "intersects", columns: Optional[list[str]] = None) -> gpd.GeoDataFrame:
+               clip_mode: str = "intersects", columns: Optional[list[str]] = None,
+               kind: Optional[str] = None) -> gpd.GeoDataFrame:
     """Read a local layer, reproject, optionally restrict to a clip geometry.
 
     clip_mode:
       intersects — keep features whose geometry intersects clip_geom (no cutting)
       clip       — geometric clip (for constraint/ROW layers, never for parcels)
+    kind: "areal" / "lineal" / "any"; the default keeps the majority kind only,
+      which silently drops the points of a mixed layer (substations published
+      as points among polygons), so mixed layers must ask for "any" HERE —
+      cleaning the result afterwards is too late.
     """
     if source.path is None:
         raise LayerNotAvailable(f"{source.name}: no path configured (url={source.url}); run `farmsearch fetch`")
@@ -147,7 +152,7 @@ def read_layer(source: LayerSource, working_crs: str, clip_geom: Optional[BaseGe
             raise LayerNotAvailable(f"{source.name}: `where` {source.where!r} cannot be evaluated on columns "
                                     f"{[c for c in gdf.columns if c != gdf.geometry.name]}: {e}") from e
     gdf = gdf.to_crs(working_crs)
-    gdf = clean_geometries(gdf)
+    gdf = clean_geometries(gdf, kind=kind)
     if source.dedupe_geometry and not gdf.empty:
         wkb = gdf.geometry.to_wkb()
         dup = wkb.duplicated()
@@ -160,7 +165,7 @@ def read_layer(source: LayerSource, working_crs: str, clip_geom: Optional[BaseGe
         else:
             idx = gdf.sindex.query(clip_geom, predicate="intersects")
             gdf = gdf.iloc[sorted(idx)]
-        gdf = clean_geometries(gdf)
+        gdf = clean_geometries(gdf, kind=kind)
     return gdf.reset_index(drop=True)
 
 

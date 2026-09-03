@@ -67,7 +67,7 @@ def load_transmission_layers(cfg: Config, clip: BaseGeometry) -> tuple[Transmiss
     reach = clip.buffer(ft_to_m(max(t.mprp_general_corridor_ft, t.hv_line_buffer_ft, t.substation_buffer_ft, t.data_center_buffer_ft)))
     for r in t.mprp_routes:
         try:
-            g = clean_geometries(read_layer(r.source, cfg.working_crs, reach, clip_mode="intersects"), kind="any")
+            g = read_layer(r.source, cfg.working_crs, reach, clip_mode="intersects", kind="any")
         except LayerNotAvailable as e:
             log.warning("MPRP route layer %s unavailable: %s", r.source.name, e)
             missing.append(r.source.name)
@@ -81,7 +81,7 @@ def load_transmission_layers(cfg: Config, clip: BaseGeometry) -> tuple[Transmiss
         geoms, loaded = [], False
         for src in sources:
             try:
-                g = clean_geometries(read_layer(src, cfg.working_crs, reach, clip_mode="intersects"), kind="any")
+                g = read_layer(src, cfg.working_crs, reach, clip_mode="intersects", kind="any")
             except LayerNotAvailable as e:
                 log.warning("%s layer %s unavailable: %s", what, src.name, e)
                 missing.append(src.name)
@@ -98,7 +98,7 @@ def load_transmission_layers(cfg: Config, clip: BaseGeometry) -> tuple[Transmiss
     parts = []
     for src in t.data_center_layers:
         try:
-            g = clean_geometries(read_layer(src, cfg.working_crs, reach, clip_mode="intersects"), kind="any")
+            g = read_layer(src, cfg.working_crs, reach, clip_mode="intersects", kind="any")
         except LayerNotAvailable as e:
             log.warning("data center layer %s unavailable: %s", src.name, e)
             missing.append(src.name)

@@ -235,7 +235,14 @@ The spec's full record. Stages 5–10 add `dischargeable_envelope_acres`,
 `commute_nova_peak_min`, `route_redundancy`, `corridor_durability_score`, each
 with its supporting detail (envelope blocks, nearest dwelling, MPRP distance
 and variant, sewer / PFA / growth-area status, comp bands, free-flow minutes,
-egress path count, corridor AADT trend). The Stages 1–4 portion:
+egress path count, corridor AADT trend). Four columns say how much the answer
+is worth: `same_owner_structures_within_safety_zone` (houses on the seller's
+other parcels, which constrain the buyer unless the whole holding is bought),
+`dwellings_line_of_sight_unevaluated` (no DEM under that profile),
+`adjacent_boundary_covered_pct` (how much of the parcel's boundary is a known
+parcel or a road) and `approved_unbuilt_units_radius_ft` (the radius actually
+used). A per-county layer that did not load leaves its column empty rather
+than reporting a confident zero. The Stages 1–4 portion:
 
 ```
 account_id, owner_name, owner_mailing_address, owner_type, owner_key
@@ -274,7 +281,28 @@ deduplicated owner list.
 `other_easement_read_terms`, `crep_enrollment_confirm_contract_term`,
 `owner_name_unavailable_lookup_sdat`, `slope_window_failed_not_evaluated`,
 `sdat_acreage_disagrees_with_geometry`, `zoning_unmapped`,
-`zoning_layer_missing`.
+`zoning_layer_missing`, `extends_beyond_layer_context_verify_constraints_there`.
+
+### Flags raised by Stages 5–10
+
+`dischargeable_envelope_below_minimum`,
+`dischargeable_envelope_too_short_for_range_bay`,
+`target_shooting_verify_county_discharge_ordinance_and_zoning`,
+`safety_zones_from_parcel_points_no_footprints`,
+`safety_zone_located_by_parcel_point`,
+`envelope_assumes_same_owner_dwellings_acquired`,
+`viewshed_dem_nodata_some_dwellings_unevaluated`,
+`all_nearby_dwellings_terrain_shielded`, `natural_backstop_candidate`,
+`adjacent_residential_zoning`, `adjacent_planned_sewer_service`,
+`adjacent_zoning_unmapped_residential_share_may_be_understated`,
+`approved_unbuilt_units_not_published_for_this_county`,
+`adjoining_parcels_incomplete_check_neighbouring_jurisdiction`,
+`mprp_tier1_intersects_studied_route_exclude`,
+`mprp_tier2_within_exclusion_buffer`, `mprp_routes_beyond_reach`,
+`near_existing_hv_transmission_corridor`, `near_substation`,
+`near_data_center_development`, `estimated_value_above_price_ceiling`,
+`valuation_segment_borrowed`, `single_egress_no_incident_tolerance`,
+`no_state_road_reached_in_graph`, `commute_unavailable`.
 
 ## Design notes
 
@@ -303,7 +331,18 @@ deduplicated owner list.
   inferred as a fixed-width strip along NHD flowlines and always flagged.
 - The riparian / wetland / floodplain constraints are `crossable_with_permit`;
   the record reports both strict reachability and the crossings-permitted
-  variant, plus the acres that a permit would reconnect.
+  variant, plus the acres that a permit would reconnect. Frontage over such a
+  constraint is still an entry point: a driveway may cross a mapped floodplain.
+- **Unknown is not zero.** A layer that covers only some counties leaves its
+  column empty in the others; a line of sight the DEM cannot answer is counted
+  as unevaluated, not as terrain shielding; a route layer read with nothing in
+  range means tier 0, while no route data at all means no tier.
+- **The reading extent follows the parcels.** After Stage 1 the layer context
+  is grown to cover every parcel that will be scored, so a farm straddling the
+  study line meets its own constraints and roads over its whole area.
+- **Checkpoints cannot go stale.** Re-running an early stage deletes the later
+  checkpoints, a resume never starts below Stage 4 for Stages 5–10, and a range
+  that starts later than Stage 1 requires `--resume`.
 
 ## Layout
 

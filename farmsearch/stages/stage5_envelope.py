@@ -109,7 +109,7 @@ def load_occupied_structures(cfg: Config, parcels_all: gpd.GeoDataFrame, clip: B
     fp_parts = []
     for src in v.footprint_layers:
         try:
-            g = clean_geometries(read_layer(src, cfg.working_crs, clip, clip_mode="intersects"), kind="areal")
+            g = read_layer(src, cfg.working_crs, clip, clip_mode="intersects", kind="areal")
         except LayerNotAvailable as e:
             log.warning("footprint layer %s unavailable: %s", src.name, e)
             missing.append(src.name)
@@ -150,7 +150,7 @@ def load_occupied_structures(cfg: Config, parcels_all: gpd.GeoDataFrame, clip: B
                              "geometry": pg.representative_point()})
     for src in v.church_point_layers:
         try:
-            g = clean_geometries(read_layer(src, cfg.working_crs, clip, clip_mode="intersects"), kind="any")
+            g = read_layer(src, cfg.working_crs, clip, clip_mode="intersects", kind="any")
         except LayerNotAvailable as e:
             log.warning("church point layer %s unavailable: %s", src.name, e)
             missing.append(src.name)
@@ -164,7 +164,7 @@ def load_occupied_structures(cfg: Config, parcels_all: gpd.GeoDataFrame, clip: B
              for acct, pg in zip(A.loc[school, "account_id"].values, A.geometry.values[school.values])]
     for src in v.school_point_layers:
         try:
-            g = clean_geometries(read_layer(src, cfg.working_crs, clip, clip_mode="intersects"), kind="any")
+            g = read_layer(src, cfg.working_crs, clip, clip_mode="intersects", kind="any")
         except LayerNotAvailable as e:
             log.warning("school point layer %s unavailable: %s", src.name, e)
             missing.append(src.name)

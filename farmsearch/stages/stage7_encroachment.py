@@ -111,6 +111,9 @@ def load_encroachment_layers(cfg: Config, clip: BaseGeometry, favorable_layers: 
     e = cfg.encroachment
     missing: list[str] = []
     L = EncroachmentLayers()
+    # A neighbouring parcel is a whole parcel: its sewer / PFA / growth-area
+    # coverage is measured over all of it, which reaches past the study context.
+    clip = clip.buffer(ft_to_m(e.neighbour_reach_ft))
     L.planned_sewer = _union_of(e.sewer_layers, cfg, clip, missing, "planned sewer")
     L.existing_sewer = _union_of(e.sewer_existing_layers, cfg, clip, missing, "existing sewer")
     L.pfa = _union_of(e.pfa_layers, cfg, clip, missing, "PFA")

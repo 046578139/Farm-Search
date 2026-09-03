@@ -71,7 +71,7 @@ def load_commute_layers(cfg: Config, clip: BaseGeometry, pipeline: Optional[gpd.
         if r.geometry != "line" or not r.public:
             continue
         try:
-            g = clean_geometries(read_layer(r.source, cfg.working_crs, reach, clip_mode="intersects"), kind="lineal")
+            g = read_layer(r.source, cfg.working_crs, reach, clip_mode="intersects", kind="lineal")
         except LayerNotAvailable as e:
             log.warning("road layer %s unavailable for Stage 10: %s", r.source.name, e)
             L.missing_layers.append(r.source.name)
@@ -90,7 +90,7 @@ def load_commute_layers(cfg: Config, clip: BaseGeometry, pipeline: Optional[gpd.
             log.warning("Stage 10: no major-road segments identified (set major_where on the centerline layers); every parcel will read no_route")
     for src in c.aadt_layers:
         try:
-            g = clean_geometries(read_layer(src, cfg.working_crs, reach, clip_mode="intersects"), kind="lineal")
+            g = read_layer(src, cfg.working_crs, reach, clip_mode="intersects", kind="lineal")
         except LayerNotAvailable as e:
             log.warning("AADT layer %s unavailable: %s", src.name, e)
             L.missing_layers.append(src.name)
@@ -98,7 +98,7 @@ def load_commute_layers(cfg: Config, clip: BaseGeometry, pipeline: Optional[gpd.
         L.aadt = g if L.aadt is None else gpd.GeoDataFrame(pd.concat([L.aadt, g], ignore_index=True), geometry="geometry", crs=cfg.working_crs)
     for src in c.ctp_layers:
         try:
-            g = clean_geometries(read_layer(src, cfg.working_crs, reach, clip_mode="intersects"), kind="any")
+            g = read_layer(src, cfg.working_crs, reach, clip_mode="intersects", kind="any")
         except LayerNotAvailable as e:
             log.warning("CTP layer %s unavailable: %s", src.name, e)
             L.missing_layers.append(src.name)
