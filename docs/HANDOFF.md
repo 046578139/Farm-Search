@@ -428,6 +428,28 @@ Decisions to keep in mind:
 
 
 
+## What the second review round changed on the real data (2026-09-03)
+
+Two adversarial review passes over Stages 5–10 produced 60 and then 18
+findings; every one that survived verification is fixed, with a regression test
+each. Several changed the answers materially, so the run above is not
+comparable to the 2026-09-02 one column by column:
+
+| column | before | after | why |
+|---|---:|---:|---|
+| parcels with a candidate backstop | 2,210 | 439 | a backstop must have no occupied building in the cone the fire goes into, not merely face away from the nearest house |
+| dwellings with line of sight (median) | 73 | 46 | several footprints on one parcel are one household, not one per barn |
+| parcels adjoining residential zoning | 1,235 | 599 | `ROW` (right of way) and other letter-only codes are no longer inferred residential |
+| route redundancy: redundant / single / none | 1,147 / 1,043 / 389 | 2,219 / 147 / 210 | entrances attach to the real centerline rather than a straight chord, and independence is a max flow rather than a count bounded by the number of entrances |
+| arms-length comps | 76 | 102 | multi-account transfers collapse into one comp, comps read out to the layer's own 5-mile margin, the acreage cut applies to the whole transfer |
+| median estimated value | $17,289/ac | $16,010/ac | the larger, better-segmented comp set |
+| dischargeable envelope (median) | 45 ac | 44 ac | a house on the seller's other parcel now constrains the buyer, and buildings people occupy that are not dwellings get the same 150 yd zone |
+| shortlist exclusions | 1,422 | 1,273 | a block reachable only with a permitted stream crossing still counts |
+| approved-unbuilt units | 0 everywhere it was unknown | null for 470 parcels | a county with no published layer gets an empty column, not a confident zero |
+
+The direction of travel is the same in every case: fewer confident claims, and
+the ones that remain are the ones the data supports.
+
 ## Caveats to keep in mind
 
 - **Limited-access highways.** Frontage on an interstate is not access.
