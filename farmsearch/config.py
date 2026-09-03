@@ -380,6 +380,36 @@ class CommuteConfig:
 
 
 @dataclass
+class ShortlistConfig:
+    """Ranked shortlist: weighted sum of normalised metrics. Weights are
+    configurable; exclusions are the spec's only hard rule (MPRP tier 1).
+    Commute has weight 0 by default: reported, never a filter."""
+    top_n: int = 40
+    weights: dict = field(default_factory=lambda: {
+        "largest_contiguous_reachable_acres": 3.0,
+        "usable_pct": 1.0,
+        "dischargeable_envelope_acres": 2.0,
+        "dischargeable_envelope_longest_dim_yards": 1.0,
+        "dwellings_with_line_of_sight": -1.5,
+        "adjacent_residential_zoning_pct": -1.0,
+        "adjacent_planned_sewer": -1.0,
+        "approved_unbuilt_units_within_2mi": -0.5,
+        "adjacent_permanently_eased_acres": 0.5,
+        "mprp_tier": -1.5,
+        "hv_line_nearest_ft": 0.5,
+        "landlocked_apparent": -2.0,
+        "frontage_blocked_by_foreign_parcel": -1.0,
+        "est_per_acre": -0.5,
+        "corridor_durability_score": 0.5,
+        "commute_bwi_peak_min": 0.0,
+        "commute_langley_peak_min": 0.0,
+        "commute_nova_peak_min": 0.0,
+    })
+    exclude_mprp_tier_1: bool = True
+    require_reachable_acres_min: bool = True     # largest reachable block >= acreage_min to make the list
+
+
+@dataclass
 class RunConfig:
     process_all: bool = False
     output_dir: Path = Path("outputs")
@@ -411,6 +441,7 @@ class Config:
     envelope: EnvelopeConfig = field(default_factory=EnvelopeConfig)
     valuation: ValuationConfig = field(default_factory=ValuationConfig)
     commute: CommuteConfig = field(default_factory=CommuteConfig)
+    shortlist: ShortlistConfig = field(default_factory=ShortlistConfig)
     study_area_build: Optional[StudyAreaBuild] = None
     raw: dict = field(default_factory=dict)   # untouched YAML for later stages
 
@@ -619,6 +650,13 @@ class Config:
             )
             if commute.provider not in ("osrm", "google", "none"):
                 raise ConfigError("commute.provider must be osrm|google|none")
+            sl = raw.get("shortlist", {}) or {}
+            dsl = ShortlistConfig()
+            weights = dict(dsl.weights)
+            weights.update({str(k): float(v) for k, v in (sl.get("weights") or {}).items()})
+            shortlist = ShortlistConfig(top_n=int(sl.get("top_n", dsl.top_n)), weights=weights,
+                                        exclude_mprp_tier_1=bool(sl.get("exclude_mprp_tier_1", True)),
+                                        require_reachable_acres_min=bool(sl.get("require_reachable_acres_min", True)))
             rc = raw.get("run", {}) or {}
             run = RunConfig(process_all=bool(rc.get("process_all", False)),
                             output_dir=_opt_path(base, rc.get("output_dir", "../outputs")))
@@ -647,6 +685,7 @@ class Config:
                 envelope=envelope,
                 valuation=valuation,
                 commute=commute,
+                shortlist=shortlist,
                 study_area_build=sab,
                 raw=raw,
             )

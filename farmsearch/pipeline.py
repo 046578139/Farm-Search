@@ -28,7 +28,7 @@ import geopandas as gpd
 import pandas as pd
 from shapely.ops import unary_union
 
-from .units import ft_to_m
+from .units import ft_to_m, m2_to_acres
 
 from .config import Config
 from .io.loaders import context_geometry, load_study_area
@@ -208,6 +208,10 @@ def run_pipeline(cfg: Config, stages: Iterable[int] = (1, 2, 3, 4), out_dir: Opt
         }
         if write:
             s2.encumbrances.to_csv(out_dir / "encumbrances.csv", index=False)
+            enc_rows = [{"account_id": a, "type": t, "acres": round(m2_to_acres(g.area), 2), "geometry": g}
+                        for a, d in s2.geoms.items() for t, g in d.items() if g is not None and not g.is_empty]
+            if enc_rows:
+                _writable(gpd.GeoDataFrame(enc_rows, geometry="geometry", crs=cfg.working_crs)).to_file(out_dir / "encumbrances.gpkg", driver="GPKG")
             _save_checkpoint(out_dir, 2, {"scored": scored, "s2": s2, "s3": None,
                                           "summary": {k: summary[k] for k in ("stage1", "stage2", "missing_layers")}})
         result["stage2"] = s2
@@ -257,6 +261,9 @@ def run_pipeline(cfg: Config, stages: Iterable[int] = (1, 2, 3, 4), out_dir: Opt
         }
         if write:
             _writable(s4.frontage).to_file(out_dir / "frontage.gpkg", driver="GPKG")
+            pub = rows[rows["public"]] if "public" in rows.columns else rows
+            if len(pub):
+                _writable(pub).to_file(out_dir / "row_public.gpkg", driver="GPKG")
             if len(s4.entry_points):
                 _writable(s4.entry_points).to_file(out_dir / "entry_points.gpkg", driver="GPKG")
             s4.strips.to_csv(out_dir / "reserve_strips.csv", index=False)
@@ -414,6 +421,16 @@ def run_pipeline(cfg: Config, stages: Iterable[int] = (1, 2, 3, 4), out_dir: Opt
         w.to_file(out_dir / "parcels_scored.gpkg", driver="GPKG")
         w.to_file(out_dir / "parcels_scored.geojson", driver="GeoJSON")
         w.drop(columns=[w.geometry.name]).to_csv(out_dir / "parcels_scored.csv", index=False)
+        try:
+            from .deliverables import owner_list, rank_shortlist
+            short, excl = rank_shortlist(scored, cfg)
+            short.to_csv(out_dir / "shortlist.csv", index=False)
+            excl.to_csv(out_dir / "shortlist_excluded.csv", index=False)
+            owner_list(scored, short).to_csv(out_dir / "owner_list.csv", index=False)
+            summary["shortlist"] = {"listed": int(len(short)), "excluded": int(len(excl)),
+                                    "owners": int(owner_list(scored, short).shape[0]), "top_n": cfg.shortlist.top_n}
+        except Exception as ex:  # noqa: BLE001
+            log.warning("shortlist / owner list not written: %s", ex)
         (out_dir / "summary.json").write_text(json.dumps(summary, indent=2, default=str))
         (out_dir / "summary.md").write_text(render_summary(summary))
     return result
@@ -527,6 +544,10 @@ def render_summary(s: dict) -> str:
               f"median corridor durability {s10['median_durability']}"]
         if s10.get("layers_missing"):
             L.append(f"layers missing: {', '.join(s10['layers_missing'])}")
+    if "shortlist" in s:
+        sh = s["shortlist"]
+        L += ["", "## Shortlist", "", f"{sh['listed']} parcels listed (top {sh['top_n']}), {sh['excluded']} excluded by hard rules, "
+              f"{sh['owners']} distinct owners across all scored parcels (owner_list.csv)"]
     L += ["", "## What this pipeline cannot determine", ""]
     L += [f"- {x}" for x in s["cannot_determine"]]
     return "\n".join(L) + "\n"

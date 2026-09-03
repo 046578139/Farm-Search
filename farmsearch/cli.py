@@ -42,6 +42,41 @@ def cmd_run(args) -> int:
     return 0
 
 
+def cmd_shortlist(args) -> int:
+    """Re-rank an existing run's parcels_scored.gpkg (weights from the config) and write shortlist / owner list."""
+    import geopandas as gpd
+    from .deliverables import owner_list, rank_shortlist
+    cfg = Config.load(args.config)
+    out = Path(args.out or cfg.run.output_dir)
+    scored = gpd.read_file(out / "parcels_scored.gpkg")
+    short, excl = rank_shortlist(scored, cfg)
+    short.to_csv(out / "shortlist.csv", index=False)
+    excl.to_csv(out / "shortlist_excluded.csv", index=False)
+    owners = owner_list(scored, short)
+    owners.to_csv(out / "owner_list.csv", index=False)
+    print(f"shortlist: {len(short)} parcels -> {out / 'shortlist.csv'}; excluded {len(excl)}; owners {len(owners)} -> {out / 'owner_list.csv'}")
+    print(short[["rank", "shortlist_score", "account_id", "county", "gross_acres", "largest_contiguous_reachable_acres"]].head(15).to_string(index=False))
+    return 0
+
+
+def cmd_dossiers(args) -> int:
+    """Render PDF dossiers for the shortlist (or the top N of it)."""
+    import pandas as pd
+    from .deliverables import render_dossiers
+    cfg = Config.load(args.config)
+    out = Path(args.out or cfg.run.output_dir)
+    sl_path = out / "shortlist.csv"
+    if not sl_path.exists():
+        print(f"no shortlist at {sl_path}; run `farmsearch shortlist` first", file=sys.stderr)
+        return 2
+    short = pd.read_csv(sl_path, dtype={"account_id": str})
+    if args.top:
+        short = short.head(int(args.top))
+    pdf = render_dossiers(cfg, out, short, pdf_path=(Path(args.pdf) if args.pdf else None))
+    print(f"dossiers: {len(short)} parcels -> {pdf}")
+    return 0
+
+
 def cmd_verify_schema(args) -> int:
     from .io.schema import SchemaError, verify_parcels_schema
     cfg = Config.load(args.config)
@@ -186,6 +221,18 @@ def main(argv=None) -> int:
                    help="continue from the checkpoint written after the stage before the first requested one, "
                         "e.g. `--stages 4 --resume` after a run that died in Stage 4")
     r.set_defaults(func=cmd_run)
+
+    sl = sub.add_parser("shortlist", help="rank an existing run into shortlist.csv and owner_list.csv (weights in config)")
+    sl.add_argument("--config", default="config/pipeline.yaml")
+    sl.add_argument("--out", default=None)
+    sl.set_defaults(func=cmd_shortlist)
+
+    ds = sub.add_parser("dossiers", help="render per-parcel PDF dossiers for the shortlist")
+    ds.add_argument("--config", default="config/pipeline.yaml")
+    ds.add_argument("--out", default=None)
+    ds.add_argument("--top", type=int, default=None, help="only the top N of the shortlist")
+    ds.add_argument("--pdf", default=None, help="output PDF path (default outputs/dossiers.pdf)")
+    ds.set_defaults(func=cmd_dossiers)
 
     v = sub.add_parser("verify-schema", help="resolve the parcel field map against the real data")
     v.add_argument("--config", default="config/pipeline.yaml")

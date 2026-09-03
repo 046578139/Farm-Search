@@ -864,6 +864,35 @@ commute:
   corridor_search_ft: 15840
   corridor_units_radius_ft: 10560
 
+# --- Shortlist -----------------------------------------------------------------
+# Weighted sum of min-max normalised metrics over the eligible parcels; the
+# sign of a weight is its direction. Hard rules: MPRP tier 1 excluded (spec),
+# largest reachable block >= acreage_min. Commute weights are 0: reported,
+# never a filter. Excluded parcels are listed with their reason.
+shortlist:
+  top_n: 40
+  exclude_mprp_tier_1: true
+  require_reachable_acres_min: true
+  weights:
+    largest_contiguous_reachable_acres: 3.0
+    usable_pct: 1.0
+    dischargeable_envelope_acres: 2.0
+    dischargeable_envelope_longest_dim_yards: 1.0
+    dwellings_with_line_of_sight: -1.5
+    adjacent_residential_zoning_pct: -1.0
+    adjacent_planned_sewer: -1.0
+    approved_unbuilt_units_within_2mi: -0.5
+    adjacent_permanently_eased_acres: 0.5
+    mprp_tier: -1.5
+    hv_line_nearest_ft: 0.5
+    landlocked_apparent: -2.0
+    frontage_blocked_by_foreign_parcel: -1.0
+    est_per_acre: -0.5
+    corridor_durability_score: 0.5
+    commute_bwi_peak_min: 0.0
+    commute_langley_peak_min: 0.0
+    commute_nova_peak_min: 0.0
+
 # --- Reference layers (located and verified; not consumed by Stages 1-4 yet) --
 # Kept here so later stages and the dossier step do not have to rediscover them.
 reference_layers:

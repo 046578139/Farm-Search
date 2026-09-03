@@ -327,6 +327,7 @@ def build_fixture(out: Path) -> Path:
             "ctp_layers": [{"name": "ctp", "path": "raw/access/ctp_points.gpkg"}],
             "ctp_capacity_where": "TBU_Facility.str.contains('Construction', na=False)",
         },
+        "shortlist": {"top_n": 5},
         "run": {"process_all": False, "output_dir": "outputs"},
     }
     cfg_path = out / "pipeline.yaml"
