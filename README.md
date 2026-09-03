@@ -133,7 +133,9 @@ service tree (same paths) and is what the config uses.
    ```
    Check `outputs/summary.md` — the per-county counts are the Stage 1 sanity
    check the spec asks for. The 2026-09-02 run over the three counties
-   (29 minutes with every layer cached) is recorded in `docs/HANDOFF.md`.
+   (22 minutes with every layer cached) is recorded in `docs/HANDOFF.md`.
+   Each stage leaves a checkpoint under `outputs/`; an interrupted run
+   continues with `--stages 4 --resume` (or `2-4`, `3-4`).
 
 ### Data sources used (all verified live)
 

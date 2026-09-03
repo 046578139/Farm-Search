@@ -21,7 +21,12 @@ previous one stopped without the old conversation. Read `README.md` first.
   farmsearch fetch            --config config/pipeline.yaml
   farmsearch verify-schema    --config config/pipeline.yaml
   farmsearch run              --config config/pipeline.yaml --stages 1-4
+  farmsearch run              --config config/pipeline.yaml --stages 4 --resume   # after an interrupted run
   ```
+  The run writes `checkpoint_stage{1,2,3}.pkl` under `outputs/`; `--resume`
+  continues from the state saved after the stage before the first one
+  requested. (This session's container restarted twice under a 25-minute
+  run; the checkpoints are the answer.)
 - Network: the previous session's environment blocked every Maryland host.
   This session ran with **Full** network access. `geodata.md.gov` itself was
   returning HTTP 503 "Site Maintenance" throughout; **`mdgeodata.md.gov`
@@ -247,8 +252,8 @@ these servers apply the spatial filter to) and equal the cached feature counts.
 `farmsearch run --stages 1-4` on the verified configuration: every parcel
 of the three counties loaded, study area = Frederick County plus the
 Carroll and Washington corners cut from the political boundaries. 29
-minutes with all layers and DEM windows cached (Stage 1 ≈ 6 min, Stage 2
-≈ 7, Stage 3 ≈ 4, Stage 4 ≈ 17). `outputs/prev_run/` (local, not
+minutes on the first run, 22 on the final one, with all layers and DEM
+windows cached (Stage 1 ≈ 6 min, Stage 2 ≈ 7, Stage 3 ≈ 4, Stage 4 ≈ 17). `outputs/prev_run/` (local, not
 versioned) holds the run immediately before the reserve-strip and
 blocker fixes below; the pre-verification run (SDAT acreage, CREP as a
 subtraction, older layers) passed 2,527 parcels against today's 2,616.
@@ -287,15 +292,15 @@ are 195 government, 41 religious / non-profit, 2,380 untyped.
 | frontage blocked by a foreign parcel (≥ 95 %) | 45 |
 | parcels with unreachable islands | 1,807 |
 | largest reachable block ≥ 40 ac / below | 1,290 / 1,326 |
-| reserve strip detected | pending |
+| reserve strip detected | 130 |
 
 | county | scored | landlocked | frontage blocked | reserve strip | usable < 40 ac | largest reachable ≥ 40 ac | with islands |
 |---|---:|---:|---:|---:|---:|---:|---:|
-| Frederick | 1,959 | 91 | 24 | pending | 582 | 987 | 1,341 |
-| Carroll | 210 | 31 | 10 | pending | 66 | 81 | 169 |
-| Washington | 447 | 57 | 11 | pending | 129 | 222 | 297 |
+| Frederick | 1,959 | 91 | 24 | 92 | 582 | 987 | 1,341 |
+| Carroll | 210 | 31 | 10 | 17 | 66 | 81 | 169 |
+| Washington | 447 | 57 | 11 | 21 | 129 | 222 | 297 |
 
-Reserve-strip figures: the re-run with the tightened strip rule was in progress when this was written; the count is filled in from `outputs/summary.json` once it finishes.
+Reserve strips after the tightening: 186 strip rows on 150 parcels (130 flagged with a foreign owner, 25 same-owner rows), 170 distinct strip accounts, all vacant by the SDAT improvement fields, median 51 ft wide by 701 ft long. The first run flagged 744 parcels. Elapsed 22 min.
 
 Performance note: intersecting every parcel with the detailed county
 boundary took >15 minutes; `attribute_study_area` now intersects only
