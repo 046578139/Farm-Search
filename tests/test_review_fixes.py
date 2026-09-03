@@ -357,3 +357,42 @@ def test_stage4_merge_survives_duplicate_blocker_ids_and_keeps_stage3_flags(cfg,
     assert merged["manual_flags"].iloc[0] == ["f1", "slope_window_failed_not_evaluated"]
     assert merged["manual_flags"].iloc[2] == ["blocker"]                 # a blocker keeps Stage 1's value
     assert merged["usable_acres"].tolist()[:2] == [9.0, 8.0]
+
+
+def test_stage7_unknowable_neighbour_is_null_not_false(tmp_path):
+    """A neighbour in a county whose sewer source did not load makes the
+    adjacent answer unknown; the subject's own column is still measurable."""
+    from farmsearch.stages.stage7_encroachment import load_encroachment_layers, run_stage7
+    cfg = _sewer_cfg(tmp_path, ["Frederick"], box(-500, -500, 500, 500))   # covers the subject only
+    subject = box(0, 0, 300, 300)
+    neighbour = box(300, 0, 900, 300)
+    parcels = gpd.GeoDataFrame(
+        {"account_id": ["F", "C"], "county": ["Frederick", "Carroll"], "is_account": [True, True]},
+        geometry=[subject, neighbour], crs="EPSG:26985")
+    layers, missing = load_encroachment_layers(cfg, box(-3000, -3000, 3000, 3000))
+    out = run_stage7(cfg, parcels[:1], parcels, {}, layers, missing).parcels.set_index("account_id")
+    assert out.loc["F", "subject_planned_sewer"] == True                    # noqa: E712  measured where we have data
+    assert out.loc["F", "adjacent_planned_sewer"] is None                   # the Carroll neighbour is unknowable
+    flags = out.loc["F", "encroachment_flags"]
+    assert "sewer_service_not_published_for_every_county_in_range" in flags
+    assert "adjacent_planned_sewer_service" not in flags                    # never assert what the null denies
+
+
+def test_stage7_units_counted_across_the_county_line(tmp_path):
+    """The 2-mile unit radius crosses county lines: a Carroll parcel a mile from
+    a Frederick subdivision faces those units, and the partial cover is flagged."""
+    import geopandas as gpd
+    from farmsearch.stages.stage7_encroachment import load_encroachment_layers, run_stage7
+    pipe = tmp_path / "pipe.gpkg"
+    gpd.GeoDataFrame({"UNITS": [500]}, geometry=[box(1000, 0, 1100, 100)], crs="EPSG:26985").to_file(str(pipe), driver="GPKG")
+    cfg = _cfg(tmp_path, counties={"FRED": "Frederick", "CARR": "Carroll"},
+               encroachment={"pipeline_layers": [{"name": "pipeline_frederick", "path": str(pipe),
+                                                  "units_field": "UNITS", "county": "Frederick"}],
+                             "pipeline_radius_ft": 10560})
+    parcels = gpd.GeoDataFrame(
+        {"account_id": ["C", "F"], "county": ["Carroll", "Frederick"], "is_account": [True, True]},
+        geometry=[box(0, 0, 300, 300), box(900, 0, 1200, 300)], crs="EPSG:26985")
+    layers, missing = load_encroachment_layers(cfg, box(-6000, -6000, 6000, 6000))
+    out = run_stage7(cfg, parcels, parcels, {}, layers, missing).parcels.set_index("account_id")
+    assert out.loc["C", "approved_unbuilt_units_within_2mi"] == 500         # counted, though Carroll publishes none
+    assert "approved_unbuilt_units_partial_no_layer_for_every_county_in_range" in out.loc["C", "encroachment_flags"]

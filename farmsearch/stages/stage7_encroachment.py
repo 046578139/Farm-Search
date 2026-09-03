@@ -278,6 +278,10 @@ def run_stage7(cfg: Config, scored: gpd.GeoDataFrame, parcels_all: gpd.GeoDataFr
     nacct = dict(zip(N["_pos"].values, N["account_id"].values))
     ag = dict(zip(range(len(A)), A.geometry.values))
     road_facing = P["road_facing_ft"].values if "road_facing_ft" in P.columns else np.zeros(len(P))
+    # county of every polygon in the fabric, as small integer codes: the counties a
+    # measurement actually reaches decide whether its answer is knowable
+    cty_codes, cty_names = pd.factorize(A["county"] if "county" in A.columns else pd.Series([None] * len(A)))
+    cty_of = list(cty_names) + [None]        # -1 (no county) maps to the last slot
     pipe = layers.pipeline
     if pipe is not None and len(pipe):
         _ = pipe.sindex
@@ -292,6 +296,9 @@ def run_stage7(cfg: Config, scored: gpd.GeoDataFrame, parcels_all: gpd.GeoDataFr
             log.info("Stage 7: %d/%d parcels", i, len(P))
         idx = neigh[i]
         cty = str(P["county"].values[i]) if "county" in P.columns else None
+        # the counties this parcel's ADJACENCY questions reach into: a neighbour in a
+        # county with no source makes the adjacent_* answer unknowable, not False
+        near_ctys = {cty} | {cty_of[cty_codes[c]] for c in idx}
         P.at[i, "adjacent_parcel_count"] = len(idx)
         acres = 0.0; res_acres = 0.0; pfa_acres = 0.0; eased = 0.0
         planned = existing = growth = False
@@ -332,45 +339,74 @@ def run_stage7(cfg: Config, scored: gpd.GeoDataFrame, parcels_all: gpd.GeoDataFr
         if zoning_layers:
             P.at[i, "adjacent_residential_zoning_acres"] = round(res_acres, 2)
             P.at[i, "adjacent_residential_zoning_pct"] = round(100 * res_acres / acres, 1) if acres else 0.0
-        if layers.planned_sewer.covers(cty):
+        def known_here(cov) -> bool:
+            return cov.covers(cty)
+
+        def known_around(cov) -> bool:
+            return all(cov.covers(c) for c in near_ctys)
+
+        if known_here(layers.planned_sewer):
             P.at[i, "subject_planned_sewer"] = bool(covered(pg, layers.planned_sewer) > 0.01 * pg.area)
+        if known_around(layers.planned_sewer):
             P.at[i, "adjacent_planned_sewer"] = bool(planned)
-        if layers.existing_sewer.covers(cty):
+        if known_around(layers.existing_sewer):
             P.at[i, "adjacent_existing_sewer"] = bool(existing)
-        if layers.pfa.covers(cty):
+        if known_here(layers.pfa):
             sub_pfa = covered(pg, layers.pfa)
             P.at[i, "subject_pfa_acres"] = round(m2_to_acres(sub_pfa), 2)
             P.at[i, "subject_in_pfa"] = bool(sub_pfa > 0.5 * pg.area)
+        if known_around(layers.pfa):
             P.at[i, "adjacent_pfa_acres"] = round(pfa_acres, 2)
-        if layers.growth_area.covers(cty):
+        if known_here(layers.growth_area):
             P.at[i, "subject_in_growth_area"] = bool(covered(pg, layers.growth_area) > 0.5 * pg.area)
+        if known_around(layers.growth_area):
             P.at[i, "adjacent_in_growth_area"] = bool(growth)
         if layers.favorable is not None:
             P.at[i, "adjacent_permanently_eased_acres"] = round(eased, 2)
             P.at[i, "adjacent_permanently_eased_pct"] = round(100 * eased / acres, 1) if acres else 0.0
-        if pipe is not None and (layers.pipeline_counties is None or cty in layers.pipeline_counties):
-            hits = pipe.sindex.query(pg.buffer(radius), predicate="intersects")
-            units = float(pipe["units"].values[hits].sum()) if len(hits) else 0.0
-            P.at[i, "approved_unbuilt_units_within_2mi"] = round(units, 0)
-            P.at[i, "approved_unbuilt_units_radius_ft"] = e.pipeline_radius_ft
+        # Units are counted over a 2-mile disc that crosses county lines, so the
+        # question is which counties that disc reaches, not which one the parcel
+        # sits in: a Carroll farm a mile from a Frederick subdivision faces those
+        # units. Reported when at least one county in reach publishes, flagged when
+        # any does not, null only when none does.
+        units_partial = False
+        if pipe is not None:
+            disc = pg.buffer(radius)
+            reach_ctys = {cty_of[cty_codes[c]] for c in A.sindex.query(disc, predicate="intersects")} or {cty}
+            pc = layers.pipeline_counties
+            covered_ctys = reach_ctys if pc is None else {c for c in reach_ctys if c in pc}
+            units_partial = covered_ctys != reach_ctys
+            if covered_ctys:
+                hits = pipe.sindex.query(disc, predicate="intersects")
+                units = float(pipe["units"].values[hits].sum()) if len(hits) else 0.0
+                P.at[i, "approved_unbuilt_units_within_2mi"] = round(units, 0)
+                P.at[i, "approved_unbuilt_units_radius_ft"] = e.pipeline_radius_ft
         flags = P.at[i, "encroachment_flags"]
         if res_acres > 0:
             flags.append("adjacent_residential_zoning")
         if any_unmapped:
             flags.append("adjacent_zoning_unmapped_residential_share_may_be_understated")
-        if pipe is None or (layers.pipeline_counties is not None and cty not in layers.pipeline_counties):
+        if pipe is None:
             flags.append("approved_unbuilt_units_not_published_for_this_county")
+        elif units_partial:
+            flags.append("approved_unbuilt_units_partial_no_layer_for_every_county_in_range")
         # Under half the boundary accounted for by a parcel or a road: the fabric
         # probably stops here (a county outside `counties:`), so the adjacency
         # columns describe only what we can see. ~1% of parcels on real data.
         if float(P.at[i, "adjacent_boundary_covered_pct"] or 0) < 50.0:
             flags.append("adjoining_parcels_incomplete_check_neighbouring_jurisdiction")
-        if planned:
+        # flags follow the columns: never assert what the null says is unknown
+        if P.at[i, "adjacent_planned_sewer"]:
             flags.append("adjacent_planned_sewer_service")
         if P.at[i, "subject_planned_sewer"]:
             flags.append("subject_in_planned_sewer_service")
         if P.at[i, "subject_in_pfa"]:
             flags.append("inside_priority_funding_area")
-        if P.at[i, "subject_in_growth_area"] or growth:
+        if P.at[i, "subject_in_growth_area"] or P.at[i, "adjacent_in_growth_area"]:
             flags.append("designated_growth_area_adjoining")
+        unknown = [name for name, cov in (("sewer_service", layers.planned_sewer), ("priority_funding_area", layers.pfa),
+                                          ("growth_area", layers.growth_area))
+                   if not (known_here(cov) and known_around(cov))]
+        for name in unknown:
+            flags.append(f"{name}_not_published_for_every_county_in_range")
     return Stage7Result(parcels=P, missing_layers=missing_layers or [])
