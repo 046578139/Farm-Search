@@ -26,6 +26,9 @@ from typing import Iterable, Optional
 
 import geopandas as gpd
 import pandas as pd
+from shapely.ops import unary_union
+
+from .units import ft_to_m
 
 from .config import Config
 from .io.loaders import context_geometry, load_study_area
@@ -36,6 +39,7 @@ from .stages.stage4_access import load_row_layers, run_stage4
 from .stages.stage5_envelope import load_occupied_structures, run_stage5
 from .stages.stage6_viewshed import run_stage6
 from .stages.stage7_encroachment import load_encroachment_layers, load_favorable_layers, run_stage7
+from .stages.stage9_valuation import build_comps, run_stage9
 from .stages.stage8_transmission import load_transmission_layers, run_stage8
 
 log = logging.getLogger(__name__)
@@ -351,6 +355,27 @@ def run_pipeline(cfg: Config, stages: Iterable[int] = (1, 2, 3, 4), out_dir: Opt
         result["stage8"] = s8
         _later_checkpoint(8)
 
+    # ---- Stage 9: valuation ---------------------------------------------
+    if 9 in stages:
+        fav_layers = load_favorable_layers(cfg, context.buffer(ft_to_m(max((s.fetch_margin_ft or 0) for s in cfg.valuation.sales_layers) if cfg.valuation.sales_layers else 0)))
+        fav_geoms = [unary_union(list(g.geometry.values)) for g in fav_layers.values() if len(g)]
+        fav_union = unary_union(fav_geoms) if fav_geoms else None
+        comps = build_comps(cfg, context, parcels, fav_union)
+        summary["missing_layers"] += comps.missing_layers
+        s9 = run_stage9(cfg, scored, comps)
+        scored = s9.parcels
+        summary["stage9"] = {
+            "layers_missing": comps.missing_layers, "comps": int(len(comps.comps)),
+            "bands": {f"{k[0]}/{k[1]}": v for k, v in comps.bands.items()},
+            "parcels_valued": int(scored["est_market_value"].notna().sum()),
+            "median_est_per_acre": (float(scored["est_per_acre"].median()) if scored["est_per_acre"].notna().any() else None),
+            "above_price_ceiling": int(scored["valuation_flags"].map(lambda f: "estimated_value_above_price_ceiling" in (f or [])).sum()),
+        }
+        if write and len(comps.comps):
+            comps.comps.to_csv(out_dir / "valuation_comps.csv", index=False)
+        result["stage9"] = s9
+        _later_checkpoint(9)
+
     # ---- Final record --------------------------------------------------
     scored = assemble_record(scored)
     result["scored"] = scored
@@ -459,6 +484,14 @@ def render_summary(s: dict) -> str:
             L.append(f"MPRP status (re-verify at run time): {s8['status_note']}")
         if s8.get("layers_missing"):
             L.append(f"layers missing: {', '.join(s8['layers_missing'])}")
+    if "stage9" in s:
+        s9 = s["stage9"]
+        bands = "; ".join(f"{k}: n={v['n']} ${(v['median'] or 0):,.0f}/ac" for k, v in s9["bands"].items() if k.startswith("ALL"))
+        L += ["", "## Stage 9 — valuation", "",
+              f"{s9['comps']} arms-length agricultural comps · {bands or 'no bands'} · parcels valued {s9['parcels_valued']} · "
+              f"median est ${(s9['median_est_per_acre'] or 0):,.0f}/ac · above price ceiling {s9['above_price_ceiling']}"]
+        if s9.get("layers_missing"):
+            L.append(f"layers missing: {', '.join(s9['layers_missing'])}")
     L += ["", "## What this pipeline cannot determine", ""]
     L += [f"- {x}" for x in s["cannot_determine"]]
     return "\n".join(L) + "\n"

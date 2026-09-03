@@ -324,6 +324,32 @@ class EnvelopeConfig:
 
 
 @dataclass
+class ValuationConfig:
+    """Stage 9: recent arms-length agricultural sales -> per-acre bands by
+    eased / un-eased status. SDAT assessments understate farmland badly and
+    are never used as a price proxy."""
+    sales_layers: list[LayerSource] = field(default_factory=list)
+    account_field: str = "ACCTID"
+    price_field: str = "CONSIDR1"
+    date_field: str = "TRADATE"              # YYYYMMDD
+    conveyance_field: str = "CONVEY1"
+    arms_length_codes: list[int] = field(default_factory=lambda: [1, 2, 3])
+    acres_field: str = "ACRES"
+    land_use_field: str = "DESCLU"
+    agricultural_land_uses: list[str] = field(default_factory=lambda: ["Agricultural"])
+    improvement_value_field: Optional[str] = "SALIMPVL"   # assessed improvement value at sale, deducted to get land
+    structure_sqft_field: Optional[str] = "SQFTSTRC"
+    min_comp_acres: float = 20
+    max_age_years: float = 3
+    min_price: float = 10000
+    min_comps_per_segment: int = 5
+    eased_share_threshold: float = 0.5        # favorable easement over this share of the parcel = "eased"
+    price_ceiling: Optional[float] = None     # total; spec config `price_ceiling`
+    price_ceiling_per_acre: Optional[float] = None
+    reference_date: Optional[str] = None      # YYYY-MM-DD; default today
+
+
+@dataclass
 class RunConfig:
     process_all: bool = False
     output_dir: Path = Path("outputs")
@@ -353,6 +379,7 @@ class Config:
     encroachment: EncroachmentConfig = field(default_factory=EncroachmentConfig)
     transmission: TransmissionConfig = field(default_factory=TransmissionConfig)
     envelope: EnvelopeConfig = field(default_factory=EnvelopeConfig)
+    valuation: ValuationConfig = field(default_factory=ValuationConfig)
     study_area_build: Optional[StudyAreaBuild] = None
     raw: dict = field(default_factory=dict)   # untouched YAML for later stages
 
@@ -512,6 +539,29 @@ class Config:
                 backstop_min_acres=float(v.get("backstop_min_acres", 0.25)),
                 backstop_search_ft=float(v.get("backstop_search_ft", 300)),
             )
+            q = raw.get("valuation", {}) or {}
+            dv = ValuationConfig()
+            valuation = ValuationConfig(
+                sales_layers=_layers(q.get("sales_layers")),
+                account_field=str(q.get("account_field", dv.account_field)),
+                price_field=str(q.get("price_field", dv.price_field)),
+                date_field=str(q.get("date_field", dv.date_field)),
+                conveyance_field=str(q.get("conveyance_field", dv.conveyance_field)),
+                arms_length_codes=[int(x) for x in (q.get("arms_length_codes") or dv.arms_length_codes)],
+                acres_field=str(q.get("acres_field", dv.acres_field)),
+                land_use_field=str(q.get("land_use_field", dv.land_use_field)),
+                agricultural_land_uses=[str(x) for x in (q.get("agricultural_land_uses") or dv.agricultural_land_uses)],
+                improvement_value_field=q.get("improvement_value_field", dv.improvement_value_field),
+                structure_sqft_field=q.get("structure_sqft_field", dv.structure_sqft_field),
+                min_comp_acres=float(q.get("min_comp_acres", dv.min_comp_acres)),
+                max_age_years=float(q.get("max_age_years", dv.max_age_years)),
+                min_price=float(q.get("min_price", dv.min_price)),
+                min_comps_per_segment=int(q.get("min_comps_per_segment", dv.min_comps_per_segment)),
+                eased_share_threshold=float(q.get("eased_share_threshold", dv.eased_share_threshold)),
+                price_ceiling=(None if q.get("price_ceiling", raw.get("price_ceiling")) in (None, "null") else float(q.get("price_ceiling", raw.get("price_ceiling")))),
+                price_ceiling_per_acre=(None if q.get("price_ceiling_per_acre") in (None, "null") else float(q["price_ceiling_per_acre"])),
+                reference_date=q.get("reference_date"),
+            )
             rc = raw.get("run", {}) or {}
             run = RunConfig(process_all=bool(rc.get("process_all", False)),
                             output_dir=_opt_path(base, rc.get("output_dir", "../outputs")))
@@ -538,6 +588,7 @@ class Config:
                 encroachment=encroachment,
                 transmission=transmission,
                 envelope=envelope,
+                valuation=valuation,
                 study_area_build=sab,
                 raw=raw,
             )
@@ -573,6 +624,7 @@ class Config:
         out += [r.source for r in t.mprp_routes] + t.hv_line_layers + t.substation_layers + t.data_center_layers
         v = self.envelope
         out += v.footprint_layers + v.school_point_layers + v.church_point_layers
+        out += self.valuation.sales_layers
         seen: set = set()
         uniq = []
         for src in out:

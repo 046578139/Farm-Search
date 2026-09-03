@@ -787,6 +787,30 @@ transmission:
     April 2026 the schedule was in flux (PPRP: incomplete field surveys).
     Re-verify at run time; alternates return if the preferred route is rejected.
 
+# --- Stage 9: valuation --------------------------------------------------------
+# iMAP MD_PropertySales/0 (verified 2026-09-03): one point per SDAT transfer
+# record with CONSIDR1 (consideration), TRADATE (YYYYMMDD), CONVEY1
+# (conveyance code: in the study bbox 6,757 code 1, 258 code 2, 567 code 3,
+# 6,541 code 4 — code 4 transfers carry $0 consideration and are not arms
+# length), DESCLU, ACRES, SALIMPVL (assessed improvement value at sale) and
+# SQFTSTRC. 14,123 records in the study bbox. Comps are pulled 5 miles beyond
+# the study polygon so the market, not the boundary, defines the band.
+valuation:
+  sales_layers:
+    - name: property_sales
+      path: ../data/raw/sales/property_sales.gpkg
+      url: "https://mdgeodata.md.gov/imap/rest/services/PlanningCadastre/MD_PropertySales/MapServer/0"
+      rest_where: "DESCLU = 'Agricultural' AND ACRES >= 20"
+      fetch_margin_ft: 26400
+  arms_length_codes: [1, 2, 3]      # 4 = not arms length (SDAT); re-verify against the MDP data dictionary
+  min_comp_acres: 20
+  max_age_years: 3
+  min_price: 10000
+  min_comps_per_segment: 5
+  eased_share_threshold: 0.5
+  price_ceiling: null               # spec: TBD (total); also price_ceiling_per_acre
+  price_ceiling_per_acre: null
+
 # --- Reference layers (located and verified; not consumed by Stages 1-4 yet) --
 # Kept here so later stages and the dossier step do not have to rediscover them.
 reference_layers:

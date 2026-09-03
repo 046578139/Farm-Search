@@ -157,6 +157,25 @@ def build_fixture(out: Path) -> Path:
     gpd.GeoDataFrame({"SCHOOL_NAME": ["Fixture Elementary"]}, geometry=[_Pt(OX + 4130, OY + 120)], crs=CRS) \
         .to_file(raw / "structures" / "schools.gpkg", driver="GPKG")
 
+    # ---- Stage 9: sales points (SDAT transfer records) ------------------------
+    # Un-eased farms sell around $12,000/ac land; eased (MALPF) around $7,000/ac.
+    # I (MALPF) sold 2025 for $700k on 101 ac; B and E (un-eased) for $1.2M/$1.1M;
+    # a $0 non-arms-length transfer (code 4) and a 2015 sale are excluded.
+    (raw / "sales").mkdir(exist_ok=True)
+    sales = gpd.GeoDataFrame({
+        "ACCTID": ["FRED-I", "FRED-B", "FRED-E", "FRED-C", "FRED-M", "FRED-H"],
+        "JURSCODE": ["FRED"] * 6,
+        "CONSIDR1": [700000, 1200000, 1100000, 0, 950000, 1000000],
+        "TRADATE": ["20250315", "20241120", "20250802", "20250101", "20150601", "20240505"],
+        "CONVEY1": [1, 1, 2, 4, 1, 1],
+        "ACRES": [101.2, 101.2, 98.8, 101.2, 78.2, 85.7],
+        "DESCLU": ["Agricultural"] * 6,
+        "SALIMPVL": [0, 0, 0, 0, 0, 120000],
+        "SQFTSTRC": [0, 0, 0, 0, 0, 1900],
+    }, geometry=[B(320, 978, 321, 979).centroid, B(960, 338, 961, 339).centroid, B(2880, 345, 2881, 346).centroid,
+                 B(1600, 338, 1601, 339).centroid, B(2880, 978, 2881, 979).centroid, B(960, 929, 961, 930).centroid], crs=CRS)
+    sales.to_file(raw / "sales" / "property_sales.gpkg", driver="GPKG")
+
     # ---- Stage 7-8 layers ----------------------------------------------------
     # Planned sewer (S-3) over the east end (G, O, F), existing sewer nowhere;
     # PFA over G and the 40% residential part of L; growth area = same as PFA;
@@ -259,6 +278,11 @@ def build_fixture(out: Path) -> Path:
             "footprint_layers": [{"name": "footprints", "path": "raw/structures/footprints.gpkg"}],
             "school_point_layers": [{"name": "schools", "path": "raw/structures/schools.gpkg"}],
             "viewshed_max_distance_yards": 1000, "dem_cell_m": 5.0,
+        },
+        "valuation": {
+            "sales_layers": [{"name": "property_sales", "path": "raw/sales/property_sales.gpkg"}],
+            "min_comp_acres": 20, "max_age_years": 3, "min_comps_per_segment": 2,
+            "reference_date": "2026-09-01", "price_ceiling": 1000000,
         },
         "encroachment": {
             "sewer_layers": [{"name": "sewer_planned", "path": "raw/planning/sewer_service.gpkg", "where": "CATEGORY in ['S-3', 'S-4', 'S-5']"}],
