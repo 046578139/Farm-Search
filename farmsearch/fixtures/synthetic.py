@@ -138,9 +138,20 @@ def build_fixture(out: Path) -> Path:
 
     # ---- Rights-of-way -----------------------------------------------------
     (raw / "access").mkdir(exist_ok=True)
-    gpd.GeoDataFrame({"ROAD_NAME": ["MAIN RD"], "OWNERSHIP": ["COUNTY"]},
-                     geometry=[LineString([(OX - 100, OY + 9), (OX + 4200, OY + 9)])], crs=CRS) \
+    # MAIN RD is split at every parcel line (real centerlines break at junctions)
+    xs = [-100, -10, 0, 640, 1280, 1920, 2560, 3200, 3400, 4040, 4200]
+    main_segs = [LineString([(OX + a, OY + 9), (OX + b, OY + 9)]) for a, b in zip(xs[:-1], xs[1:])]
+    gpd.GeoDataFrame({"ROAD_NAME": ["MAIN RD"] * len(main_segs), "OWNERSHIP": ["COUNTY"] * len(main_segs)},
+                     geometry=main_segs, crs=CRS) \
         .to_file(raw / "access" / "county_centerlines.gpkg", driver="GPKG")
+    # MD 999 centerline (state) along x = -10, meeting MAIN RD at (-10, 9)
+    gpd.GeoDataFrame({"ROUTE": ["MD 999", "MD 999"], "AADT_2010": [8000, 8000], "AADT_2014": [9000, 9000], "AADT": [10400, 10400],
+                      "ROADNAME": ["MD 999", "MD 999"]},
+                     geometry=[LineString([(OX - 10, OY - 50), (OX - 10, OY + 9)]), LineString([(OX - 10, OY + 9), (OX - 10, OY + 1400)])], crs=CRS) \
+        .to_file(raw / "access" / "state_centerlines.gpkg", driver="GPKG")
+    from shapely.geometry import Point as _P2
+    gpd.GeoDataFrame({"MFCE_Name": ["MD 999 widening"], "TBU_Facility": ["Secondary Construction Program"]},
+                     geometry=[_P2(OX - 10, OY + 700)], crs=CRS).to_file(raw / "access" / "ctp_points.gpkg", driver="GPKG")
     gpd.GeoDataFrame({"ROAD_NAME": ["NORTH RD"]}, geometry=[B(-20, 1298, 4100, 1316)], crs=CRS) \
         .to_file(raw / "access" / "county_row_polygons.gpkg", driver="GPKG")
     gpd.GeoDataFrame({"ROUTE": ["MD 999"]}, geometry=[B(-20, -50, 0, 1400)], crs=CRS) \
@@ -267,6 +278,8 @@ def build_fixture(out: Path) -> Path:
                  "path": "raw/access/county_row_polygons.gpkg"},
                 {"name": "sha_row_polygons", "authority": "state", "public": True, "geometry": "polygon",
                  "path": "raw/access/sha_row_polygons.gpkg"},
+                {"name": "state_centerlines", "authority": "state", "public": True, "geometry": "line", "row_width_ft": 60,
+                 "path": "raw/access/state_centerlines.gpkg"},
             ],
             "contact_tolerance_ft": 3, "open_gap_ft": 25, "min_contact_ft": 20, "frontage_search_ft": 250,
             "frontage_sample_ft": 15, "frontage_blocked_threshold": 0.95, "strip_max_width_ft": 100,
@@ -304,6 +317,15 @@ def build_fixture(out: Path) -> Path:
             "data_center_buffer_ft": 15840,
             "points_of_concern": [{"name": "Fixture Doubs", "lon": -77.45, "lat": 39.25, "buffer_ft": 100}],
             "status_note": "fixture",
+        },
+        "commute": {
+            "provider": "none",
+            "destinations": [{"name": "BWI", "column": "commute_bwi_peak_min", "lon": -76.6684, "lat": 39.1754, "peak_factor": 1.35}],
+            "redundancy_radius_ft": 26400,
+            "major_road_authorities": ["state"],
+            "aadt_layers": [{"name": "aadt", "path": "raw/access/state_centerlines.gpkg"}],
+            "ctp_layers": [{"name": "ctp", "path": "raw/access/ctp_points.gpkg"}],
+            "ctp_capacity_where": "TBU_Facility.str.contains('Construction', na=False)",
         },
         "run": {"process_all": False, "output_dir": "outputs"},
     }

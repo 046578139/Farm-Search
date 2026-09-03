@@ -350,6 +350,36 @@ class ValuationConfig:
 
 
 @dataclass
+class Destination:
+    name: str
+    column: str                    # e.g. commute_bwi_peak_min
+    lon: float
+    lat: float
+    peak_factor: float = 1.0       # applied to free-flow minutes when the engine is not departure-time aware
+
+
+@dataclass
+class CommuteConfig:
+    """Stage 10: reported, never a filter."""
+    destinations: list[Destination] = field(default_factory=list)
+    provider: str = "osrm"                     # osrm | google | none
+    osrm_url: str = "https://router.project-osrm.org"
+    osrm_batch: int = 90                       # origins per table request (demo server caps coordinates at 100)
+    google_api_key_env: str = "GOOGLE_MAPS_API_KEY"
+    departure_weekday: int = 1                 # 0 = Monday
+    departure_time: str = "07:00"
+    timezone: str = "America/New_York"
+    max_parcels: Optional[int] = None          # cap the number of origins routed (None = all)
+    redundancy_radius_ft: float = 26400        # 5 miles: how far out the egress graph is built
+    major_road_authorities: list[str] = field(default_factory=lambda: ["state"])
+    aadt_layers: list[LayerSource] = field(default_factory=list)
+    ctp_layers: list[LayerSource] = field(default_factory=list)
+    ctp_capacity_where: Optional[str] = None   # pandas expression selecting capacity projects
+    corridor_search_ft: float = 15840          # 3 miles: nearest AADT-counted state road / CTP projects considered
+    corridor_units_radius_ft: float = 10560    # approved-unbuilt units counted this far around the corridor access point
+
+
+@dataclass
 class RunConfig:
     process_all: bool = False
     output_dir: Path = Path("outputs")
@@ -380,6 +410,7 @@ class Config:
     transmission: TransmissionConfig = field(default_factory=TransmissionConfig)
     envelope: EnvelopeConfig = field(default_factory=EnvelopeConfig)
     valuation: ValuationConfig = field(default_factory=ValuationConfig)
+    commute: CommuteConfig = field(default_factory=CommuteConfig)
     study_area_build: Optional[StudyAreaBuild] = None
     raw: dict = field(default_factory=dict)   # untouched YAML for later stages
 
@@ -562,6 +593,32 @@ class Config:
                 price_ceiling_per_acre=(None if q.get("price_ceiling_per_acre") in (None, "null") else float(q["price_ceiling_per_acre"])),
                 reference_date=q.get("reference_date"),
             )
+            cm = raw.get("commute", {}) or {}
+            dcm = CommuteConfig()
+            dests = []
+            for d in (cm.get("destinations") or []):
+                dests.append(Destination(name=str(d["name"]), column=str(d.get("column") or f"commute_{str(d['name']).lower().replace(' ', '_')}_peak_min"),
+                                         lon=float(d["lon"]), lat=float(d["lat"]), peak_factor=float(d.get("peak_factor", 1.0))))
+            commute = CommuteConfig(
+                destinations=dests,
+                provider=str(cm.get("provider", dcm.provider)).lower(),
+                osrm_url=str(cm.get("osrm_url", dcm.osrm_url)).rstrip("/"),
+                osrm_batch=int(cm.get("osrm_batch", dcm.osrm_batch)),
+                google_api_key_env=str(cm.get("google_api_key_env", dcm.google_api_key_env)),
+                departure_weekday=int(cm.get("departure_weekday", dcm.departure_weekday)),
+                departure_time=str(cm.get("departure_time", dcm.departure_time)),
+                timezone=str(cm.get("timezone", dcm.timezone)),
+                max_parcels=(None if cm.get("max_parcels") in (None, "null") else int(cm["max_parcels"])),
+                redundancy_radius_ft=float(cm.get("redundancy_radius_ft", dcm.redundancy_radius_ft)),
+                major_road_authorities=[str(x).lower() for x in (cm.get("major_road_authorities") or dcm.major_road_authorities)],
+                aadt_layers=_layers(cm.get("aadt_layers")),
+                ctp_layers=_layers(cm.get("ctp_layers")),
+                ctp_capacity_where=cm.get("ctp_capacity_where"),
+                corridor_search_ft=float(cm.get("corridor_search_ft", dcm.corridor_search_ft)),
+                corridor_units_radius_ft=float(cm.get("corridor_units_radius_ft", dcm.corridor_units_radius_ft)),
+            )
+            if commute.provider not in ("osrm", "google", "none"):
+                raise ConfigError("commute.provider must be osrm|google|none")
             rc = raw.get("run", {}) or {}
             run = RunConfig(process_all=bool(rc.get("process_all", False)),
                             output_dir=_opt_path(base, rc.get("output_dir", "../outputs")))
@@ -589,6 +646,7 @@ class Config:
                 transmission=transmission,
                 envelope=envelope,
                 valuation=valuation,
+                commute=commute,
                 study_area_build=sab,
                 raw=raw,
             )
@@ -625,6 +683,7 @@ class Config:
         v = self.envelope
         out += v.footprint_layers + v.school_point_layers + v.church_point_layers
         out += self.valuation.sales_layers
+        out += self.commute.aadt_layers + self.commute.ctp_layers
         seen: set = set()
         uniq = []
         for src in out:

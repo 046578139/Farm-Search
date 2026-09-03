@@ -811,6 +811,59 @@ valuation:
   price_ceiling: null               # spec: TBD (total); also price_ceiling_per_acre
   price_ceiling_per_acre: null
 
+# --- Stage 10: commute ---------------------------------------------------------
+# Reported, never a filter. No departure-time-aware routing key is present in
+# this environment, so the default engine is the public OSRM demo server
+# (free-flow minutes via its table service, ~30 requests for 2,600 parcels)
+# multiplied by a per-destination peak_factor: a documented placeholder, not a
+# measurement. Set provider: google with GOOGLE_MAPS_API_KEY in the environment
+# for traffic-aware Tuesday 07:00 minutes (Routes API computeRouteMatrix), or
+# point osrm_url at a self-hosted OSRM/Valhalla. Route redundancy comes from the
+# public centerlines (edge-disjoint paths to a state road within 5 miles);
+# corridor durability from approved-unbuilt units around the corridor access
+# point, the growth of the nearest AADT count (iMAP AADT lines carry 2010-2018
+# plus the current year) and programmed CTP projects (FY2026-2031 points).
+commute:
+  provider: osrm
+  osrm_url: "https://router.project-osrm.org"
+  osrm_batch: 90
+  google_api_key_env: GOOGLE_MAPS_API_KEY
+  departure_weekday: 1              # Tuesday
+  departure_time: "07:00"
+  timezone: America/New_York
+  destinations:
+    - name: BWI
+      column: commute_bwi_peak_min
+      lon: -76.6684
+      lat: 39.1754
+      peak_factor: 1.35             # placeholder: I-70 / I-695 AM peak vs free flow
+    - name: Langley
+      column: commute_langley_peak_min
+      lon: -77.1465
+      lat: 38.9515
+      peak_factor: 1.7              # placeholder: I-270 / American Legion Bridge AM peak
+    - name: Northern Virginia (Tysons)
+      column: commute_nova_peak_min
+      lon: -77.2311
+      lat: 38.9187
+      peak_factor: 1.7
+  redundancy_radius_ft: 26400
+  major_road_authorities: [state]
+  aadt_layers:
+    - name: aadt_lines
+      path: ../data/raw/transportation/aadt_lines.gpkg
+      url: "https://mdgeodata.md.gov/imap/rest/services/Transportation/MD_AnnualAverageDailyTraffic/MapServer/1"
+      fetch_margin_ft: 15840
+  ctp_layers:
+    - name: ctp_fy26_31
+      path: ../data/raw/transportation/ctp_fy26_31.gpkg
+      url: "https://services.arcgis.com/njFNhDsUCentVYJW/arcgis/rest/services/MDOT_Consolidated_Transportation_Program_CTP_FY2025_FY2030/FeatureServer/0"
+      fetch_margin_ft: 15840
+  # capacity projects: the SHA construction / development programs (not system preservation)
+  ctp_capacity_where: "TBU_Facility.str.contains('Construction Program|Development', case=False, na=False)"
+  corridor_search_ft: 15840
+  corridor_units_radius_ft: 10560
+
 # --- Reference layers (located and verified; not consumed by Stages 1-4 yet) --
 # Kept here so later stages and the dossier step do not have to rediscover them.
 reference_layers:

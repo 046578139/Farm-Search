@@ -40,6 +40,7 @@ from .stages.stage5_envelope import load_occupied_structures, run_stage5
 from .stages.stage6_viewshed import run_stage6
 from .stages.stage7_encroachment import load_encroachment_layers, load_favorable_layers, run_stage7
 from .stages.stage9_valuation import build_comps, run_stage9
+from .stages.stage10_commute import load_commute_layers, run_stage10
 from .stages.stage8_transmission import load_transmission_layers, run_stage8
 
 log = logging.getLogger(__name__)
@@ -376,6 +377,32 @@ def run_pipeline(cfg: Config, stages: Iterable[int] = (1, 2, 3, 4), out_dir: Opt
         result["stage9"] = s9
         _later_checkpoint(9)
 
+    # ---- Stage 10: commute (reported, never a filter) ------------------
+    if 10 in stages:
+        pipe = None
+        if cfg.encroachment.pipeline_layers:
+            try:
+                l7, _m = load_encroachment_layers(cfg, context.buffer(ft_to_m(cfg.commute.corridor_search_ft)))
+                pipe = l7.pipeline
+            except Exception as ex:  # noqa: BLE001
+                log.warning("pipeline layers unavailable for Stage 10: %s", ex)
+        layers10 = load_commute_layers(cfg, context, pipeline=pipe)
+        summary["missing_layers"] += layers10.missing_layers
+        ep = s4.entry_points if s4 is not None else None
+        if ep is None and write and (out_dir / "entry_points.gpkg").exists():
+            ep = gpd.read_file(out_dir / "entry_points.gpkg")
+        s10 = run_stage10(cfg, scored, ep, layers10)
+        scored = s10.parcels
+        rr = scored["route_redundancy"].value_counts(dropna=False).to_dict()
+        summary["stage10"] = {
+            "engine": s10.engine, "routed": s10.routed, "layers_missing": layers10.missing_layers,
+            "destinations": [d.column for d in cfg.commute.destinations],
+            "median_minutes": {d.column: (float(scored[d.column].median()) if scored[d.column].notna().any() else None) for d in cfg.commute.destinations},
+            "route_redundancy": {str(k): int(v) for k, v in rr.items()},
+            "median_durability": (float(scored["corridor_durability_score"].median()) if scored["corridor_durability_score"].notna().any() else None),
+        }
+        result["stage10"] = s10
+
     # ---- Final record --------------------------------------------------
     scored = assemble_record(scored)
     result["scored"] = scored
@@ -492,6 +519,14 @@ def render_summary(s: dict) -> str:
               f"median est ${(s9['median_est_per_acre'] or 0):,.0f}/ac · above price ceiling {s9['above_price_ceiling']}"]
         if s9.get("layers_missing"):
             L.append(f"layers missing: {', '.join(s9['layers_missing'])}")
+    if "stage10" in s:
+        s10 = s["stage10"]
+        meds = ", ".join(f"{k.replace('commute_', '').replace('_peak_min', '')} {v:.0f} min" for k, v in s10["median_minutes"].items() if v is not None)
+        L += ["", "## Stage 10 — commute (reported, never a filter)", "",
+              f"engine {s10['engine']} · routed {s10['routed']} · median peak {meds or 'n/a'} · redundancy {s10['route_redundancy']} · "
+              f"median corridor durability {s10['median_durability']}"]
+        if s10.get("layers_missing"):
+            L.append(f"layers missing: {', '.join(s10['layers_missing'])}")
     L += ["", "## What this pipeline cannot determine", ""]
     L += [f"- {x}" for x in s["cannot_determine"]]
     return "\n".join(L) + "\n"
