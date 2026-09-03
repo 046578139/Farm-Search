@@ -162,6 +162,32 @@ zoning:
 # What to do when a parcel's zoning code is not in the mapping file:
 #   error — abort (default; forces the mapping to be complete)
 #   flag  — is_agricultural=null (unknown), parcel retained, manual flag `zoning_unmapped`
+  # Fill layers: consulted only where the county layer says MUN / TOWN (or
+  # has no polygon). Frederick's municipal layer covers 11 towns (not the
+  # City of Frederick: no public service found) and is also used for the
+  # Carroll side of Mount Airy. Sharpsburg publishes its own; Boonsboro and
+  # Keedysville do not (their parcels stay zoning_unknown_retained).
+  - county: Frederick
+    name: frederick_municipal
+    role: fill
+    path: ../data/raw/zoning/frederick_municipal.gpkg
+    url: "https://fcgis.frederickcountymd.gov/server_pub/rest/services/PlanningAndPermitting/Zoning/MapServer/0"
+    code_field: Code
+    mapping: zoning/frederick_municipal.yaml
+  - county: Carroll
+    name: mount_airy_municipal
+    role: fill
+    path: ../data/raw/zoning/frederick_municipal.gpkg
+    url: "https://fcgis.frederickcountymd.gov/server_pub/rest/services/PlanningAndPermitting/Zoning/MapServer/0"
+    code_field: Code
+    mapping: zoning/frederick_municipal.yaml
+  - county: Washington
+    name: sharpsburg_municipal
+    role: fill
+    path: ../data/raw/zoning/sharpsburg.gpkg
+    url: "https://services2.arcgis.com/uxxyl33jRTSmjre5/arcgis/rest/services/Sharpsburg_Town_Zoning_view/FeatureServer/0"
+    code_field: Zoning
+    mapping: zoning/sharpsburg.yaml
 on_unmapped_zoning: error
 
 # --- Constraint stack ---------------------------------------------------------
@@ -579,6 +605,144 @@ access:
   strip_exclude_improved: true      # a candidate with a dwelling / improvement value is a house lot, not a strip
   row_parcel_overlap: 0.5           # a neighbour with >= this share of its area inside public ROW is the road itself
   sliver_acres: 0.25                # usable fragments below this are noise, not islands
+
+# --- Stage 7: future encroachment ------------------------------------------
+# Verified 2026-09-03. Sewer service categories differ by county:
+#   Frederick (per-parcel polygons, SP_Type): S-1 existing 35,533; S-3/S-3 DEV
+#     0-3 yr planned 2,253; S-4/S-4 DEV 4-6 yr 144; S-5/S-5 DEV 7-10 yr 2,370;
+#     PS 536 (planned service); M-U 59; W-1 6. Planned = S-3..S-5 and PS.
+#   Carroll (SewerServiceCategories_Fall2025_Draft, Service): Existing, Priority,
+#     Future, Long Range, No Service, Wastewater Treatment. Planned = Priority,
+#     Future, Long Range.
+#   Washington (Sewer Service Area, Priority_Designation): 1-Existing Service,
+#     3-Programmed Service, 5-Long Term Planned Service, 7-No Planned Service-Septic.
+#     Planned = 3 and 5.
+# Residential pipeline: Frederick publishes approved / recorded / built / AVAILABLE
+# units per subdivision (D_AMinusC_AvailablePipeline). Carroll's
+# DevelopmentsInProcess is commercial only and Washington's Subdivision layer
+# has no unit counts: approved-unbuilt units are Frederick-only (documented gap).
+encroachment:
+  sewer_layers:
+    - name: sewer_planned_frederick_county
+      path: ../data/raw/planning/sewer_planned_frederick_county.gpkg
+      url: "https://fcgis.frederickcountymd.gov/server_pub/rest/services/PlanningAndPermitting/WaterSewerServiceAreas/MapServer/2"
+      rest_where: "SP_Type IN ('S-3','S-3 DEV','S-4','S-4 DEV','S-5','S-5 DEV','PS')"
+    - name: sewer_planned_frederick_city
+      path: ../data/raw/planning/sewer_planned_frederick_city.gpkg
+      url: "https://fcgis.frederickcountymd.gov/server_pub/rest/services/PlanningAndPermitting/WaterSewerServiceAreas/MapServer/3"
+      rest_where: "SP_Type IN ('S-3','S-3 DEV','S-4','S-4 DEV','S-5','S-5 DEV','PS')"
+    - name: sewer_planned_carroll
+      path: ../data/raw/planning/sewer_planned_carroll.gpkg
+      url: "https://services.arcgis.com/Uf0DiYpD9NOFO5YH/arcgis/rest/services/SewerServiceAreas_CarrollCounty/FeatureServer/0"
+      rest_where: "Service IN ('Priority','Future','Long Range')"
+    - name: sewer_planned_washington
+      path: ../data/raw/planning/sewer_planned_washington.gpkg
+      url: "https://services2.arcgis.com/uxxyl33jRTSmjre5/arcgis/rest/services/vw_Sewer%20Service%20Area_Public/FeatureServer/0"
+      rest_where: "Priority_Designation IN ('3-Programmed Service','5-Long Term Planned Service')"
+  sewer_existing_layers:
+    - name: sewer_existing_frederick_county
+      path: ../data/raw/planning/sewer_existing_frederick_county.gpkg
+      url: "https://fcgis.frederickcountymd.gov/server_pub/rest/services/PlanningAndPermitting/WaterSewerServiceAreas/MapServer/2"
+      rest_where: "SP_Type = 'S-1'"
+    - name: sewer_existing_carroll
+      path: ../data/raw/planning/sewer_existing_carroll.gpkg
+      url: "https://services.arcgis.com/Uf0DiYpD9NOFO5YH/arcgis/rest/services/SewerServiceAreas_CarrollCounty/FeatureServer/0"
+      rest_where: "Service = 'Existing'"
+    - name: sewer_existing_washington
+      path: ../data/raw/planning/sewer_existing_washington.gpkg
+      url: "https://services2.arcgis.com/uxxyl33jRTSmjre5/arcgis/rest/services/vw_Sewer%20Service%20Area_Public/FeatureServer/0"
+      rest_where: "Priority_Designation = '1-Existing Service'"
+  pfa_layers:
+    - name: pfa_statewide
+      # iMAP Priority Funding Areas (573 polygons in the study bbox; JURSCODE, CPFA, MUN_CODE)
+      path: ../data/raw/planning/pfa_statewide.gpkg
+      url: "https://mdgeodata.md.gov/imap/rest/services/PlanningCadastre/MD_PriorityFundingAreas/MapServer/0"
+  growth_area_layers:
+    - name: growth_areas_frederick
+      path: ../data/raw/planning/growth_areas_frederick.gpkg
+      url: "https://fcgis.frederickcountymd.gov/server_pub/rest/services/PlanningAndPermitting/CommunityGrowthArea/MapServer/2"
+    - name: growth_areas_carroll
+      path: ../data/raw/planning/growth_areas_carroll.gpkg
+      url: "https://services.arcgis.com/Uf0DiYpD9NOFO5YH/arcgis/rest/services/GrowthAreas_CarrollCounty/FeatureServer/0"
+    - name: growth_areas_washington
+      path: ../data/raw/planning/growth_areas_washington.gpkg
+      url: "https://services2.arcgis.com/uxxyl33jRTSmjre5/arcgis/rest/services/Growth_Areas_2025_View/FeatureServer/0"
+  pipeline_layers:
+    - name: residential_pipeline_frederick
+      path: ../data/raw/planning/residential_pipeline_frederick.gpkg
+      url: "https://fcgis.frederickcountymd.gov/server_pub/rest/services/PlanningAndPermitting/ResidentialDevelopmentPipeline/MapServer/0"
+      units_field: D_AMinusC_AvailablePipeline
+      fetch_margin_ft: 10560
+    - name: residential_pipeline_frederick_eaglehead
+      path: ../data/raw/planning/residential_pipeline_frederick_eaglehead.gpkg
+      url: "https://fcgis.frederickcountymd.gov/server_pub/rest/services/PlanningAndPermitting/ResidentialDevelopmentPipeline/MapServer/1"
+      units_field: D_AMinusC_AvailablePipeline
+      fetch_margin_ft: 10560
+  pipeline_radius_ft: 10560         # 2 miles (spec: approved_unbuilt_units_within_2mi)
+  adjacency_tolerance_ft: 3
+
+# --- Stage 8: transmission and industrial exposure ---------------------------
+# PSEG's own public feature services (Stantec, 2024-11-15 route) carry the
+# proposed centerline, its 150 ft ROW polygon and the dissolved 550 ft study
+# corridor of ALL alternative routes; the county copy of the proposed route
+# is kept as a second source. HIFLD lines (VOLTAGE 115-500 kV, SUB_1/SUB_2)
+# and substations (NAME) come from the HIFLD hub and the PSEG base data.
+# Data-center development: Frederick County's Critical Digital Infrastructure
+# overlay zone (2,612 ac, Ordinance 26-01-001, Adamstown / Quantum Frederick).
+transmission:
+  mprp_routes:
+    - name: mprp_pseg_centerline
+      variant: preferred
+      path: ../data/raw/transmission/mprp_pseg_centerline.gpkg
+      url: "https://services.arcgis.com/DN2fPfpggEPlLhP6/arcgis/rest/services/pseg_mprp_proposed_route_20241115_public_copy/FeatureServer/1"
+      fetch_margin_ft: 10560
+    - name: mprp_pseg_row150
+      variant: preferred
+      path: ../data/raw/transmission/mprp_pseg_row150.gpkg
+      url: "https://services.arcgis.com/DN2fPfpggEPlLhP6/arcgis/rest/services/pseg_mprp_proposed_route_20241115_public_copy/FeatureServer/2"
+      fetch_margin_ft: 10560
+    - name: mprp_alternatives_550ft_corridor
+      variant: alternative
+      path: ../data/raw/transmission/mprp_alternatives_550ft_corridor.gpkg
+      url: "https://services.arcgis.com/DN2fPfpggEPlLhP6/arcgis/rest/services/public_comment_basedata/FeatureServer/121"
+      fetch_margin_ft: 10560
+    - name: mprp_frederick_county_copy
+      variant: preferred
+      path: ../data/raw/transmission/mprp_frederick_county_copy.gpkg
+      url: "https://fcgis.frederickcountymd.gov/server_pub/rest/services/PlanningAndPermitting/MPRP/MapServer/0"
+      fetch_margin_ft: 10560
+  mprp_corridor_width_ft: 150
+  mprp_exclusion_buffer_ft: 2000
+  mprp_general_corridor_ft: 5280
+  hv_line_layers:
+    - name: hifld_transmission_lines
+      path: ../data/raw/transmission/hifld_transmission_lines.gpkg
+      url: "https://services1.arcgis.com/Hp6G80Pky0om7QvQ/arcgis/rest/services/Electric_Power_Transmission_Lines/FeatureServer/0"
+      rest_where: "VOLTAGE >= 100"
+      fetch_margin_ft: 10560
+  hv_line_buffer_ft: 1000
+  substation_layers:
+    - name: hifld_substations_pseg_basedata
+      path: ../data/raw/transmission/hifld_substations.gpkg
+      url: "https://services.arcgis.com/DN2fPfpggEPlLhP6/arcgis/rest/services/public_comment_basedata/FeatureServer/113"
+      fetch_margin_ft: 10560
+  substation_buffer_ft: 2640
+  data_center_layers:
+    - name: frederick_cdi_overlay
+      path: ../data/raw/transmission/frederick_cdi_overlay.gpkg
+      url: "https://fcgis.frederickcountymd.gov/server_pub/rest/services/PlanningAndPermitting/CDI/MapServer/0"
+      fetch_margin_ft: 15840
+  data_center_buffer_ft: 15840      # 3 miles: chillers, fans and generator testing carry
+  points_of_concern:
+    - name: Doubs substation
+      lon: -77.514762
+      lat: 39.296426
+      buffer_ft: 15840
+  status_note: >-
+    PSC Case No. 9773: PSEG filed the CPCN application 2024-12-31; hearings were
+    scheduled for 2026-09-21 to 09-28 with a decision targeted March 2027; as of
+    April 2026 the schedule was in flux (PPRP: incomplete field surveys).
+    Re-verify at run time; alternates return if the preferred route is rejected.
 
 # --- Reference layers (located and verified; not consumed by Stages 1-4 yet) --
 # Kept here so later stages and the dossier step do not have to rediscover them.

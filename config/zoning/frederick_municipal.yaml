@@ -1,0 +1,320 @@
+code_field: Code
+source: Frederick County GIS municipal zoning (11 towns; not the City of Frederick)
+codes:
+  AG:
+    description: Agricultural (New Market) | Agricultural (Walkersville)
+    is_agricultural: true
+    is_residential: false
+    citation: fcgis PlanningAndPermitting/Zoning/MapServer/0 District names; ag = Agricultural (New Market, Walkersville), Agricultural and Residential Preserve (Thurmont)
+  AP:
+    description: Adventure Park (New Market)
+    is_agricultural: false
+    is_residential: false
+    citation: fcgis PlanningAndPermitting/Zoning/MapServer/0 District names; ag = Agricultural (New Market, Walkersville), Agricultural and Residential Preserve (Thurmont)
+  ARP:
+    description: Agricultural and Residential Preserve (Thurmont)
+    is_agricultural: true
+    is_residential: false
+    citation: fcgis PlanningAndPermitting/Zoning/MapServer/0 District names; ag = Agricultural (New Market, Walkersville), Agricultural and Residential Preserve (Thurmont)
+  B-1:
+    description: Neighborhood Commercial (Emmitsburg)
+    is_agricultural: false
+    is_residential: false
+    citation: fcgis PlanningAndPermitting/Zoning/MapServer/0 District names; ag = Agricultural (New Market, Walkersville), Agricultural and Residential Preserve (Thurmont)
+  B-2:
+    description: General Commercial (Emmitsburg)
+    is_agricultural: false
+    is_residential: false
+    citation: fcgis PlanningAndPermitting/Zoning/MapServer/0 District names; ag = Agricultural (New Market, Walkersville), Agricultural and Residential Preserve (Thurmont)
+  B2:
+    description: Central Business (Brunswick) | Shopping Center (Walkersville)
+    is_agricultural: false
+    is_residential: false
+    citation: fcgis PlanningAndPermitting/Zoning/MapServer/0 District names; ag = Agricultural (New Market, Walkersville), Agricultural and Residential Preserve (Thurmont)
+  B3:
+    description: Business Transitional (Brunswick)
+    is_agricultural: false
+    is_residential: false
+    citation: fcgis PlanningAndPermitting/Zoning/MapServer/0 District names; ag = Agricultural (New Market, Walkersville), Agricultural and Residential Preserve (Thurmont)
+  BO:
+    description: Business Office (Walkersville)
+    is_agricultural: false
+    is_residential: false
+    citation: fcgis PlanningAndPermitting/Zoning/MapServer/0 District names; ag = Agricultural (New Market, Walkersville), Agricultural and Residential Preserve (Thurmont)
+  C-R:
+    description: Conservation/Recreation (Emmitsburg)
+    is_agricultural: false
+    is_residential: false
+    citation: fcgis PlanningAndPermitting/Zoning/MapServer/0 District names; ag = Agricultural (New Market, Walkersville), Agricultural and Residential Preserve (Thurmont)
+  CBD:
+    description: Central Business District (Woodsboro)
+    is_agricultural: false
+    is_residential: false
+    citation: fcgis PlanningAndPermitting/Zoning/MapServer/0 District names; ag = Agricultural (New Market, Walkersville), Agricultural and Residential Preserve (Thurmont)
+  CC:
+    description: Community Commercial (Mount Airy)
+    is_agricultural: false
+    is_residential: false
+    citation: fcgis PlanningAndPermitting/Zoning/MapServer/0 District names; ag = Agricultural (New Market, Walkersville), Agricultural and Residential Preserve (Thurmont)
+  EDF:
+    description: Economic Development Flex (New Market)
+    is_agricultural: false
+    is_residential: false
+    citation: fcgis PlanningAndPermitting/Zoning/MapServer/0 District names; ag = Agricultural (New Market, Walkersville), Agricultural and Residential Preserve (Thurmont)
+  GB:
+    description: General Business (Thurmont)
+    is_agricultural: false
+    is_residential: false
+    citation: fcgis PlanningAndPermitting/Zoning/MapServer/0 District names; ag = Agricultural (New Market, Walkersville), Agricultural and Residential Preserve (Thurmont)
+  GC:
+    description: General Commercial (Brunswick) | General Commercial (Middletown) | General Commercial (Myersville) | General Commercial (Woodsboro)
+    is_agricultural: false
+    is_residential: false
+    citation: fcgis PlanningAndPermitting/Zoning/MapServer/0 District names; ag = Agricultural (New Market, Walkersville), Agricultural and Residential Preserve (Thurmont)
+  HTC:
+    description: Historic Town Center (Myersville)
+    is_agricultural: false
+    is_residential: false
+    citation: fcgis PlanningAndPermitting/Zoning/MapServer/0 District names; ag = Agricultural (New Market, Walkersville), Agricultural and Residential Preserve (Thurmont)
+  HV:
+    description: Historic Village Center (Burkittsville)
+    is_agricultural: false
+    is_residential: true
+    citation: fcgis PlanningAndPermitting/Zoning/MapServer/0 District names; ag = Agricultural (New Market, Walkersville), Agricultural and Residential Preserve (Thurmont)
+  I:
+    description: Industrial (Mount Airy) | Institutional (New Market) | Institutional (Walkersville)
+    is_agricultural: false
+    is_residential: false
+    citation: fcgis PlanningAndPermitting/Zoning/MapServer/0 District names; ag = Agricultural (New Market, Walkersville), Agricultural and Residential Preserve (Thurmont)
+  I - 1:
+    description: Light Industrial (Brunswick)
+    is_agricultural: false
+    is_residential: false
+    citation: fcgis PlanningAndPermitting/Zoning/MapServer/0 District names; ag = Agricultural (New Market, Walkersville), Agricultural and Residential Preserve (Thurmont)
+  I - 2:
+    description: Heavy Industrial (Brunswick)
+    is_agricultural: false
+    is_residential: false
+    citation: fcgis PlanningAndPermitting/Zoning/MapServer/0 District names; ag = Agricultural (New Market, Walkersville), Agricultural and Residential Preserve (Thurmont)
+  I-P:
+    description: Industrial Park (Emmitsburg)
+    is_agricultural: false
+    is_residential: false
+    citation: fcgis PlanningAndPermitting/Zoning/MapServer/0 District names; ag = Agricultural (New Market, Walkersville), Agricultural and Residential Preserve (Thurmont)
+  IND:
+    description: Industrial (Thurmont)
+    is_agricultural: false
+    is_residential: false
+    citation: fcgis PlanningAndPermitting/Zoning/MapServer/0 District names; ag = Agricultural (New Market, Walkersville), Agricultural and Residential Preserve (Thurmont)
+  INST:
+    description: Institutional (Emmitsburg) | Institutional (Thurmont) | Town of Thurmont (Thurmont)
+    is_agricultural: false
+    is_residential: false
+    citation: fcgis PlanningAndPermitting/Zoning/MapServer/0 District names; ag = Agricultural (New Market, Walkersville), Agricultural and Residential Preserve (Thurmont)
+  IP:
+    description: Industrial Park (Woodsboro)
+    is_agricultural: false
+    is_residential: false
+    citation: fcgis PlanningAndPermitting/Zoning/MapServer/0 District names; ag = Agricultural (New Market, Walkersville), Agricultural and Residential Preserve (Thurmont)
+  LC:
+    description: Limited Commercial (Mount Airy)
+    is_agricultural: false
+    is_residential: false
+    citation: fcgis PlanningAndPermitting/Zoning/MapServer/0 District names; ag = Agricultural (New Market, Walkersville), Agricultural and Residential Preserve (Thurmont)
+  LDR:
+    description: Low Density Residential (Rosemont)
+    is_agricultural: false
+    is_residential: true
+    citation: fcgis PlanningAndPermitting/Zoning/MapServer/0 District names; ag = Agricultural (New Market, Walkersville), Agricultural and Residential Preserve (Thurmont)
+  LI:
+    description: Limited Industrial (Walkersville)
+    is_agricultural: false
+    is_residential: false
+    citation: fcgis PlanningAndPermitting/Zoning/MapServer/0 District names; ag = Agricultural (New Market, Walkersville), Agricultural and Residential Preserve (Thurmont)
+  LIP:
+    description: Limited Industrial Park (Walkersville)
+    is_agricultural: false
+    is_residential: false
+    citation: fcgis PlanningAndPermitting/Zoning/MapServer/0 District names; ag = Agricultural (New Market, Walkersville), Agricultural and Residential Preserve (Thurmont)
+  MC:
+    description: Mixed Commercial (New Market)
+    is_agricultural: false
+    is_residential: false
+    citation: fcgis PlanningAndPermitting/Zoning/MapServer/0 District names; ag = Agricultural (New Market, Walkersville), Agricultural and Residential Preserve (Thurmont)
+  MRS:
+    description: Mixed Residential Service (New Market)
+    is_agricultural: false
+    is_residential: true
+    citation: fcgis PlanningAndPermitting/Zoning/MapServer/0 District names; ag = Agricultural (New Market, Walkersville), Agricultural and Residential Preserve (Thurmont)
+  MXV-2:
+    description: Mixed Use Village II (Thurmont)
+    is_agricultural: false
+    is_residential: true
+    citation: fcgis PlanningAndPermitting/Zoning/MapServer/0 District names; ag = Agricultural (New Market, Walkersville), Agricultural and Residential Preserve (Thurmont)
+  MXV1:
+    description: Mixed Use Village I (Thurmont)
+    is_agricultural: false
+    is_residential: true
+    citation: fcgis PlanningAndPermitting/Zoning/MapServer/0 District names; ag = Agricultural (New Market, Walkersville), Agricultural and Residential Preserve (Thurmont)
+  NMX:
+    description: Neighborhood Mixed Use (Woodsboro)
+    is_agricultural: false
+    is_residential: true
+    citation: fcgis PlanningAndPermitting/Zoning/MapServer/0 District names; ag = Agricultural (New Market, Walkersville), Agricultural and Residential Preserve (Thurmont)
+  NP:
+    description: Neighborhood Professional (Mount Airy)
+    is_agricultural: false
+    is_residential: false
+    citation: fcgis PlanningAndPermitting/Zoning/MapServer/0 District names; ag = Agricultural (New Market, Walkersville), Agricultural and Residential Preserve (Thurmont)
+  OI:
+    description: Office/Industrial (Thurmont)
+    is_agricultural: false
+    is_residential: false
+    citation: fcgis PlanningAndPermitting/Zoning/MapServer/0 District names; ag = Agricultural (New Market, Walkersville), Agricultural and Residential Preserve (Thurmont)
+  OR:
+    description: Office/Research (Brunswick)
+    is_agricultural: false
+    is_residential: false
+    citation: fcgis PlanningAndPermitting/Zoning/MapServer/0 District names; ag = Agricultural (New Market, Walkersville), Agricultural and Residential Preserve (Thurmont)
+  ORI:
+    description: Office, Research, Industrial (Emmitsburg)
+    is_agricultural: false
+    is_residential: false
+    citation: fcgis PlanningAndPermitting/Zoning/MapServer/0 District names; ag = Agricultural (New Market, Walkersville), Agricultural and Residential Preserve (Thurmont)
+  OS:
+    description: Open Space (Brunswick) | Open Space (Middletown) | Open Space (Myersville) | Open Space (New Market) | Open Space (Thurmont) | Open Space (Walkersville) | Open Space (Woodsboro)
+    is_agricultural: false
+    is_residential: false
+    citation: fcgis PlanningAndPermitting/Zoning/MapServer/0 District names; ag = Agricultural (New Market, Walkersville), Agricultural and Residential Preserve (Thurmont)
+  OTM:
+    description: Old Town Mixed Use (Walkersville)
+    is_agricultural: false
+    is_residential: true
+    citation: fcgis PlanningAndPermitting/Zoning/MapServer/0 District names; ag = Agricultural (New Market, Walkersville), Agricultural and Residential Preserve (Thurmont)
+  PDD:
+    description: Planned Development District (New Market)
+    is_agricultural: false
+    is_residential: false
+    citation: fcgis PlanningAndPermitting/Zoning/MapServer/0 District names; ag = Agricultural (New Market, Walkersville), Agricultural and Residential Preserve (Thurmont)
+  R-1:
+    description: Low Density Residential (Emmitsburg) | Single Family Residential (R1) (Myersville)
+    is_agricultural: false
+    is_residential: true
+    citation: fcgis PlanningAndPermitting/Zoning/MapServer/0 District names; ag = Agricultural (New Market, Walkersville), Agricultural and Residential Preserve (Thurmont)
+  R-2:
+    description: Medium Density Residential (Emmitsburg) | Multi-Family Residential (R2) (Myersville)
+    is_agricultural: false
+    is_residential: true
+    citation: fcgis PlanningAndPermitting/Zoning/MapServer/0 District names; ag = Agricultural (New Market, Walkersville), Agricultural and Residential Preserve (Thurmont)
+  R-3:
+    description: High Density Residential (Emmitsburg)
+    is_agricultural: false
+    is_residential: true
+    citation: fcgis PlanningAndPermitting/Zoning/MapServer/0 District names; ag = Agricultural (New Market, Walkersville), Agricultural and Residential Preserve (Thurmont)
+  R1:
+    description: Low Density Residential (R1) (Brunswick) | Low Density Residential (R1) (Middletown) | Low Density Residential (R1) (New Market) | Low Density Residential (R1) (Thurmont) | Low Density
+      Residential (R1) (Walkersville) | Low Density Residential (R1) (Woodsboro)
+    is_agricultural: false
+    is_residential: true
+    citation: fcgis PlanningAndPermitting/Zoning/MapServer/0 District names; ag = Agricultural (New Market, Walkersville), Agricultural and Residential Preserve (Thurmont)
+  R1-SG:
+    description: Single-Family Smart Growth Residential (R1-SG) (Myersville)
+    is_agricultural: false
+    is_residential: true
+    citation: fcgis PlanningAndPermitting/Zoning/MapServer/0 District names; ag = Agricultural (New Market, Walkersville), Agricultural and Residential Preserve (Thurmont)
+  R2:
+    description: Medium Density Residential (R2) (Brunswick) | Medium Density Residential (R2) (Middletown) | Low Density Residential (R2) (Mount Airy) | Medium Density Residential (R2) (New Market) | Medium
+      Density Residential 1 (R2) (Thurmont) | Low Density Residential (R2) (Walkersville) | Medium Density Residential (R2) (Woodsboro)
+    is_agricultural: false
+    is_residential: true
+    citation: fcgis PlanningAndPermitting/Zoning/MapServer/0 District names; ag = Agricultural (New Market, Walkersville), Agricultural and Residential Preserve (Thurmont)
+  R2 MH:
+    description: Medium Density Residential- Mobile Home (R2-MH) (Brunswick)
+    is_agricultural: false
+    is_residential: true
+    citation: fcgis PlanningAndPermitting/Zoning/MapServer/0 District names; ag = Agricultural (New Market, Walkersville), Agricultural and Residential Preserve (Thurmont)
+  R20:
+    description: Low Density Residential (R20) (Middletown)
+    is_agricultural: false
+    is_residential: true
+    citation: fcgis PlanningAndPermitting/Zoning/MapServer/0 District names; ag = Agricultural (New Market, Walkersville), Agricultural and Residential Preserve (Thurmont)
+  R3:
+    description: High Density Residential (R3) (Middletown) | Medium Density Residential (R3) (Mount Airy) | Medium Density Residential 2 (R3) (Thurmont) | Medium Density Residential (R3) (Walkersville)
+    is_agricultural: false
+    is_residential: true
+    citation: fcgis PlanningAndPermitting/Zoning/MapServer/0 District names; ag = Agricultural (New Market, Walkersville), Agricultural and Residential Preserve (Thurmont)
+  R3-NtR:
+    description: R-3/Neo-Traditional Residential (Middletown)
+    is_agricultural: false
+    is_residential: true
+    citation: fcgis PlanningAndPermitting/Zoning/MapServer/0 District names; ag = Agricultural (New Market, Walkersville), Agricultural and Residential Preserve (Thurmont)
+  R4:
+    description: High Density Residential (R4) (Walkersville)
+    is_agricultural: false
+    is_residential: true
+    citation: fcgis PlanningAndPermitting/Zoning/MapServer/0 District names; ag = Agricultural (New Market, Walkersville), Agricultural and Residential Preserve (Thurmont)
+  R5:
+    description: High Density Residential 2 (R5) (Thurmont)
+    is_agricultural: false
+    is_residential: true
+    citation: fcgis PlanningAndPermitting/Zoning/MapServer/0 District names; ag = Agricultural (New Market, Walkersville), Agricultural and Residential Preserve (Thurmont)
+  R7:
+    description: High Density Residential (R7) (Mount Airy)
+    is_agricultural: false
+    is_residential: true
+    citation: fcgis PlanningAndPermitting/Zoning/MapServer/0 District names; ag = Agricultural (New Market, Walkersville), Agricultural and Residential Preserve (Thurmont)
+  RE:
+    description: Residential Existing (Mount Airy)
+    is_agricultural: false
+    is_residential: true
+    citation: fcgis PlanningAndPermitting/Zoning/MapServer/0 District names; ag = Agricultural (New Market, Walkersville), Agricultural and Residential Preserve (Thurmont)
+  RM:
+    description: Residential Merchant (New Market)
+    is_agricultural: false
+    is_residential: true
+    citation: fcgis PlanningAndPermitting/Zoning/MapServer/0 District names; ag = Agricultural (New Market, Walkersville), Agricultural and Residential Preserve (Thurmont)
+  ROW:
+    description: Right-of-Way (Middletown) | Right-of-Way (Myersville) | Right-of-Way (New Market) | Right-of-Way (Thurmont) | Right-of-Way (Walkersville)
+    is_agricultural: false
+    is_residential: false
+    citation: fcgis PlanningAndPermitting/Zoning/MapServer/0 District names; ag = Agricultural (New Market, Walkersville), Agricultural and Residential Preserve (Thurmont)
+  RR:
+    description: Rural Residential (Burkittsville)
+    is_agricultural: false
+    is_residential: true
+    citation: fcgis PlanningAndPermitting/Zoning/MapServer/0 District names; ag = Agricultural (New Market, Walkersville), Agricultural and Residential Preserve (Thurmont)
+  RS:
+    description: Residential Suburban Low Density Residential (RS) (Brunswick)
+    is_agricultural: false
+    is_residential: true
+    citation: fcgis PlanningAndPermitting/Zoning/MapServer/0 District names; ag = Agricultural (New Market, Walkersville), Agricultural and Residential Preserve (Thurmont)
+  S:
+    description: Service Commercial/Light Manufacturing (Middletown)
+    is_agricultural: false
+    is_residential: false
+    citation: fcgis PlanningAndPermitting/Zoning/MapServer/0 District names; ag = Agricultural (New Market, Walkersville), Agricultural and Residential Preserve (Thurmont)
+  TB:
+    description: Town Business (Thurmont)
+    is_agricultural: false
+    is_residential: false
+    citation: fcgis PlanningAndPermitting/Zoning/MapServer/0 District names; ag = Agricultural (New Market, Walkersville), Agricultural and Residential Preserve (Thurmont)
+  TC:
+    description: Town Commercial (Middletown)
+    is_agricultural: false
+    is_residential: false
+    citation: fcgis PlanningAndPermitting/Zoning/MapServer/0 District names; ag = Agricultural (New Market, Walkersville), Agricultural and Residential Preserve (Thurmont)
+  V-Z:
+    description: Village Zone (Emmitsburg)
+    is_agricultural: false
+    is_residential: true
+    citation: fcgis PlanningAndPermitting/Zoning/MapServer/0 District names; ag = Agricultural (New Market, Walkersville), Agricultural and Residential Preserve (Thurmont)
+  VC:
+    description: Village Center (Myersville)
+    is_agricultural: false
+    is_residential: true
+    citation: fcgis PlanningAndPermitting/Zoning/MapServer/0 District names; ag = Agricultural (New Market, Walkersville), Agricultural and Residential Preserve (Thurmont)
+  VI:
+    description: Village Industrial (Myersville)
+    is_agricultural: false
+    is_residential: true
+    citation: fcgis PlanningAndPermitting/Zoning/MapServer/0 District names; ag = Agricultural (New Market, Walkersville), Agricultural and Residential Preserve (Thurmont)

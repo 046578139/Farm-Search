@@ -1,0 +1,11 @@
+code_field: Zoning
+source: Washington County AGOL Sharpsburg_Town_Zoning_view
+codes:
+  TC:
+    description: Town Center District
+    is_agricultural: false
+    is_residential: true
+  TR:
+    description: Town Residential District
+    is_agricultural: false
+    is_residential: true

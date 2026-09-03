@@ -91,20 +91,7 @@ def cmd_zoning_domains(args) -> int:
 def cmd_fetch(args) -> int:
     from .io.loaders import fetch_layer_to_cache, study_bbox_4326
     cfg = Config.load(args.config)
-    sources = []
-    for z in cfg.zoning:
-        sources.append(z.source)
-    for c in cfg.constraints:
-        if c.source is not None:
-            sources.append(c.source)
-        if c.derive_from_lines is not None:
-            sources.append(c.derive_from_lines.source)
-        if c.erase is not None:
-            sources.append(c.erase.source)
-    for r in cfg.access.row_layers:
-        sources.append(r.source)
-        if r.erase is not None:
-            sources.append(r.erase.source)
+    sources = cfg.all_layer_sources()
     only = set(args.only or [])
     rc = 0
     for s in sources:

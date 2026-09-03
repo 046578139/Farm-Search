@@ -493,6 +493,36 @@ class Config:
         return cfg
 
     # Convenience -------------------------------------------------------
+    def all_layer_sources(self) -> list[LayerSource]:
+        """Every REST-fetchable layer the configured stages consume, in order
+        (zoning, constraints and their erase layers, ROW, Stage 7-8 layers)."""
+        out: list[LayerSource] = []
+        for z in self.zoning:
+            out.append(z.source)
+        for c in self.constraints:
+            if c.source is not None:
+                out.append(c.source)
+            if c.derive_from_lines is not None:
+                out.append(c.derive_from_lines.source)
+            if c.erase is not None:
+                out.append(c.erase.source)
+        for r in self.access.row_layers:
+            out.append(r.source)
+            if r.erase is not None:
+                out.append(r.erase.source)
+        e = self.encroachment
+        out += e.sewer_layers + e.sewer_existing_layers + e.pfa_layers + e.growth_area_layers + [u.source for u in e.pipeline_layers]
+        t = self.transmission
+        out += [r.source for r in t.mprp_routes] + t.hv_line_layers + t.substation_layers + t.data_center_layers
+        seen: set = set()
+        uniq = []
+        for src in out:
+            key = (src.name, str(src.path), src.url, src.rest_where)
+            if key not in seen:
+                seen.add(key)
+                uniq.append(src)
+        return uniq
+
     def constraint(self, name: str) -> ConstraintSpec:
         for c in self.constraints:
             if c.name == name:
