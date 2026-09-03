@@ -331,3 +331,32 @@ def test_rerunning_an_early_stage_drops_the_later_checkpoints(tmp_path):
     _drop_checkpoints_after(tmp_path, 4)
     assert not (tmp_path / "checkpoint_stage7.pkl").exists()
     assert _latest_checkpoint_at_or_before(tmp_path, 9) == 4
+
+
+def test_stage4_merge_survives_duplicate_blocker_ids_and_keeps_stage3_flags(cfg, fixture_dir):
+    """Blocker polygons share an account_id (314 'UNK' rows on the real fabric):
+    the Stage 4 merge must not multiply rows, and a flag Stage 3 appended must
+    survive into the final record."""
+    import geopandas as gpd
+    from shapely.geometry import box
+    parcels = gpd.GeoDataFrame(
+        {"account_id": ["A", "B", "UNK", "UNK", "UNK"], "is_account": [True, True, False, False, False],
+         "manual_flags": [["f1"], [], ["blocker"], [], []], "usable_acres": [1.0, 2.0, None, None, None]},
+        geometry=[box(i, 0, i + 1, 1) for i in range(5)], crs="EPSG:26985")
+    scored = parcels[parcels["is_account"]].copy()
+    scored["manual_flags"] = [["f1", "slope_window_failed_not_evaluated"], ["x"]]
+    scored["usable_acres"] = [9.0, 8.0]
+    scored["largest_contiguous_reachable_acres"] = [9.0, 8.0]
+
+    gname = parcels.geometry.name
+    overlap = [c for c in scored.columns if c in parcels.columns and c not in ("account_id", gname)]
+    merged = parcels.merge(scored.drop(columns=[gname]), on="account_id", how="left", suffixes=("", "_scored"))
+    mask = merged["account_id"].isin(scored["account_id"])
+    for c in overlap:
+        merged[c] = merged[f"{c}_scored"].where(mask, merged[c])
+    merged = merged.drop(columns=[f"{c}_scored" for c in overlap])
+
+    assert len(merged) == len(parcels)                                   # no row explosion
+    assert merged["manual_flags"].iloc[0] == ["f1", "slope_window_failed_not_evaluated"]
+    assert merged["manual_flags"].iloc[2] == ["blocker"]                 # a blocker keeps Stage 1's value
+    assert merged["usable_acres"].tolist()[:2] == [9.0, 8.0]

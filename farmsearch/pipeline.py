@@ -294,15 +294,18 @@ def run_pipeline(cfg: Config, stages: Iterable[int] = (1, 2, 3, 4), out_dir: Opt
         summary["missing_layers"] += missing
         # Neighbors: all study-area parcels, carrying the scored attributes for targets
         # Stages 2-3 also MUTATE columns that Stage 1 created (manual_flags), so the
-        # scored frame wins for every non-geometry column of a scored row.
+        # scored frame wins for every non-geometry column of a scored row, while
+        # unscored rows (blockers, context) keep Stage 1's value. Blocker polygons
+        # share an account_id (314 'UNK' rows on the real fabric), so this is done
+        # positionally on the merge result, never by re-indexing on account_id.
         gname = parcels.geometry.name
         overlap = [c for c in scored.columns if c in parcels.columns and c not in ("account_id", gname)]
-        merged = parcels.drop(columns=overlap).merge(
-            scored.drop(columns=[gname]), on="account_id", how="left", suffixes=("", "_scored"))
+        merged = parcels.merge(scored.drop(columns=[gname]), on="account_id", how="left", suffixes=("", "_scored"))
         merged = gpd.GeoDataFrame(merged, geometry=gname, crs=parcels.crs)
         mask = merged["account_id"].isin(scored["account_id"])
-        for c in overlap:      # unscored rows (blockers, context) keep Stage 1's value
-            merged.loc[~mask, c] = parcels.set_index("account_id").loc[merged.loc[~mask, "account_id"], c].values
+        for c in overlap:
+            merged[c] = merged[f"{c}_scored"].where(mask, merged[c])
+        merged = merged.drop(columns=[f"{c}_scored" for c in overlap])
         s4 = run_stage4(cfg, merged, mask, s3.geoms, rows, missing)
         scored = s4.parcels[mask.values].reset_index(drop=True)
         summary["stage4"] = {
