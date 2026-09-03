@@ -569,6 +569,7 @@ access:
       # A10 limited-access, A63 ramps, A66 crossovers, A71 trails, A73 alleys,
       # A74 driveways are never frontage.
       where: "OWNERSHIP.notna() and OWNERSHIP not in ['PRIVATE','PRIVATE/COUNTY','UNKNOWN'] and JURISDICTION not in ['PRIVATE','PRIVATE/COUNTY'] and ROADTYPE not in ['INTERSTATE','RAMP'] and ICADCLASS not in ['A10','A63','A66','A71','A73','A74']"
+      major_where: "OWNERSHIP == 'STATE'"             # Stage 10 egress: state routes are the major-road targets
     - name: county_roads_carroll
       # Carroll County centerlines; ROADCLASS COUNTY / STATE / PRIVATE / blank.
       authority: county
@@ -580,6 +581,7 @@ access:
       # 44% of segments have a blank ROADCLASS; 86% of those are municipal
       # streets inside town limits (Mount Airy, Westminster, ...): keep them.
       where: "ROADCLASS != 'PRIVATE'"
+      major_where: "ROADCLASS == 'STATE'"
     - name: county_roads_washington
       # Washington County centerlines; Road_Code names the owner. Private,
       # not-built and vacated roads and A1 (interstate) excluded.
@@ -592,6 +594,7 @@ access:
       path: ../data/raw/access/washington_centerlines.gpkg
       url: "https://services2.arcgis.com/uxxyl33jRTSmjre5/arcgis/rest/services/Road_Centerlines_3_view/FeatureServer/2"
       where: "Road_Code.notna() and Road_Code not in ['Private Road','Approved Name','Reserved Name','Vacant Road'] and RoadClass != 'A1'"
+      major_where: "Road_Code == 'State Road'"
   contact_tolerance_ft: 3           # parcel edge within this of ROW = touching
   open_gap_ft: 25                   # unparcelled gap between edge and ROW still counted as direct contact
   min_contact_ft: 12                # a driveway's width; less direct ROW contact than this = landlocked_apparent

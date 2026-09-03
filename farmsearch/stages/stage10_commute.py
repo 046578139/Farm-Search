@@ -76,10 +76,18 @@ def load_commute_layers(cfg: Config, clip: BaseGeometry, pipeline: Optional[gpd.
             log.warning("road layer %s unavailable for Stage 10: %s", r.source.name, e)
             L.missing_layers.append(r.source.name)
             continue
-        parts.append(gpd.GeoDataFrame({"authority": [r.authority] * len(g)}, geometry=g.geometry.values, crs=cfg.working_crs))
+        major = np.full(len(g), str(r.authority).lower() in c.major_road_authorities)
+        if r.major_where:
+            try:
+                major = major | g.eval(r.major_where, engine="python").values.astype(bool)
+            except Exception as ex:  # noqa: BLE001
+                log.warning("road layer %s: major_where %r failed (%s); state segments not identified", r.source.name, r.major_where, ex)
+        parts.append(gpd.GeoDataFrame({"authority": [r.authority] * len(g), "major": major}, geometry=g.geometry.values, crs=cfg.working_crs))
     if parts:
         L.roads = gpd.GeoDataFrame(pd.concat(parts, ignore_index=True), geometry="geometry", crs=cfg.working_crs)
-        log.info("Stage 10 road graph source: %d centerline features", len(L.roads))
+        log.info("Stage 10 road graph source: %d centerline features, %d major (state) segments", len(L.roads), int(L.roads["major"].sum()))
+        if not L.roads["major"].any():
+            log.warning("Stage 10: no major-road segments identified (set major_where on the centerline layers); every parcel will read no_route")
     for src in c.aadt_layers:
         try:
             g = clean_geometries(read_layer(src, cfg.working_crs, reach, clip_mode="intersects"), kind="lineal")
@@ -114,7 +122,9 @@ class RoadGraph:
         self.snap = snap_m
         self.major_nodes: set = set()
         self._node_xy: dict = {}
-        for auth, geom in zip(roads["authority"].values, roads.geometry.values):
+        majors = roads["major"].values.astype(bool) if "major" in roads.columns else \
+            np.array([str(a).lower() in major_authorities for a in roads["authority"].values])
+        for auth, geom, is_major in zip(roads["authority"].values, roads.geometry.values, majors):
             lines = list(geom.geoms) if isinstance(geom, MultiLineString) else [geom]
             for ln in lines:
                 if not isinstance(ln, LineString) or ln.length <= 0:
@@ -127,7 +137,7 @@ class RoadGraph:
                         self.G[a][b]["length"] = ln.length
                 else:
                     self.G.add_edge(a, b, length=ln.length)
-                if str(auth).lower() in major_authorities:
+                if is_major:
                     self.major_nodes.add(a); self.major_nodes.add(b)
         self._nodes = np.array([self._node_xy[n] for n in self.G.nodes]) if self.G.number_of_nodes() else np.zeros((0, 2))
         self._node_list = list(self.G.nodes)

@@ -229,6 +229,11 @@ class RowLayer:
     geometry: str                 # polygon | line
     row_width_ft: Optional[float] = None
     erase: Optional[EraseSpec] = None   # e.g. controlled-access corridors: ROW there is not access
+    # Stage 10 road graph: pandas expression selecting the segments that are
+    # "major" roads (state routes) for the egress-redundancy test, e.g.
+    # "OWNERSHIP == 'STATE'". A layer whose authority is in
+    # commute.major_road_authorities is major as a whole.
+    major_where: Optional[str] = None
 
 
 @dataclass
@@ -530,7 +535,8 @@ class Config:
                                      public=bool(r.get("public", True)),
                                      geometry=geom,
                                      row_width_ft=(float(r["row_width_ft"]) if r.get("row_width_ft") else None),
-                                     erase=EraseSpec.from_dict(base, r.get("erase"), name=f"{r.get('name', 'row')}_erase")))
+                                     erase=EraseSpec.from_dict(base, r.get("erase"), name=f"{r.get('name', 'row')}_erase"),
+                                     major_where=r.get("major_where")))
             access = AccessConfig(
                 row_layers=rows,
                 contact_tolerance_ft=float(a.get("contact_tolerance_ft", 3)),

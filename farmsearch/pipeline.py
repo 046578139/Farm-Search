@@ -168,8 +168,10 @@ def run_pipeline(cfg: Config, stages: Iterable[int] = (1, 2, 3, 4), out_dir: Opt
         scored = ck["scored"]
         s2, s3 = ck.get("s2"), ck.get("s3")
         for k, v in ck["summary"].items():
-            if k.startswith("stage") or k == "missing_layers":
+            if (k.startswith("stage") and k != "stages_run") or k == "missing_layers":
                 summary[k] = v
+        prior = [int(x[5:]) for x in ck["summary"] if x.startswith("stage") and x[5:].isdigit()]
+        summary["stages_run"] = sorted(set(prior) | set(stages))
         summary["resumed_from_stage"] = resume_from
         s1 = Stage1Result(parcels=parcels, summary=summary["stage1"])
         log.info("resumed from the Stage %d checkpoint: %d parcels, %d scored", resume_from, len(parcels), len(scored))
