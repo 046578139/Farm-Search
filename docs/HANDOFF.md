@@ -274,6 +274,13 @@ subtraction, older layers) passed 2,527 parcels against today's 2,616.
 | Washington (SE) | 12,069 | 450 | 439 | 8 | 447 | 94 | 48,746 |
 | total | 129,019 | 2,732 | 2,530 | 49 | 2,579 | | 274,666 |
 
+Reading zoning over the context band rather than the study polygon changed
+three Carroll parcels that straddle the study line: covered only in part, each
+read as majority `Conservation` (agricultural) and passed; covered in full,
+each is majority `I-2` (industrial) and is correctly excluded. That is the
+whole difference between the 2,579 parcels of the 2026-09-02 run and today's
+2,576.
+
 Sanity: hundreds to low thousands per county, as the spec expects. 2,041
 distinct owner keys (mailing address) among the 2,616. Acreage is the
 polygon geometry for every parcel (`acreage_basis: geometry`; the SDAT
