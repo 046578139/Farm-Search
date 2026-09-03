@@ -876,6 +876,8 @@ shortlist:
   top_n: 40
   exclude_mprp_tier_1: true
   require_reachable_acres_min: true
+  exclude_owner_types: [government]   # public land is not an acquisition candidate (typed from the exemption class)
+  normalize_percentile: 95            # metrics scaled between the 5th and 95th percentiles; outliers clipped
   weights:
     largest_contiguous_reachable_acres: 3.0
     usable_pct: 1.0

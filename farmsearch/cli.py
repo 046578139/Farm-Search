@@ -72,7 +72,8 @@ def cmd_dossiers(args) -> int:
     short = pd.read_csv(sl_path, dtype={"account_id": str})
     if args.top:
         short = short.head(int(args.top))
-    pdf = render_dossiers(cfg, out, short, pdf_path=(Path(args.pdf) if args.pdf else None))
+    pdf = render_dossiers(cfg, out, short, pdf_path=(Path(args.pdf) if args.pdf else None),
+                          png_dir=(Path(args.png_dir) if args.png_dir else None))
     print(f"dossiers: {len(short)} parcels -> {pdf}")
     return 0
 
@@ -232,6 +233,7 @@ def main(argv=None) -> int:
     ds.add_argument("--out", default=None)
     ds.add_argument("--top", type=int, default=None, help="only the top N of the shortlist")
     ds.add_argument("--pdf", default=None, help="output PDF path (default outputs/dossiers.pdf)")
+    ds.add_argument("--png-dir", default=None, help="also save each map page as PNG into this directory")
     ds.set_defaults(func=cmd_dossiers)
 
     v = sub.add_parser("verify-schema", help="resolve the parcel field map against the real data")

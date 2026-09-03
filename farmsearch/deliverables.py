@@ -58,6 +58,9 @@ def rank_shortlist(scored: pd.DataFrame, cfg: Config) -> tuple[pd.DataFrame, pd.
     if sl.require_reachable_acres_min and "largest_contiguous_reachable_acres" in df.columns:
         m = (_num(df["largest_contiguous_reachable_acres"]) < cfg.acreage_min) & (reasons == "")
         reasons[m] = "largest_reachable_block_below_acreage_min"
+    if sl.exclude_owner_types and "owner_type" in df.columns:
+        m = df["owner_type"].astype(str).str.lower().isin([x.lower() for x in sl.exclude_owner_types]) & (reasons == "")
+        reasons[m] = "owner_type_" + df.loc[m, "owner_type"].astype(str).str.lower()
     eligible = df[reasons == ""].copy()
     excluded = df[reasons != ""].copy()
     excluded["exclusion_reason"] = reasons[reasons != ""]
@@ -69,8 +72,10 @@ def rank_shortlist(scored: pd.DataFrame, cfg: Config) -> tuple[pd.DataFrame, pd.
         v = _num(eligible[col])
         if v.notna().sum() == 0:
             continue
-        lo, hi = float(v.min()), float(v.max())
-        norm = (v - lo) / (hi - lo) if hi > lo else pd.Series(0.5, index=v.index)
+        # clip to the percentile band so one 2,500 ac outlier does not flatten everyone else
+        q = min(max(sl.normalize_percentile, 50.0), 100.0) / 100.0
+        lo, hi = float(v.quantile(1 - q)), float(v.quantile(q))
+        norm = ((v.clip(lo, hi) - lo) / (hi - lo)) if hi > lo else pd.Series(0.5, index=v.index)
         norm = norm.fillna(0.5)
         components[f"score_{col}"] = (w * norm).round(3)
         score = score + w * norm
@@ -134,8 +139,10 @@ def _read(out_dir: Path, name: str, **kw):
 
 
 def render_dossiers(cfg: Config, out_dir: Path, shortlist: pd.DataFrame, pdf_path: Optional[Path] = None,
-                    parcels_path: Optional[Path] = None, rows: Optional[gpd.GeoDataFrame] = None) -> Path:
-    """One PDF, two pages per shortlist parcel: map + record."""
+                    parcels_path: Optional[Path] = None, rows: Optional[gpd.GeoDataFrame] = None,
+                    png_dir: Optional[Path] = None) -> Path:
+    """One PDF, two pages per shortlist parcel: map + record. With png_dir,
+    each map page is also saved as <rank>_<account_id>.png."""
     import matplotlib
     matplotlib.use("Agg")
     import matplotlib.pyplot as plt
@@ -239,7 +246,11 @@ def render_dossiers(cfg: Config, out_dir: Path, shortlist: pd.DataFrame, pdf_pat
             if legend:
                 ax.legend(handles=legend, loc="upper left", bbox_to_anchor=(1.01, 1.0), fontsize=7, frameon=False)
             fig.tight_layout()
-            pdf.savefig(fig); plt.close(fig)
+            pdf.savefig(fig)
+            if png_dir is not None:
+                Path(png_dir).mkdir(parents=True, exist_ok=True)
+                fig.savefig(Path(png_dir) / f"{int(row['rank']):03d}_{acct}.png", dpi=80)
+            plt.close(fig)
             # page 2: the record
             fig = plt.figure(figsize=(11, 8.5)); fig.text(0.04, 0.96, f"{acct} — record", fontsize=13, weight="bold")
             keys = [c for c in SHORTLIST_COLUMNS if c in P.columns and c != "account_id"] + \

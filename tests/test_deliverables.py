@@ -23,6 +23,12 @@ def test_shortlist_ranks_and_excludes(full):
     assert "FRED-I" in set(excl["account_id"]) and "mprp_tier_1" in excl.set_index("account_id").loc["FRED-I", "exclusion_reason"]
     assert "FRED-C" in set(excl["account_id"])
     assert "FRED-A" in set(short["account_id"])                   # the clean corner lot makes the list
+    # a government owner is never a candidate: re-rank with I's neighbour H typed as government
+    from farmsearch.config import Config
+    cfg2 = Config.load(out.parent / "pipeline.yaml")
+    sc2 = res["scored"].copy(); sc2.loc[sc2["account_id"] == "FRED-A", "owner_type"] = "government"
+    short2, excl2 = rank_shortlist(sc2, cfg2)
+    assert "FRED-A" not in set(short2["account_id"]) and excl2.set_index("account_id").loc["FRED-A", "exclusion_reason"] == "owner_type_government"
     assert (out / "shortlist.csv").exists() and (out / "shortlist_excluded.csv").exists()
     csv = pd.read_csv(out / "shortlist.csv")
     assert len(csv) == 5 and "score_largest_contiguous_reachable_acres" in csv.columns

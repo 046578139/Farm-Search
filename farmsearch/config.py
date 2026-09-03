@@ -412,6 +412,8 @@ class ShortlistConfig:
     })
     exclude_mprp_tier_1: bool = True
     require_reachable_acres_min: bool = True     # largest reachable block >= acreage_min to make the list
+    exclude_owner_types: list[str] = field(default_factory=lambda: ["government"])   # not acquisition candidates
+    normalize_percentile: float = 95             # metrics are min-max scaled between the 5th and 95th percentiles (outliers clipped)
 
 
 @dataclass
@@ -662,7 +664,9 @@ class Config:
             weights.update({str(k): float(v) for k, v in (sl.get("weights") or {}).items()})
             shortlist = ShortlistConfig(top_n=int(sl.get("top_n", dsl.top_n)), weights=weights,
                                         exclude_mprp_tier_1=bool(sl.get("exclude_mprp_tier_1", True)),
-                                        require_reachable_acres_min=bool(sl.get("require_reachable_acres_min", True)))
+                                        require_reachable_acres_min=bool(sl.get("require_reachable_acres_min", True)),
+                                        exclude_owner_types=[str(x).lower() for x in (sl.get("exclude_owner_types") if sl.get("exclude_owner_types") is not None else dsl.exclude_owner_types)],
+                                        normalize_percentile=float(sl.get("normalize_percentile", dsl.normalize_percentile)))
             rc = raw.get("run", {}) or {}
             run = RunConfig(process_all=bool(rc.get("process_all", False)),
                             output_dir=_opt_path(base, rc.get("output_dir", "../outputs")))
