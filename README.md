@@ -6,25 +6,30 @@ encumbrance and access. **Screening tool, not a title report**: it reduces
 thousands of parcels to dozens worth paying a professional to examine. Every
 flag is a reason to look at the deed, never a reason to delete a row.
 
-This repository currently implements **Stages 1–4** of the spec
-(`docs/farm_parcel_screening_spec.md`), which together eliminate the large
-majority of parcels:
+This repository implements **all ten stages** of the spec
+(`docs/farm_parcel_screening_spec.md`) plus the deliverables (ranked
+shortlist, deduplicated owner list, PDF dossiers). Stages 1–4 eliminate the
+large majority of parcels; Stages 5–10 score what is left:
 
 | Stage | What it does | Where |
 |---|---|---|
 | 1 | Study-area selection, acreage filter, per-county agricultural-zoning mapping, owner typing. Every parcel is retained with flags. | `farmsearch/stages/stage1_base_filter.py` |
 | 2 | Per-parcel intersection with every constraint layer, **reported separately by type** with acreage and position (sector, offset, boundary contact, whether it bisects the parcel). | `farmsearch/stages/stage2_encumbrance.py` |
 | 3 | `usable = parcel − forest conservation − riparian − wetlands − floodplain − slope > max`. Agricultural preservation easements are **not** subtracted. Slope comes from the LiDAR DEM per parcel. | `farmsearch/stages/stage3_usable_area.py`, `farmsearch/slope.py` |
-| 4 | Entry nodes, landlock test, frontage blockage by encumbrance or **separately-owned parcel**, reserve-strip detection with the offending account ID, connected components of the usable area seeded at the entry nodes → **largest contiguous reachable block**, unreachable islands. | `farmsearch/stages/stage4_access.py`, `farmsearch/geometry/` |
-
-Stages 5–10 (dischargeable envelope, viewshed, future encroachment, MPRP,
-valuation, commute, dossiers) are not built yet.
+| 4 | Entry nodes, landlock test, frontage blockage by encumbrance or **separately-owned parcel**, reserve-strip detection with the offending account ID, connected components of the usable area seeded at the entry nodes → **largest contiguous reachable block**, unreachable islands. Reachability runs through the *passable* polygon (a mapped flood zone is not a barrier to driving; a stream, wetland or forest easement is). | `farmsearch/stages/stage4_access.py`, `farmsearch/geometry/` |
+| 5 | **Dischargeable envelope** (NR §10-410): usable area minus 150 yd around every off-parcel dwelling, church and occupied building and 300 yd around schools; the owner's own structures are exempt. Envelope acres, largest block, longest interior dimension in yards, archery-zone (50 yd) acres. Target shooting is flagged for the county ordinance check. | `farmsearch/stages/stage5_envelope.py` |
+| 6 | **Viewshed**: line of sight on the LiDAR DEM from candidate firing points in the envelope to every dwelling within 1,000 yd; count with a clear line; steep ground at the envelope edge whose uphill side faces away from the nearest dwelling as a candidate backstop. | `farmsearch/stages/stage6_viewshed.py`, `farmsearch/terrain.py` |
+| 7 | **Future encroachment**: adjoining parcels' residential zoning acres (split zoning counted proportionally), planned / existing sewer service, Priority Funding Area, growth areas, approved-but-unbuilt units within 2 mi, adjoining permanently eased acres. | `farmsearch/stages/stage7_encroachment.py` |
+| 8 | **Transmission / industrial exposure**: MPRP tier 0–3 against every studied route (preferred centerline, 150 ft ROW, dissolved 550 ft alternative-route corridor), line of sight to the route, existing HV lines and substations, data-center development (Frederick CDI overlay), Doubs substation. | `farmsearch/stages/stage8_transmission.py` |
+| 9 | **Valuation**: arms-length agricultural sales (SDAT transfer records) → land $/acre bands by eased / un-eased status, county band first, pooled fallback; est_market_value, comp_basis, price-ceiling flags. Assessments are never a price proxy. | `farmsearch/stages/stage9_valuation.py` |
+| 10 | **Commute** (reported, never a filter): peak minutes to BWI, Langley and Northern Virginia (traffic-aware with a Google Routes key; otherwise OSRM free-flow × a documented peak factor), route redundancy from the road graph (single egress vs redundant), corridor durability from approved units, AADT growth and programmed CTP projects. | `farmsearch/stages/stage10_commute.py` |
+| — | **Deliverables**: `shortlist.csv` (configurable weights; MPRP tier 1 excluded per the spec), `owner_list.csv` (collapsed by owner + mailing address), `farmsearch dossiers` (two PDF pages per shortlist parcel). | `farmsearch/deliverables.py` |
 
 ## Install
 
 ```bash
 pip install -e ".[dev]"
-python -m pytest            # validates Stages 1–4 against the synthetic fixture
+python -m pytest            # validates Stages 1–10 and the deliverables against the synthetic fixture
 ```
 
 Requires GeoPandas ≥ 1.0, Shapely ≥ 2.0, pyogrio and rasterio (GDAL comes
@@ -135,7 +140,14 @@ service tree (same paths) and is what the config uses.
    check the spec asks for. The 2026-09-02 run over the three counties
    (22 minutes with every layer cached) is recorded in `docs/HANDOFF.md`.
    Each stage leaves a checkpoint under `outputs/`; an interrupted run
-   continues with `--stages 4 --resume` (or `2-4`, `3-4`).
+   continues with `--stages 4 --resume` (or `2-4`, `3-4`). The default is
+   `--stages 1-10`; Stages 5–10 can be run alone from the Stage 4 checkpoint
+   with `--stages 5-10 --resume`.
+8. **Deliverables.**
+   ```bash
+   farmsearch shortlist --config config/pipeline.yaml     # re-rank with the weights in config -> shortlist.csv, owner_list.csv
+   farmsearch dossiers  --config config/pipeline.yaml --top 20   # -> outputs/dossiers.pdf
+   ```
 
 ### Data sources used (all verified live)
 
@@ -158,8 +170,20 @@ service tree (same paths) and is what the config uses.
 | State road ROW | MDOT SHA `MDOT_SHA_Right-Of-Way_(Polygons)/FeatureServer/32` minus full-access-control corridors | polygons per SHA grid |
 | Tax-map road ROW | `ACCTID = 'ROW'` rows of the parcel layer | polygons |
 | County roads | Frederick `Basemap/Centerlines/0` (OWNERSHIP/JURISDICTION/ICADCLASS), Carroll `Roads_CarrollCounty/0` (`ROADCLASS`), Washington `Road_Centerlines_3_view/2` (`Road_Code`) | public only, no limited access, ramps, driveways |
-| DEM | iMAP LiDAR `Statewide/MD_statewide_dem_m/ImageServer` | per-parcel `exportImage` |
+| DEM | iMAP LiDAR `Statewide/MD_statewide_dem_m/ImageServer` | per-parcel `exportImage`; also the Stage 6 / Stage 8 line of sight |
 | County boundaries | iMAP `Boundaries/MD_PoliticalBoundaries/MapServer/1` | study area |
+| Municipal zoning (fill) | Frederick `PlanningAndPermitting/Zoning/MapServer/0` (11 towns), Washington `Sharpsburg_Town_Zoning_view/0` | consulted where the county layer says MUN / TOWN |
+| Building footprints | iMAP `PlanningCadastre/MD_BuildingFootprints/MapServer/0` | locate dwellings / churches on SDAT-flagged parcels (Stage 5) |
+| Schools | iMAP `Education/MD_EducationFacilities/MapServer/5`, `/6` + SDAT school exemption classes | 300 yd zones |
+| Sewer service categories | Frederick `WaterSewerServiceAreas/MapServer/2`, `/3` (`SP_Type`); Carroll `SewerServiceAreas_CarrollCounty/0` (`Service`); Washington `vw_Sewer Service Area_Public/0` (`Priority_Designation`) | planned vs existing (Stage 7) |
+| PFA, growth areas | iMAP `MD_PriorityFundingAreas/0`; Frederick `CommunityGrowthArea/2`, Carroll `GrowthAreas_CarrollCounty/0`, Washington `Growth_Areas_2025_View/0` | Stage 7 |
+| Residential pipeline | Frederick `ResidentialDevelopmentPipeline/MapServer/0`, `/1` (`D_AMinusC_AvailablePipeline`) | approved-unbuilt units; Carroll / Washington publish no unit counts |
+| MPRP routes | PSEG `pseg_mprp_proposed_route_20241115_public_copy/FeatureServer/1` (centerline), `/2` (150 ft ROW), `public_comment_basedata/FeatureServer/121` (550 ft alternative-route corridor); Frederick `PlanningAndPermitting/MPRP/MapServer/0` | Stage 8, every studied route |
+| HV lines, substations | HIFLD `Electric_Power_Transmission_Lines/FeatureServer/0` (≥ 100 kV); PSEG `public_comment_basedata/FeatureServer/113` (HIFLD substations) | Stage 8 |
+| Data centers | Frederick `PlanningAndPermitting/CDI/MapServer/0` (Critical Digital Infrastructure overlay) + Doubs substation point | Stage 8 |
+| Property sales | iMAP `PlanningCadastre/MD_PropertySales/MapServer/0` (`CONVEY1`, `CONSIDR1`, `TRADATE`, `SALIMPVL`) | Stage 9 comps, 5 mi beyond the study area |
+| AADT, CTP | iMAP `MD_AnnualAverageDailyTraffic/MapServer/1` (2010–2018 + current); MDOT `..._CTP_FY2025_FY2030/FeatureServer/0` (FY26–31 project points) | Stage 10 corridor durability |
+| Routing | OSRM demo `router.project-osrm.org` (table service) or Google Routes with `GOOGLE_MAPS_API_KEY` | Stage 10 |
 
 SHA plat boundaries, the HPMS access-control layer, statewide centerlines,
 MDP generalized zoning, the MPRP route, the residential pipeline and other
@@ -190,10 +214,27 @@ acreage); `study_area_selection` chooses intersects / centroid / within.
 | `entry_points.gpkg` | usable entry nodes |
 | `reserve_strips.csv` | candidate access-control strips: strip account ID, owner, same-owner test, estimated width/length/aspect, frontage blocked |
 | `islands.csv` | unreachable usable islands per parcel |
+| `encumbrances.gpkg`, `row_public.gpkg` | encumbrance geometry per parcel × type and the public ROW used, for the dossier maps |
+| `envelope.gpkg`, `occupied_structures.gpkg` | dischargeable envelope per parcel; the dwellings / churches that shaped it (Stage 5) |
+| `valuation_comps.csv` | the arms-length agricultural comps behind Stage 9 |
+| `shortlist.csv`, `shortlist_excluded.csv`, `owner_list.csv` | ranked shortlist with score components, hard-rule exclusions with reasons, one row per owner + mailing address |
+| `dossiers.pdf` | `farmsearch dossiers`: map + record pages per shortlist parcel |
+| `checkpoint_stage{1..9}.pkl` | resume points (`--resume`) |
 | `parcels_scored.gpkg` / `.csv` / `.geojson` | the per-parcel record |
 | `summary.json` / `summary.md` | counts per stage and county, missing layers, and the list of things the pipeline cannot determine |
 
-### Per-parcel record (Stages 1–4 portion of the spec)
+### Per-parcel record
+
+The spec's full record. Stages 5–10 add `dischargeable_envelope_acres`,
+`dischargeable_envelope_longest_dim_yards`, `dwellings_with_line_of_sight`,
+`candidate_backstop_slopes`, `mprp_tier`, `adjacent_residential_zoning_acres`,
+`adjacent_planned_sewer`, `approved_unbuilt_units_within_2mi`,
+`adjacent_permanently_eased_acres`, `est_market_value`, `est_per_acre`,
+`comp_basis`, `commute_bwi_peak_min`, `commute_langley_peak_min`,
+`commute_nova_peak_min`, `route_redundancy`, `corridor_durability_score`, each
+with its supporting detail (envelope blocks, nearest dwelling, MPRP distance
+and variant, sewer / PFA / growth-area status, comp bands, free-flow minutes,
+egress path count, corridor AADT trend). The Stages 1–4 portion:
 
 ```
 account_id, owner_name, owner_mailing_address, owner_type, owner_key
@@ -271,9 +312,11 @@ farmsearch/        package
   io/              ArcGIS REST client (ESRI JSON paging), loaders, schema verification,
                    per-county parcel pull, study-area builder
   geometry/        encumbrance position, frontage probing, reserve strips, connectivity
-  stages/          stage1..stage4
+  stages/          stage1..stage10
   slope.py         DEM (local file or iMAP ImageServer) → steep-area polygons
-  pipeline.py      orchestration + outputs
+  terrain.py       DEM windows, line of sight, slope/aspect (Stages 6 and 8)
+  deliverables.py  shortlist ranking, owner list, PDF dossiers
+  pipeline.py      orchestration, checkpoints, outputs
   fixtures/        synthetic validation dataset
 tests/             pytest suite (runs against the fixture)
 docs/              the spec

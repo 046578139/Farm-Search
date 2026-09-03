@@ -5,10 +5,17 @@ previous one stopped without the old conversation. Read `README.md` first.
 
 ## State of the branch `claude/geodata-md-gov-access-zvtlkc`
 
-- Stages 1–4 of `docs/farm_parcel_screening_spec.md` are implemented and
-  validated against the synthetic fixture (74 pytest tests, `python -m pytest`),
-  and Stages 1–4 have been run end to end on the real three-county data
-  (results below).
+- **All ten stages** of `docs/farm_parcel_screening_spec.md` plus the
+  deliverables (shortlist, owner list, PDF dossiers) are implemented and
+  validated against the synthetic fixture (96 pytest tests, `python -m pytest`).
+  Stages 1–4 have been run end to end on the real three-county data several
+  times (results below); the first full Stage 1–10 run is recorded in the
+  "Stages 5–10 on the real data" section.
+- Session 3 (2026-09-03) fixed three Stage 4 faults found by a visual spot
+  check (edge parcels losing their roads to the study-area clip, flag-lot
+  lanes severed by a mapped flood zone, a too-strict landlocked threshold),
+  filled the municipal zoning holes, and built Stages 5–10 on live-verified
+  sources; every design decision is in the sections below.
 - **Every data source for Stages 1–4 has been located and verified live**
   (layer JSON read, field list checked, feature count over the study area
   confirmed) and is wired into `config/pipeline.yaml`. The verification
@@ -306,6 +313,60 @@ Performance note: intersecting every parcel with the detailed county
 boundary took >15 minutes; `attribute_study_area` now intersects only
 parcels that straddle the boundary (interior parcels are found with the
 spatial index), which is the difference between 15 minutes and about one.
+
+## Stages 5–10: sources, decisions and assumptions (2026-09-03)
+
+Verified live in this session (id-verified counts inside the study bbox):
+
+| Need | Source | Notes |
+|---|---|---|
+| Statute | NR §10-410 at `mgaleg.maryland.gov` | 150 yd dwelling/church/occupied building, 300 yd school (school hours), archery 50 yd in Frederick/Carroll/Washington (elevated stand in Washington); owner/occupant permission exemption |
+| Dwellings, churches, schools | the parcel fabric: `SQFTSTRC` ≥ 400 under residential/agricultural `DESCLU`; `DESCEXCL` matching church/synagogue/parsonage (929 parcels) or school/college (241) | located with iMAP building footprints (199,193 in bbox + 3,000 ft); parcel point when no footprint. HIFLD "places of worship" is an IRS geocode list (PO boxes) and was rejected |
+| Municipal zoning | Frederick `Zoning/MapServer/0` (11 towns, 1,156 polygons, `Municipality`/`District`/`Code`); Washington `Sharpsburg_Town_Zoning_view/0` (`TC`, `TR`) | City of Frederick, Boonsboro and Keedysville publish no service (AGOL and city hosts searched); their parcels stay `zoning_unknown_retained` |
+| Sewer categories | Frederick `WaterSewerServiceAreas/2` (county, per parcel: S-1 35,533; S-3/S-3 DEV 2,253; S-4/DEV 144; S-5/DEV 2,370; PS 536) and `/3` (city); Carroll `SewerServiceAreas_CarrollCounty/0` (`Service`: Existing/Priority/Future/Long Range/No Service); Washington `vw_Sewer Service Area_Public/0` (`Priority_Designation` 1/3/5/7) | planned = S-3..S-5 + PS; Priority/Future/Long Range; 3-Programmed / 5-Long Term |
+| PFA / growth | iMAP `MD_PriorityFundingAreas/0` (573); Frederick `CommunityGrowthArea/2` (25), Carroll `GrowthAreas_CarrollCounty/0` (7), Washington `Growth_Areas_2025_View/0` (3) | |
+| Residential pipeline | Frederick `ResidentialDevelopmentPipeline/0` (82 subdivisions; `A_ApprovedUnits`, `C_DevelopedOrPermittedUnits`, `D_AMinusC_AvailablePipeline`) and `/1` (Eaglehead) | Carroll `DevelopmentsInProcess` is commercial only; Washington `Subdivision_view` has names only: units are Frederick-only (gap) |
+| MPRP | PSEG/Stantec `pseg_mprp_proposed_route_20241115_public_copy/1` (centerline, 140 km), `/2` (150 ft ROW); `public_comment_basedata/121` "Alternative Routes 550 ft Study Corridor – dissolved"; Frederick `MPRP/MapServer/0` (county copy) | all studied routes honoured; status note in config, re-verify |
+| HV lines / substations | HIFLD hub `Electric_Power_Transmission_Lines/0` (74 in bbox, 115–500 kV, `SUB_1`/`SUB_2`); PSEG basedata `/113` HIFLD substations (59, `NAME`; DOUBS at −77.5148, 39.2964) | no standalone HIFLD substation service was reachable |
+| Data centers | Frederick `PlanningAndPermitting/CDI/MapServer/0` Critical Digital Infrastructure overlay (2,612 ac, Ordinance 26-01-001, 2026-01) | + Doubs substation point of concern (3 mi) |
+| Sales | iMAP `MD_PropertySales/0` (14,123 in bbox; `CONVEY1` 1: 6,757, 2: 258, 3: 567, 4: 6,541 with $0 consideration) | arms-length = 1–3 (assumption from the data: code 4 = $0 transfers); fetched 5 mi beyond the study area, `DESCLU='Agricultural' AND ACRES>=20` |
+| Traffic | iMAP `MD_AnnualAverageDailyTraffic/1` (1,371 lines; `AADT_2010..2018`, `AADT`, K/D factors); MDOT CTP FY2026–31 `..._CTP_FY2025_FY2030/FeatureServer/0` (189 points; `MFCE_Name`, `TBU_Facility`) | capacity projects = Construction / Development programs |
+| Routing | OSRM demo `router.project-osrm.org` (table service works, ~30 requests for 2,600 parcels); no Google/HERE key in the environment; `osmnx`/`pyrosm`/`pyvalhalla` are pip-installable and Geofabrik is reachable for self-hosting | peak minutes = free-flow × per-destination `peak_factor` (BWI 1.35, Langley/NoVA 1.7) until a traffic-aware key is supplied: a documented placeholder |
+
+Decisions to keep in mind:
+
+- **Context buffer.** Parcels, ROW and every layer are fetched and read out to
+  `context_buffer_ft` (2,000 ft) beyond the study polygon; parcels in that band
+  are context rows (`stage1_pass_reason = outside_study_area`, never scored or
+  counted). Layers that need more reach carry `fetch_margin_ft`.
+- **Passable vs usable.** `usable` still subtracts every hostile/physical
+  constraint; reachability runs through `passable` = parcel minus what stops a
+  vehicle (`blocks_travel`, default true; floodplain false). Lanes are never
+  sliver-filtered.
+- **Envelope.** Same-owner structures are exempt (`exclude_same_owner`), a
+  conservative reading of the owner/occupant exemption; every footprint ≥ 400 sq
+  ft on a dwelling parcel counts as a candidate occupied building (barns included:
+  pessimistic). Target shooting is flagged on every parcel.
+- **Stage 8 tiers.** 1 = inside a route corridor (150 ft, or the 550 ft
+  alternative corridor polygon); 2 = within 2,000 ft or line of sight (40 m
+  conductor height, bare-earth DEM); 3 = within 1 mile of a route, 1,000 ft of an
+  HV line or 0.5 mile of a substation.
+- **Stage 9 land price** = consideration − assessed improvement value at sale
+  (floored at 20% of the price); bands by county then pooled when a county has
+  fewer than 5 comps; `est_market_value` adds the subject's own assessed
+  improvements.
+- **Stage 10** is reported only; shortlist weights for commute are 0. Route
+  redundancy attaches every entrance to the centerline graph (edge split at the
+  projection) and counts edge-disjoint paths to a state road within 5 miles.
+  Durability = 100 − 45·min(1, units/1000) − 35·min(1, AADT growth/30%) + 20 if
+  a CTP capacity project is nearby.
+- **Shortlist** hard rules: MPRP tier 1 excluded (spec), largest reachable
+  block ≥ acreage_min; everything else is a weight.
+
+## Stages 5–10 on the real data
+
+{{STAGES_5_10_RESULTS}}
+
 
 ## Caveats to keep in mind
 
