@@ -396,8 +396,9 @@ def run_stage1(cfg: Config, study_geom: BaseGeometry, parcels_raw: Optional[gpd.
     summary["non_parcel_polygons_excluded"] = int(excluded)
     summary["unlinked_polygons_excluded"] = int(unlinked)
     summary["blocker_polygons_retained"] = int((~gdf["is_account"]).sum())
-    summary["owner_name_available_pct"] = round(100 * float(gdf["owner_name_available"].mean()), 1) if len(gdf) else None
-    summary["owner_key_unavailable"] = int((~gdf["owner_key_available"]).sum())
+    acc = gdf[gdf["is_account"]]     # placeholder blockers have no owner and no key: count accounts only
+    summary["owner_name_available_pct"] = round(100 * float(acc["owner_name_available"].mean()), 1) if len(acc) else None
+    summary["owner_key_unavailable"] = int((~acc["owner_key_available"]).sum())
     return Stage1Result(parcels=gdf, summary=summary)
 
 

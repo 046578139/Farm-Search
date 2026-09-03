@@ -145,6 +145,10 @@ def run_stage4(cfg: Config, parcels_all: gpd.GeoDataFrame, target_mask: pd.Serie
 
     owners = P["owner_name"].values
     addrs = P["owner_mailing_address"].values if "owner_mailing_address" in P.columns else np.array([None] * len(P))
+    # Placeholder polygons (RAILROAD, WATER, UNK, ...) are not parcels with
+    # an owner to compare: they block frontage (reported as foreign parcels
+    # with their placeholder id) but are never reserve strips.
+    is_acct = P["is_account"].values.astype(bool) if "is_account" in P.columns else np.ones(len(P), dtype=bool)
     # Improved neighbours (a dwelling, a barn, any assessed improvement) are
     # house lots carved off the road frontage, not access-control strips.
     # Without the SDAT improvement fields every candidate counts as vacant.
@@ -233,7 +237,7 @@ def run_stage4(cfg: Config, parcels_all: gpd.GeoDataFrame, target_mask: pd.Serie
                 continue
             # Miles-long "strips" are road, rail or utility corridors; a
             # neighbour that is mostly public ROW is the road itself.
-            if m["est_length_ft"] > a.strip_max_length_ft or is_row_like(int(c)) or improved[c]:
+            if m["est_length_ft"] > a.strip_max_length_ft or is_row_like(int(c)) or improved[c] or not is_acct[c]:
                 continue
             # The spec's test is "sitting between the subject parcel and the
             # road": the strip must lie behind a real stretch of the subject's

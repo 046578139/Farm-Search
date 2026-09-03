@@ -639,6 +639,7 @@ def test_blockers_never_pass_stage1_and_are_not_counted(tmp_path):
     assert p.loc["RAILROAD", "stage1_pass_reason"] == "non_parcel_polygon" and not p.loc["RAILROAD", "stage1_pass"]
     assert res.summary["parcels_in_study_area"] == 3 and res.summary["blocker_polygons_retained"] == 3
     assert "RAILROAD" in p.index                      # still present for Stage 4 adjacency
+    assert res.summary["owner_key_unavailable"] == 0  # blockers have no owner key and are not counted
 
 
 def test_require_non_null_drops_unlinked_polygons(tmp_path):
@@ -814,3 +815,22 @@ def test_placeholder_blockers_are_not_dissolved_into_one_polygon(tmp_path):
     cfg = _cfg(tmp_path, zoning=[], on_unmapped_zoning="flag")
     res = run_stage1(cfg, box(-10, -10, 5000, 5000), parcels_raw=raw, zoning_layers={})
     assert res.summary["blocker_polygons_retained"] == 5 and res.summary["parcels_in_study_area"] == 3
+
+
+def test_placeholder_polygon_blocks_frontage_but_is_not_a_reserve_strip(tmp_path):
+    """A RAILROAD placeholder polygon (not an account) lying between the farm
+    and the road is a foreign blocker, reported with its placeholder id, but
+    never a reserve strip: there is no owner to compare."""
+    from farmsearch.stages.stage4_access import run_stage4
+    farm = box(0, 35, 600, 435)
+    rail = box(-50, 20, 650, 35)
+    parcels = gpd.GeoDataFrame({
+        "account_id": ["FARM", "RAILROAD"], "owner_name": ["", ""],
+        "owner_mailing_address": ["1 FARM RD", None], "deed_ref": [None, None],
+        "is_account": [True, False],
+    }, geometry=[farm, rail], crs="EPSG:26985")
+    rows = gpd.GeoDataFrame({"authority": ["county"], "public": [True]}, geometry=[box(-100, 0, 700, 20)], crs="EPSG:26985")
+    res = run_stage4(_cfg(tmp_path), parcels, pd.Series([True, False]), {}, rows)
+    farm_row = res.parcels.iloc[0]
+    assert farm_row["frontage_blocked_by_foreign_parcel"] and farm_row["blocking_parcel_account_id"] == "RAILROAD"
+    assert not farm_row["reserve_strip_detected"] and len(res.strips) == 0
