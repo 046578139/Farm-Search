@@ -51,6 +51,11 @@ study_area: study_area.geojson
 #   centroid   — parcel centroid inside the polygon
 #   within     — entire parcel inside the polygon
 study_area_selection: intersects
+# Parcels, rights-of-way and constraint layers are loaded (and fetched) this
+# far beyond the study polygon so that a parcel on the study line still sees
+# its road and its neighbours. Context parcels are never scored or counted
+# (stage1_pass_reason = outside_study_area).
+context_buffer_ft: 2000
 
 # `farmsearch build-study-area --variant initial` pulls these county polygons
 # from the iMAP detailed county-boundary layer, clips each to its box (lon/lat)
@@ -410,6 +415,7 @@ constraints:
     implication: physical
     subtract_from_usable: true
     crossable_with_permit: true
+    blocks_travel: false            # a mapped flood zone is not a barrier to driving; the stream inside it is (riparian_presumed)
     path: ../data/raw/constraints/fema_nfhl.gpkg
     url: "https://mdgeodata.md.gov/imap/rest/services/Hydrology/MD_Floodplain/MapServer/1"  # FEMA DFIRM S_FLD_HAZ_AR
     page_size: 50                   # this service errors on any page query; it serves objectIds chunks of ~50
@@ -562,7 +568,8 @@ access:
       where: "Road_Code.notna() and Road_Code not in ['Private Road','Approved Name','Reserved Name','Vacant Road'] and RoadClass != 'A1'"
   contact_tolerance_ft: 3           # parcel edge within this of ROW = touching
   open_gap_ft: 25                   # unparcelled gap between edge and ROW still counted as direct contact
-  min_contact_ft: 20                # less direct ROW contact than this = landlocked_apparent
+  min_contact_ft: 12                # a driveway's width; less direct ROW contact than this = landlocked_apparent
+  narrow_contact_ft: 30             # direct contact below this is flagged (frontage_contact_narrow_confirm_entrance_width)
   frontage_search_ft: 250           # boundary within this of a public ROW is "road-facing"
   frontage_sample_ft: 15            # sampling interval along road-facing boundary
   frontage_blocked_threshold: 0.95  # foreign-parcel share above this -> flag

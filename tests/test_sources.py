@@ -834,3 +834,79 @@ def test_placeholder_polygon_blocks_frontage_but_is_not_a_reserve_strip(tmp_path
     farm_row = res.parcels.iloc[0]
     assert farm_row["frontage_blocked_by_foreign_parcel"] and farm_row["blocking_parcel_account_id"] == "RAILROAD"
     assert not farm_row["reserve_strip_detected"] and len(res.strips) == 0
+
+
+def test_context_parcels_are_kept_as_neighbours_but_never_counted(tmp_path):
+    """The study polygon covers parcel 1101000001 only; the context buffer
+    reaches 1101000002 (1,000 m east). The second parcel stays in the frame
+    as a neighbour with reason outside_study_area and is left out of every
+    count; 1102502WH (4,000 m east) is beyond the buffer and dropped."""
+    from farmsearch.stages.stage1_base_filter import run_stage1
+    cfg = _cfg(tmp_path, zoning=[], on_unmapped_zoning="flag", context_buffer_ft=3600)   # 3,600 ft = 1,097 m
+    study = box(-10, -10, 400, 400)
+    ctx = study.buffer(1097)
+    raw = _parcels_raw()
+    res = run_stage1(cfg, study, parcels_raw=raw, zoning_layers={}, context_geom=ctx)
+    p = res.parcels.set_index("account_id")
+    assert "1101000001" in p.index and "1101000002" in p.index and "1102502WH" not in p.index
+    assert p.loc["1101000002", "stage1_pass_reason"] == "outside_study_area" and not p.loc["1101000002", "stage1_pass"]
+    assert not p.loc["1101000002", "in_study_area"] and p.loc["1101000002", "in_context_area"]
+    assert res.summary["parcels_in_study_area"] == 1 and res.summary["context_parcels_retained"] == 1
+    assert res.summary["per_county"]["Frederick"]["in_study_area"] == 1
+    assert cfg.context_buffer_ft == 3600 and _cfg(tmp_path).context_buffer_ft == 2000
+
+
+def test_study_bbox_margin_grows_the_fetch_box(tmp_path):
+    from farmsearch.io.loaders import study_bbox_4326
+    gpd.GeoDataFrame(geometry=[box(-77.5, 39.4, -77.4, 39.5)], crs="EPSG:4326").to_file(str(tmp_path / "sa.geojson"), driver="GeoJSON")
+    cfg = _cfg(tmp_path)
+    b0 = study_bbox_4326(cfg, 0)
+    b1 = study_bbox_4326(cfg, 5280)          # one mile ~ 0.0145 deg lat
+    assert b0 == pytest.approx((-77.5, 39.4, -77.4, 39.5), abs=1e-6)
+    assert b1[1] < b0[1] - 0.013 and b1[3] > b0[3] + 0.013 and b1[0] < b0[0] - 0.015 and b1[2] > b0[2] + 0.015
+
+
+def test_floodplain_strip_does_not_sever_reachability_but_a_stream_does(tmp_path):
+    """A 40 m floodplain band (blocks_travel false) splits the usable area of
+    a farm in two: both halves are one reachable block. The same band as a
+    wetland (blocks travel) leaves the far half an island. A 16 ft lane
+    crossing the band still reaches the farm when the band is floodplain."""
+    from farmsearch.stages.stage4_access import run_stage4
+    farm = box(0, 20, 600, 620)
+    band = box(-10, 300, 610, 340)
+    rows = gpd.GeoDataFrame({"authority": ["county"], "public": [True]}, geometry=[box(-100, 0, 700, 20)], crs="EPSG:26985")
+    parcels = gpd.GeoDataFrame({"account_id": ["FARM"], "owner_name": [""], "owner_mailing_address": ["1 FARM RD"], "deed_ref": [None]},
+                               geometry=[farm], crs="EPSG:26985")
+    usable = farm.difference(band)
+    # floodplain: passable is the whole parcel
+    g_flood = {"FARM": {"usable": usable, "traversable": farm, "passable": farm, "hostile": {"floodplain": band}}}
+    r = run_stage4(_cfg(tmp_path), parcels, pd.Series([True]), g_flood, rows).parcels.iloc[0]
+    assert r["unreachable_island_count"] == 0
+    assert r["largest_contiguous_reachable_acres"] == pytest.approx(usable.area / 4046.86, abs=0.05)
+    # wetland: passable excludes the band -> far half is an island; permit variant reconnects it
+    g_wet = {"FARM": {"usable": usable, "traversable": farm, "passable": usable, "hostile": {"wetlands": band}}}
+    r = run_stage4(_cfg(tmp_path), parcels, pd.Series([True]), g_wet, rows).parcels.iloc[0]
+    assert r["unreachable_island_count"] == 1
+    assert r["largest_contiguous_reachable_acres"] == pytest.approx(box(0, 20, 600, 300).area / 4046.86, abs=0.05)
+    assert r["largest_reachable_if_crossings_permitted_acres"] == pytest.approx(usable.area / 4046.86, abs=0.05)
+    # flag lot: a 5 m x 400 m pole reaches the road through a floodplain band at its foot
+    body = box(0, 440, 600, 1040); pole = box(300, 20, 305, 440)
+    flag = body.union(pole); band2 = box(-10, 100, 610, 140)
+    parcels2 = gpd.GeoDataFrame({"account_id": ["FLAG"], "owner_name": [""], "owner_mailing_address": ["2 FLAG RD"], "deed_ref": [None]},
+                                geometry=[flag], crs="EPSG:26985")
+    u2 = flag.difference(band2)
+    g2 = {"FLAG": {"usable": u2, "traversable": flag, "passable": flag, "hostile": {"floodplain": band2}}}
+    r = run_stage4(_cfg(tmp_path), parcels2, pd.Series([True]), g2, rows).parcels.iloc[0]
+    assert not r["landlocked_apparent"]                      # 16.4 ft of contact is a driveway, not landlocked
+    assert "frontage_contact_narrow_confirm_entrance_width" in r["access_flags"]
+    assert r["largest_contiguous_reachable_acres"] >= body.area / 4046.86 - 0.1
+
+
+def test_blocks_travel_is_configured_per_constraint(tmp_path):
+    from farmsearch.config import ConstraintSpec
+    d = {"name": "floodplain", "type": "floodplain", "category": "physical", "implication": "physical",
+         "subtract_from_usable": True, "crossable_with_permit": True, "path": "x.gpkg", "blocks_travel": False}
+    assert ConstraintSpec.from_dict(tmp_path, d).blocks_travel is False
+    d2 = dict(d, name="wetlands"); d2.pop("blocks_travel")
+    assert ConstraintSpec.from_dict(tmp_path, d2).blocks_travel is True
+    assert _cfg(tmp_path).access.min_contact_ft == 12 and _cfg(tmp_path).access.narrow_contact_ft == 30

@@ -89,13 +89,8 @@ def cmd_zoning_domains(args) -> int:
 
 
 def cmd_fetch(args) -> int:
-    import geopandas as gpd
-    from .io.loaders import fetch_layer_to_cache
+    from .io.loaders import fetch_layer_to_cache, study_bbox_4326
     cfg = Config.load(args.config)
-    sa = gpd.read_file(str(cfg.study_area_path))
-    if sa.crs is None:
-        sa = sa.set_crs("EPSG:4326")
-    bbox = tuple(float(x) for x in sa.to_crs("EPSG:4326").total_bounds)
     sources = []
     for z in cfg.zoning:
         sources.append(z.source)
@@ -126,8 +121,11 @@ def cmd_fetch(args) -> int:
             print(f"skip {s.name}: cached at {s.path}")
             continue
         try:
-            out = fetch_layer_to_cache(s, bbox)
-            print(f"fetched {s.name} -> {out}")
+            # Every layer is pulled with a margin beyond the study polygon so
+            # parcels on the edge keep their roads, neighbours and constraints.
+            margin = max(cfg.context_buffer_ft, s.fetch_margin_ft or 0.0)
+            out = fetch_layer_to_cache(s, study_bbox_4326(cfg, margin))
+            print(f"fetched {s.name} (margin {margin:.0f} ft) -> {out}")
         except Exception as e:  # noqa: BLE001 - report and continue
             print(f"FAILED {s.name}: {e}", file=sys.stderr)
             rc = 1
@@ -136,11 +134,8 @@ def cmd_fetch(args) -> int:
 
 
 def _study_bbox_4326(cfg: Config) -> tuple[float, float, float, float]:
-    import geopandas as gpd
-    sa = gpd.read_file(str(cfg.study_area_path))
-    if sa.crs is None:
-        sa = sa.set_crs("EPSG:4326")
-    return tuple(float(x) for x in sa.to_crs("EPSG:4326").total_bounds)
+    from .io.loaders import study_bbox_4326
+    return study_bbox_4326(cfg, cfg.context_buffer_ft)
 
 
 def cmd_fetch_parcels(args) -> int:

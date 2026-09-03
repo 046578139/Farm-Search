@@ -35,6 +35,7 @@ class LayerSource:
     rest_where: Optional[str] = None   # SQL-92 filter sent to the REST service at fetch time
     page_size: Optional[int] = None    # override the service maxRecordCount when paging (heavy geometries)
     dedupe_geometry: bool = False      # drop rows whose geometry duplicates an earlier row (double-published easements)
+    fetch_margin_ft: Optional[float] = None   # fetch bbox margin beyond the study area (default: context_buffer_ft)
 
     @classmethod
     def from_dict(cls, base: Path, d: dict, name: Optional[str] = None) -> "LayerSource":
@@ -43,7 +44,8 @@ class LayerSource:
                    url=d.get("url"), layer=d.get("layer"), where=d.get("where"),
                    rest_where=d.get("rest_where"),
                    page_size=(int(d["page_size"]) if d.get("page_size") else None),
-                   dedupe_geometry=bool(d.get("dedupe_geometry", False)))
+                   dedupe_geometry=bool(d.get("dedupe_geometry", False)),
+                   fetch_margin_ft=(float(d["fetch_margin_ft"]) if d.get("fetch_margin_ft") is not None else None))
 
 
 @dataclass
@@ -137,6 +139,12 @@ class ConstraintSpec:
     implication: str              # favorable | hostile | varies | physical
     subtract_from_usable: bool
     crossable_with_permit: bool
+    # Does the constraint stop a vehicle? A stream, a wetland or a forest
+    # easement does; a mapped floodplain zone does not (fill and structures
+    # are regulated there, driving across it is not). Governs the base
+    # reachability of Stage 4; the "crossings permitted" variant only
+    # honours the constraints that can never be crossed.
+    blocks_travel: bool = True
     source: Optional[LayerSource] = None
     derive_from_lines: Optional[DeriveFromLines] = None
     manual_flag: Optional[str] = None
@@ -166,6 +174,7 @@ class ConstraintSpec:
                    implication=d["implication"],
                    subtract_from_usable=bool(d["subtract_from_usable"]),
                    crossable_with_permit=bool(d["crossable_with_permit"]),
+                   blocks_travel=bool(d.get("blocks_travel", True)),
                    source=src, derive_from_lines=dfl,
                    manual_flag=d.get("manual_flag"), name_field=d.get("name_field"),
                    erase=EraseSpec.from_dict(base, d.get("erase"), name=f"{d['name']}_erase"))
@@ -216,7 +225,8 @@ class AccessConfig:
     row_layers: list[RowLayer]
     contact_tolerance_ft: float = 3
     open_gap_ft: float = 25
-    min_contact_ft: float = 20
+    min_contact_ft: float = 12            # a driveway's width: less direct ROW contact = landlocked_apparent
+    narrow_contact_ft: float = 30         # direct contact below this (but above min) is flagged, not failed
     frontage_search_ft: float = 250
     frontage_sample_ft: float = 15
     frontage_blocked_threshold: float = 0.95
@@ -243,6 +253,10 @@ class Config:
     study_area_path: Path
     study_area_selection: str
     working_crs: str
+    # Parcels, rights-of-way and constraints are loaded this far beyond the
+    # study polygon so a parcel on the edge still sees its road and its
+    # neighbours (they are context only: never scored, never counted).
+    context_buffer_ft: float
     parcels: ParcelsConfig
     counties: dict[str, str]
     zoning: list[ZoningSpec]
@@ -336,7 +350,8 @@ class Config:
                 row_layers=rows,
                 contact_tolerance_ft=float(a.get("contact_tolerance_ft", 3)),
                 open_gap_ft=float(a.get("open_gap_ft", 25)),
-                min_contact_ft=float(a.get("min_contact_ft", 20)),
+                min_contact_ft=float(a.get("min_contact_ft", 12)),
+                narrow_contact_ft=float(a.get("narrow_contact_ft", 30)),
                 frontage_search_ft=float(a.get("frontage_search_ft", 250)),
                 frontage_sample_ft=float(a.get("frontage_sample_ft", 15)),
                 frontage_blocked_threshold=float(a.get("frontage_blocked_threshold", 0.95)),
@@ -361,6 +376,7 @@ class Config:
                 study_area_path=_opt_path(base, raw.get("study_area", "study_area.geojson")),
                 study_area_selection=sel,
                 working_crs=str(raw.get("working_crs", "EPSG:26985")),
+                context_buffer_ft=float(raw.get("context_buffer_ft", 2000)),
                 parcels=parcels,
                 counties={str(k): str(v) for k, v in (raw.get("counties") or {}).items()},
                 zoning=zoning,

@@ -27,7 +27,7 @@ from shapely.geometry.base import BaseGeometry
 from shapely.ops import unary_union
 
 from ..config import Config
-from ..geometry.connectivity import connected_components, reachable_usable_via, seed_components
+from ..geometry.connectivity import connected_components, reachable_usable_via, seed_via_passable
 from ..geometry.frontage import analyze_frontage
 from ..geometry.strips import is_strip, strip_metrics
 from ..io.loaders import erase_layer, LayerNotAvailable, clean_geometries, read_layer
@@ -163,7 +163,7 @@ def run_stage4(cfg: Config, parcels_all: gpd.GeoDataFrame, target_mask: pd.Serie
     for i in np.flatnonzero(mask):
         acct = accts[i]
         pg = P.geometry.values[i]
-        g3 = s3geoms.get(acct, {"usable": pg, "traversable": pg, "hostile": {}})
+        g3 = s3geoms.get(acct, {"usable": pg, "traversable": pg, "passable": pg, "hostile": {}})
         hostile = g3["hostile"]
         flags: list[str] = []
 
@@ -189,6 +189,10 @@ def run_stage4(cfg: Config, parcels_all: gpd.GeoDataFrame, target_mask: pd.Serie
         P.at[i, "landlocked_apparent"] = bool(landlocked)
         if landlocked:
             flags.append("landlocked_apparent_check_deeded_access")
+        elif direct < ft_to_m(a.narrow_contact_ft):
+            # A flag-lot pole or a sliver of frontage: access, but confirm it
+            # is wide enough for an entrance and not just a mapping artefact.
+            flags.append("frontage_contact_narrow_confirm_entrance_width")
         if L["same_owner_parcel"] > 0 and landlocked:
             P.at[i, "access_via_same_owner_parcel"] = True
             flags.append("access_via_separately_deeded_same_owner_parcel")
@@ -261,8 +265,9 @@ def run_stage4(cfg: Config, parcels_all: gpd.GeoDataFrame, target_mask: pd.Serie
         # -- 4. Internal connectivity --------------------------------------
         usable = g3["usable"]
         comps, sliver = connected_components(usable, sliver_m2)
-        conn = seed_components(comps, entry_pts, tol_m=1.0)
-        P.at[i, "largest_contiguous_reachable_acres"] = round(m2_to_acres(conn.largest_reachable_area), 2)
+        passable = g3.get("passable", g3.get("traversable", pg))
+        conn, largest_block = seed_via_passable(comps, passable, entry_pts, tol_m=1.0)
+        P.at[i, "largest_contiguous_reachable_acres"] = round(m2_to_acres(largest_block), 2)
         P.at[i, "reachable_usable_acres"] = round(m2_to_acres(conn.reachable_area), 2)
         P.at[i, "unreachable_island_count"] = len(conn.islands)
         isl = [round(m2_to_acres(x), 2) for x in conn.island_areas]

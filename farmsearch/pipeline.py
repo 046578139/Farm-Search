@@ -28,7 +28,7 @@ import geopandas as gpd
 import pandas as pd
 
 from .config import Config
-from .io.loaders import load_study_area
+from .io.loaders import context_geometry, load_study_area
 from .stages.stage1_base_filter import Stage1Result, run_stage1
 from .stages.stage2_encumbrance import load_constraint_layers, run_stage2
 from .stages.stage3_usable_area import SlopeProvider, run_stage3
@@ -126,6 +126,9 @@ def run_pipeline(cfg: Config, stages: Iterable[int] = (1, 2, 3, 4), out_dir: Opt
                                 "study_area_selection": cfg.study_area_selection, "working_crs": cfg.working_crs},
                      "stages_run": sorted(stages), "missing_layers": [], "cannot_determine": CANNOT_DETERMINE}
     study = load_study_area(cfg)
+    # Layers and neighbour parcels are loaded out to the context buffer so a
+    # parcel on the study line still meets its road and its neighbours.
+    context = context_geometry(cfg, study)
     s2 = s3 = s4 = None
     resume_from = min(stages) - 1 if (resume and min(stages) > 1) else 0
 
@@ -144,13 +147,14 @@ def run_pipeline(cfg: Config, stages: Iterable[int] = (1, 2, 3, 4), out_dir: Opt
         log.info("resumed from the Stage %d checkpoint: %d parcels, %d scored", resume_from, len(parcels), len(scored))
     else:
         # ---- Stage 1 --------------------------------------------------
-        s1 = run_stage1(cfg, study, parcels_raw=parcels_raw)
+        s1 = run_stage1(cfg, study, parcels_raw=parcels_raw, context_geom=context)
         parcels = s1.parcels
         summary["stage1"] = s1.summary
-        log.info("Stage 1: %d parcels in study area, %d pass", len(parcels), int(parcels["stage1_pass"].sum()))
+        log.info("Stage 1: %d parcels in study area (+%d context), %d pass",
+                 int(parcels["in_study_area"].sum()), int((~parcels["in_study_area"]).sum()), int(parcels["stage1_pass"].sum()))
         if write:
             _writable(_drop_private(parcels)).to_file(out_dir / "parcels_stage1.gpkg", driver="GPKG")
-        targets = parcels["stage1_pass"] | cfg.run.process_all
+        targets = parcels["stage1_pass"] | (cfg.run.process_all & parcels["in_study_area"] & parcels["is_account"])
         scored = parcels[targets].reset_index(drop=True)
         if write:
             _save_checkpoint(out_dir, 1, {"parcels": parcels, "scored": scored, "s2": None, "s3": None,
@@ -163,7 +167,7 @@ def run_pipeline(cfg: Config, stages: Iterable[int] = (1, 2, 3, 4), out_dir: Opt
 
     # ---- Stage 2 ------------------------------------------------------
     if 2 in stages:
-        layers, missing = load_constraint_layers(cfg, study)
+        layers, missing = load_constraint_layers(cfg, context)
         summary["missing_layers"] += missing
         s2 = run_stage2(cfg, scored, layers, missing)
         scored = s2.parcels
@@ -184,8 +188,8 @@ def run_pipeline(cfg: Config, stages: Iterable[int] = (1, 2, 3, 4), out_dir: Opt
     if 3 in stages:
         if s2 is None:
             raise ValueError("Stage 3 requires Stage 2")
-        sp = SlopeProvider(cfg, study)
-        s3 = run_stage3(cfg, scored, s2.geoms, slope_provider=sp, study_geom=study)
+        sp = SlopeProvider(cfg, context)
+        s3 = run_stage3(cfg, scored, s2.geoms, slope_provider=sp, study_geom=context)
         scored = s3.parcels
         summary["stage3"] = {
             "slope_source": s3.slope_source,
@@ -205,7 +209,7 @@ def run_pipeline(cfg: Config, stages: Iterable[int] = (1, 2, 3, 4), out_dir: Opt
     if 4 in stages:
         if s3 is None:
             raise ValueError("Stage 4 requires Stage 3")
-        rows, missing = load_row_layers(cfg, study)
+        rows, missing = load_row_layers(cfg, context)
         summary["missing_layers"] += missing
         # Neighbors: all study-area parcels, carrying the scored attributes for targets
         new_cols = [c for c in scored.columns if c not in parcels.columns]

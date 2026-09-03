@@ -351,13 +351,29 @@ def assign_zoning(gdf: gpd.GeoDataFrame, zoning_layers: dict[str, gpd.GeoDataFra
 
 # ----------------------------------------------------------------------------
 def run_stage1(cfg: Config, study_geom: BaseGeometry, parcels_raw: Optional[gpd.GeoDataFrame] = None,
-               zoning_layers: Optional[dict[str, gpd.GeoDataFrame]] = None) -> Stage1Result:
-    gdf = load_parcels(cfg, study_geom, parcels_raw)
+               zoning_layers: Optional[dict[str, gpd.GeoDataFrame]] = None,
+               context_geom: Optional[BaseGeometry] = None) -> Stage1Result:
+    """context_geom: the study polygon grown by the context buffer. Parcels
+    inside it but outside the study polygon are kept as CONTEXT rows (a
+    neighbour, a road-side lot across the study line) with
+    stage1_pass_reason = outside_study_area; they are never scored or
+    counted."""
+    load_geom = context_geom if context_geom is not None else study_geom
+    gdf = load_parcels(cfg, load_geom, parcels_raw)
     n_loaded = len(gdf)
     excluded = gdf.attrs.get("non_parcel_polygons_excluded", 0)
     unlinked = gdf.attrs.get("unlinked_polygons_excluded", 0)
     gdf = attribute_study_area(gdf, study_geom, cfg.study_area_selection)
-    gdf = gdf[gdf["in_study_area"]].reset_index(drop=True)
+    if context_geom is not None:
+        n = len(gdf)
+        in_ctx = np.zeros(n, dtype=bool)
+        if n:
+            in_ctx[gdf.sindex.query(context_geom, predicate="intersects")] = True
+        gdf["in_context_area"] = in_ctx
+        gdf = gdf[gdf["in_study_area"] | gdf["in_context_area"]].reset_index(drop=True)
+    else:
+        gdf = gdf[gdf["in_study_area"]].reset_index(drop=True)
+        gdf["in_context_area"] = True
     gdf = attribute_county(gdf, cfg)
     gdf = attribute_owners(gdf)
     gdf = attribute_acreage(gdf, cfg)
@@ -385,10 +401,12 @@ def run_stage1(cfg: Config, study_geom: BaseGeometry, parcels_raw: Optional[gpd.
     gdf["manual_flags"] = flags
     ag = gdf["is_agricultural"]
     # Unknown zoning (layer missing / unmapped under flag mode) is retained: never auto-delete.
-    gdf["stage1_pass"] = gdf["is_account"] & gdf["meets_acreage"] & (ag.isna() | (ag == True))  # noqa: E712
+    inside = gdf["in_study_area"].astype(bool)
+    gdf["stage1_pass"] = inside & gdf["is_account"] & gdf["meets_acreage"] & (ag.isna() | (ag == True))  # noqa: E712
     gdf["stage1_pass_reason"] = np.select(
-        [~gdf["is_account"], ~gdf["meets_acreage"], ag == False, ag.isna()],  # noqa: E712
-        ["non_parcel_polygon", "below_acreage_min" if cfg.acreage_max is None else "outside_acreage_band",
+        [~inside, ~gdf["is_account"], ~gdf["meets_acreage"], ag == False, ag.isna()],  # noqa: E712
+        ["outside_study_area", "non_parcel_polygon",
+         "below_acreage_min" if cfg.acreage_max is None else "outside_acreage_band",
          "not_agricultural_zoning", "zoning_unknown_retained"],
         default="pass")
 
@@ -396,7 +414,8 @@ def run_stage1(cfg: Config, study_geom: BaseGeometry, parcels_raw: Optional[gpd.
     summary["non_parcel_polygons_excluded"] = int(excluded)
     summary["unlinked_polygons_excluded"] = int(unlinked)
     summary["blocker_polygons_retained"] = int((~gdf["is_account"]).sum())
-    acc = gdf[gdf["is_account"]]     # placeholder blockers have no owner and no key: count accounts only
+    summary["context_parcels_retained"] = int((gdf["is_account"] & ~gdf["in_study_area"]).sum())
+    acc = gdf[gdf["is_account"] & gdf["in_study_area"]]   # blockers and context rows are never counted
     summary["owner_name_available_pct"] = round(100 * float(acc["owner_name_available"].mean()), 1) if len(acc) else None
     summary["owner_key_unavailable"] = int((~acc["owner_key_available"]).sum())
     return Stage1Result(parcels=gdf, summary=summary)
@@ -404,7 +423,10 @@ def run_stage1(cfg: Config, study_geom: BaseGeometry, parcels_raw: Optional[gpd.
 
 def summarize_stage1(gdf: gpd.GeoDataFrame, n_loaded: int, cfg: Config) -> dict:
     per_county = {}
-    accounts = gdf[gdf["is_account"]] if "is_account" in gdf.columns else gdf
+    counted = gdf["is_account"] if "is_account" in gdf.columns else pd.Series(True, index=gdf.index)
+    if "in_study_area" in gdf.columns:
+        counted = counted & gdf["in_study_area"].astype(bool)
+    accounts = gdf[counted]
     for county, g in accounts.groupby("county"):
         ma = g["meets_acreage"]
         per_county[county] = {
@@ -422,9 +444,9 @@ def summarize_stage1(gdf: gpd.GeoDataFrame, n_loaded: int, cfg: Config) -> dict:
         "parcels_in_study_area": int(len(accounts)),
         "acreage_min": cfg.acreage_min,
         "acreage_max": cfg.acreage_max,
-        "meets_acreage": int(gdf["meets_acreage"].sum()),
-        "stage1_pass": int(gdf["stage1_pass"].sum()),
-        "acreage_disagreements": int(gdf["acreage_disagrees"].sum()),
-        "unique_owner_keys_passing": int(gdf.loc[gdf["stage1_pass"], "owner_key"].nunique()),
+        "meets_acreage": int(accounts["meets_acreage"].sum()),
+        "stage1_pass": int(accounts["stage1_pass"].sum()),
+        "acreage_disagreements": int(accounts["acreage_disagrees"].sum()),
+        "unique_owner_keys_passing": int(accounts.loc[accounts["stage1_pass"], "owner_key"].nunique()),
         "per_county": per_county,
     }

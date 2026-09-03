@@ -39,7 +39,7 @@ STEEP_KEY = "steep_slope"
 class Stage3Result:
     parcels: gpd.GeoDataFrame
     usable: gpd.GeoDataFrame
-    geoms: dict[str, dict] = field(default_factory=dict)   # account_id -> {usable, traversable, hostile: {name: geom}}
+    geoms: dict[str, dict] = field(default_factory=dict)   # account_id -> {usable, traversable, passable, hostile: {name: geom}}
     slope_source: str = "none"
     slope_windows_failed: int = 0
 
@@ -117,8 +117,12 @@ def run_stage3(cfg: Config, parcels: gpd.GeoDataFrame, enc_geoms: dict[str, dict
     sp = slope_provider or SlopeProvider(cfg, study_geom)
     subtract_specs = [c for c in cfg.constraints if c.subtract_from_usable]
     noncross = {c.name for c in subtract_specs if not c.crossable_with_permit}
+    # What stops a vehicle today (base reachability): every subtracted
+    # constraint that blocks travel, permit or no permit, plus steep ground.
+    blocking = {c.name for c in subtract_specs if c.blocks_travel}
     if not cfg.slope.crossable:
         noncross.add(STEEP_KEY)
+        blocking.add(STEEP_KEY)
 
     for c in subtract_specs:
         parcels[f"subtracted_{c.name}_acres"] = 0.0
@@ -156,6 +160,8 @@ def run_stage3(cfg: Config, parcels: gpd.GeoDataFrame, enc_geoms: dict[str, dict
         usable = _areal(pg.difference(sub_all)) if sub_all is not None else pg
         sub_nc = [g for k, g in hostile.items() if k in noncross]
         traversable = _areal(pg.difference(unary_union(sub_nc))) if sub_nc else pg
+        sub_bl = [g for k, g in hostile.items() if k in blocking]
+        passable = _areal(pg.difference(unary_union(sub_bl))) if sub_bl else pg
         parcels.at[i, "usable_acres"] = round(m2_to_acres(usable.area), 2)
         parcels.at[i, "usable_pct"] = round(100 * usable.area / pg.area, 1) if pg.area else 0.0
         parcels.at[i, "usable_components"] = sum(1 for p in polygon_parts(usable) if p.area >= cfg.access.sliver_acres * ACRE_M2)
@@ -163,7 +169,7 @@ def run_stage3(cfg: Config, parcels: gpd.GeoDataFrame, enc_geoms: dict[str, dict
         fav = [g for g in fav if g is not None and not g.is_empty]
         if fav:
             parcels.at[i, "ag_easement_within_usable_acres"] = round(m2_to_acres(unary_union(fav).intersection(usable).area), 2)
-        geoms[acct] = {"usable": usable, "traversable": traversable, "hostile": hostile}
+        geoms[acct] = {"usable": usable, "traversable": traversable, "passable": passable, "hostile": hostile}
         usable_rows.append({"account_id": acct, "usable_acres": parcels.at[i, "usable_acres"], "geometry": usable})
 
     usable_gdf = gpd.GeoDataFrame(usable_rows, geometry="geometry", crs=parcels.crs) if usable_rows else \

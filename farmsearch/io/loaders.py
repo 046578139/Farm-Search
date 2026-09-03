@@ -199,6 +199,25 @@ def read_layer_fields(source: LayerSource) -> list[str]:
     return list(info["fields"])
 
 
+def context_geometry(cfg: Config, study_geom: BaseGeometry, margin_ft: Optional[float] = None) -> BaseGeometry:
+    """The study polygon grown by the context buffer (working CRS metres)."""
+    from ..units import ft_to_m
+    m = cfg.context_buffer_ft if margin_ft is None else margin_ft
+    return study_geom.buffer(ft_to_m(m)) if m and m > 0 else study_geom
+
+
+def study_bbox_4326(cfg: Config, margin_ft: float = 0.0) -> tuple[float, float, float, float]:
+    """Lon/lat bounds of the study polygon grown by margin_ft, for REST fetches."""
+    sa = gpd.read_file(str(cfg.study_area_path))
+    if sa.crs is None:
+        sa = sa.set_crs("EPSG:4326")
+    if margin_ft and margin_ft > 0:
+        from ..units import ft_to_m
+        sa = sa.to_crs(cfg.working_crs)
+        sa = gpd.GeoDataFrame(geometry=sa.geometry.buffer(ft_to_m(margin_ft)), crs=cfg.working_crs)
+    return tuple(float(x) for x in sa.to_crs("EPSG:4326").total_bounds)
+
+
 def load_study_area(cfg: Config) -> BaseGeometry:
     if not cfg.study_area_path.exists():
         raise LayerNotAvailable(f"study area polygon not found: {cfg.study_area_path}")

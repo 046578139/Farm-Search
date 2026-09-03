@@ -51,6 +51,27 @@ def seed_components(components: list[BaseGeometry], entry_points: list[Point], t
     return res
 
 
+def seed_via_passable(components: list[BaseGeometry], passable: BaseGeometry, entry_points: list[Point],
+                      tol_m: float = 1.0) -> tuple[ConnectivityResult, float]:
+    """Base reachability. A usable component is reachable when it lies within
+    a PASSABLE region (the parcel minus everything a vehicle cannot cross:
+    streams, wetlands, forest easements, steep ground — but not a mapped
+    floodplain zone) that an entry point also touches. Passable regions are
+    never sliver-filtered: a 16 ft flag-lot lane is exactly how a farm is
+    reached. Returns (result, largest_block_m2) where the block is the usable
+    area inside one reachable passable region: two fields separated by a
+    floodplain strip you can drive across are one block."""
+    res = ConnectivityResult()
+    regions = [r for r in polygon_parts(passable) if any(r.distance(pt) <= tol_m for pt in entry_points)]
+    largest = 0.0
+    for r in regions:
+        largest = max(largest, sum(c.area for c in components if c.distance(r) <= tol_m and c.intersection(r).area > 0))
+    for comp in components:
+        hit = any(comp.distance(r) <= tol_m and comp.intersection(r).area > 0 for r in regions)
+        (res.reachable if hit else res.islands).append(comp)
+    return res, largest
+
+
 def reachable_usable_via(traversable: BaseGeometry, usable: BaseGeometry, entry_points: list[Point],
                          sliver_m2: float, tol_m: float = 1.0) -> tuple[float, float]:
     """Crossings-permitted variant. `traversable` is the parcel minus only the
