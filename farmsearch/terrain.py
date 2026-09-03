@@ -187,7 +187,7 @@ class TerrainSampler:
         rise = z[1:-1] - line[1:-1]
         ok = np.isfinite(rise)
         if not ok.any():
-            return False
+            return None            # nothing between the endpoints was sampled: unknown, not "no ridge"
         return bool(np.max(rise[ok]) >= rise_m)
 
 

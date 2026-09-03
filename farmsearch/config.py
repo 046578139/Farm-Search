@@ -351,6 +351,9 @@ class EnvelopeConfig:
     backstop_slope_min_pct: float = 15
     backstop_min_acres: float = 0.25
     backstop_search_ft: float = 300           # steep ground this far beyond the envelope edge still serves as a backstop
+    # a backstop must have no occupied building within this angle of the uphill
+    # (fire) direction: overshoot carries on uphill
+    backstop_clear_cone_deg: float = 30.0
 
 
 @dataclass
@@ -641,6 +644,7 @@ class Config:
                 backstop_slope_min_pct=float(v.get("backstop_slope_min_pct", 15)),
                 backstop_min_acres=float(v.get("backstop_min_acres", 0.25)),
                 backstop_search_ft=float(v.get("backstop_search_ft", 300)),
+                backstop_clear_cone_deg=float(v.get("backstop_clear_cone_deg", 30.0)),
             )
             q = raw.get("valuation", {}) or {}
             dv = ValuationConfig()

@@ -155,8 +155,11 @@ def load_occupied_structures(cfg: Config, parcels_all: gpd.GeoDataFrame, clip: B
             log.warning("church point layer %s unavailable: %s", src.name, e)
             missing.append(src.name)
             continue
-        for geom in g.geometry.values:
-            rows.append({"kind": "church_point", "account_id": None, "owner_key": None, "located_by": "point_layer", "geometry": geom})
+        for k, geom in enumerate(g.geometry.values):
+            # a distinct id per point: Stage 6 groups structures into households by
+            # account, and a shared None would collapse every church into one
+            rows.append({"kind": "church_point", "account_id": f"{src.name}:{k}", "owner_key": None,
+                         "located_by": "point_layer", "geometry": geom})
     structures = gpd.GeoDataFrame(rows, geometry="geometry", crs=cfg.working_crs) if rows else \
         gpd.GeoDataFrame({"kind": [], "account_id": [], "owner_key": [], "located_by": []}, geometry=[], crs=cfg.working_crs)
 
@@ -169,8 +172,8 @@ def load_occupied_structures(cfg: Config, parcels_all: gpd.GeoDataFrame, clip: B
             log.warning("school point layer %s unavailable: %s", src.name, e)
             missing.append(src.name)
             continue
-        for geom in g.geometry.values:
-            srows.append({"kind": "school_point", "account_id": None, "geometry": geom})
+        for k, geom in enumerate(g.geometry.values):
+            srows.append({"kind": "school_point", "account_id": f"{src.name}:{k}", "geometry": geom})
     schools = gpd.GeoDataFrame(srows, geometry="geometry", crs=cfg.working_crs) if srows else \
         gpd.GeoDataFrame({"kind": [], "account_id": []}, geometry=[], crs=cfg.working_crs)
     # a footprint layer that opens but yields nothing in the clip is not coverage

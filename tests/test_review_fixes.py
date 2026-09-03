@@ -92,16 +92,16 @@ def test_stage6_backstop_never_counts_a_neighbours_hillside(cfg, fixture_dir):
     res = run_pipeline(cfg, stages=(1, 2, 3, 4, 5, 6), out_dir=fixture_dir / "outputs_56b", write=False)
     sc = res["scored"].set_index("account_id")
     assert sc.loc["FRED-H", "candidate_backstop_acres"] == 0 and sc.loc["FRED-H", "candidate_backstop_slopes"] == False  # noqa: E712  J's hill is not H's
-    assert sc.loc["FRED-J", "candidate_backstop_acres"] == 0.0     # houses both sides of the hill: see below
+    assert sc.loc["FRED-J", "candidate_backstop_acres"] > 0        # its own hill is
 
 
-def test_stage6_backstop_orientation_and_isolated_parcels(cfg, fixture_dir, monkeypatch):
-    """A backstop must face away from EVERY nearby dwelling; with no dwelling in
-    range every steep cell counts (the most isolated parcels score highest)."""
-    import math
+def test_stage6_backstop_orientation_and_isolated_parcels(cfg, fixture_dir):
+    """Firing into a slope sends overshoot uphill, so a cell is a candidate
+    backstop only when no occupied building stands in a cone about that
+    direction. A parcel with nothing occupied in range keeps every steep cell."""
     import geopandas as gpd
     import numpy as np
-    from shapely.geometry import box
+    from shapely.geometry import Point, box
     from farmsearch.stages.stage6_viewshed import run_stage6
     from farmsearch.terrain import DEMWindow
 
@@ -119,25 +119,22 @@ def test_stage6_backstop_orientation_and_isolated_parcels(cfg, fixture_dir, monk
         def line_of_sight(self, win, p1, p2, h1, h2, step=None):
             return True
 
-    parcel = box(0, 0, 600, 600)
-    P = gpd.GeoDataFrame({"account_id": ["S"], "owner_key": ["s"]}, geometry=[parcel], crs="EPSG:26985")
+    P = gpd.GeoDataFrame({"account_id": ["S"], "owner_key": ["s"]}, geometry=[box(0, 0, 600, 600)], crs="EPSG:26985")
     env = gpd.GeoDataFrame({"account_id": ["S"]}, geometry=[box(50, 50, 550, 550)], crs="EPSG:26985")
 
     def struct(*pts):
         return gpd.GeoDataFrame({"kind": ["dwelling"] * len(pts), "account_id": [f"N{i}" for i in range(len(pts))],
                                  "owner_key": [f"n{i}" for i in range(len(pts))], "located_by": ["footprint"] * len(pts)},
                                 geometry=list(pts), crs="EPSG:26985")
-    from shapely.geometry import Point
-    west = Point(-300, 300)      # uphill (east) points away from it
-    east = Point(900, 300)       # uphill points straight at it
 
-    only_west = run_stage6(cfg, P, env, struct(west), sampler=Stub()).parcels
-    assert only_west["candidate_backstop_acres"].iloc[0] > 0 and only_west["candidate_backstop_slopes"].iloc[0] == True  # noqa: E712
-    both = run_stage6(cfg, P, env, struct(west, east), sampler=Stub()).parcels
-    assert both["candidate_backstop_acres"].iloc[0] == 0.0 and both["candidate_backstop_slopes"].iloc[0] == False  # noqa: E712
-    alone = run_stage6(cfg, P, env, struct(), sampler=Stub()).parcels
-    assert alone["dwellings_within_viewshed_distance"].iloc[0] == 0
-    assert alone["candidate_backstop_acres"].iloc[0] >= only_west["candidate_backstop_acres"].iloc[0]
+    behind = Point(-300, 300)     # downhill of the slope: firing east points away from it
+    ahead = Point(900, 300)       # straight up the fire line
+
+    alone = run_stage6(cfg, P, env, struct(), sampler=Stub()).parcels["candidate_backstop_acres"].iloc[0]
+    west = run_stage6(cfg, P, env, struct(behind), sampler=Stub()).parcels["candidate_backstop_acres"].iloc[0]
+    both = run_stage6(cfg, P, env, struct(behind, ahead), sampler=Stub()).parcels["candidate_backstop_acres"].iloc[0]
+    assert alone > 0 and west == alone            # a house behind the shooter disqualifies nothing
+    assert 0 <= both < west                       # a house up the fire line removes the cells aiming at it
 
 
 def test_stage6_no_dem_coverage_is_not_terrain_shielding(cfg, fixture_dir):

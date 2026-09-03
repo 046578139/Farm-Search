@@ -55,9 +55,15 @@ def run_stage6(cfg: Config, scored: gpd.GeoDataFrame, envelopes: gpd.GeoDataFram
             P.at[i, "viewshed_flags"].append("viewshed_not_evaluated_no_dem")
         return Stage6Result(parcels=P, terrain_mode="none")
     env_by = dict(zip(envelopes["account_id"].values, envelopes.geometry.values)) if len(envelopes) else {}
+    # The viewshed counts households (dwellings and churches). The backstop test is
+    # a safety question, so it uses every building people occupy, the shops and
+    # clubhouses NR 10-410 protects with the same 150 yd zone included.
     dwell = structures[structures["kind"].isin(["dwelling", "church", "church_point"])] if len(structures) else structures
+    occupied = structures if len(structures) else structures
     if len(dwell):
         _ = dwell.sindex
+    if len(occupied):
+        _ = occupied.sindex
     maxd = v.viewshed_max_distance_yards * YARD_M
     failed = 0
     okeys = P["owner_key"].values if "owner_key" in P.columns else np.array([None] * len(P))
@@ -74,8 +80,10 @@ def run_stage6(cfg: Config, scored: gpd.GeoDataFrame, envelopes: gpd.GeoDataFram
         if len(parts) > 1:
             firing += observer_points(parts[1], max(1, v.firing_points // 2))
         # neighbouring dwellings within range of the envelope
+        # several footprints on one parcel are one household, not several: the
+        # structures are grouped by the parcel they stand on
+        households: dict = {}
         cands = []
-        cand_accts = set()
         if len(dwell):
             for h in dwell.sindex.query(env.buffer(maxd), predicate="intersects"):
                 if dwell["account_id"].values[h] == acct:
@@ -84,10 +92,21 @@ def run_stage6(cfg: Config, scored: gpd.GeoDataFrame, envelopes: gpd.GeoDataFram
                     continue
                 g = dwell.geometry.values[h]
                 if g.distance(env) <= maxd:
-                    cands.append(g.representative_point() if g.geom_type != "Point" else g)
-                    cand_accts.add(dwell["account_id"].values[h])
-        # several footprints on one dwelling parcel are one household, not several
-        P.at[i, "dwellings_within_viewshed_distance"] = len(cand_accts) if cand_accts else len(cands)
+                    pt = g.representative_point() if g.geom_type != "Point" else g
+                    households.setdefault(dwell["account_id"].values[h], []).append(pt)
+                    cands.append(pt)
+        P.at[i, "dwellings_within_viewshed_distance"] = len(households)
+        # every occupied building in range, for the backstop orientation test
+        occ_pts = []
+        if len(occupied):
+            for h in occupied.sindex.query(env.buffer(maxd), predicate="intersects"):
+                if occupied["account_id"].values[h] == acct:
+                    continue
+                if v.exclude_same_owner and okeys[i] and occupied["owner_key"].values[h] == okeys[i]:
+                    continue
+                g = occupied.geometry.values[h]
+                if g.distance(env) <= maxd:
+                    occ_pts.append(g.representative_point() if g.geom_type != "Point" else g)
         if cands:
             P.at[i, "nearest_dwelling_yards"] = round(min(c.distance(env) for c in cands) / YARD_M, 0)
         try:
@@ -101,15 +120,18 @@ def run_stage6(cfg: Config, scored: gpd.GeoDataFrame, envelopes: gpd.GeoDataFram
             continue
         seen = 0
         unevaluated = 0
-        for c in cands:
+        for pts in households.values():
             vis = None
-            for f in firing:
-                r = ts.line_of_sight(win, f, c, v.observer_height_m, v.target_height_m)
-                if r:
-                    vis = True
+            for c in pts:                       # a household is seen if any of its buildings is
+                for f in firing:
+                    r = ts.line_of_sight(win, f, c, v.observer_height_m, v.target_height_m)
+                    if r:
+                        vis = True
+                        break
+                    if r is False:
+                        vis = False
+                if vis:
                     break
-                if r is False:
-                    vis = False
             if vis:
                 seen += 1
             elif vis is None:
@@ -118,11 +140,15 @@ def run_stage6(cfg: Config, scored: gpd.GeoDataFrame, envelopes: gpd.GeoDataFram
         P.at[i, "dwellings_line_of_sight_unevaluated"] = unevaluated
         if unevaluated:
             flags.append("viewshed_dem_nodata_some_dwellings_unevaluated")
-        if cands and seen == 0 and unevaluated == 0:
+        if households and seen == 0 and unevaluated == 0:
             flags.append("all_nearby_dwellings_terrain_shielded")
-        # backstops: steep cells in or just beyond the envelope (steep ground is never
-        # usable, so the hillside sits at the envelope's edge) whose uphill side
-        # faces away from the nearest dwelling
+        # Backstops: steep ground in or just beyond the envelope (steep ground is
+        # never usable, so the hillside sits at the envelope's edge) that can be
+        # fired into safely. A round that overshoots carries on uphill, so the
+        # cell qualifies when no occupied building stands in a cone about the
+        # uphill direction. Testing "away from every building" instead would ask
+        # every neighbour to lie in one half-plane, which nothing satisfies where
+        # houses surround a parcel.
         slope, aspect = win.slope_aspect()
         search = parts[0].buffer(ft_to_m(v.backstop_search_ft)).intersection(pg)   # never a neighbour's hillside
         h, w = slope.shape
@@ -135,22 +161,25 @@ def run_stage6(cfg: Config, scored: gpd.GeoDataFrame, envelopes: gpd.GeoDataFram
             inside = contains_xy(search.buffer(0), X[steep], Y[steep])
             sx, sy, sa = X[steep][inside], Y[steep][inside], aspect[steep][inside]
             cell_ac = m2_to_acres(win.cell ** 2)
-            if len(sx) and not cands:
-                # no neighbour within range: every steep cell serves (the orientation
-                # test is vacuous, and these are the parcels the screen is looking for)
-                acres = cell_ac * len(sx)
-                P.at[i, "candidate_backstop_acres"] = round(acres, 2)
-                P.at[i, "candidate_backstop_slopes"] = bool(acres >= v.backstop_min_acres)
-            elif len(sx):
-                # uphill direction = aspect + 180; a backstop must face away from EVERY
-                # nearby dwelling, not merely the nearest one (overshoot goes uphill)
-                cx = np.array([c.x for c in cands]); cy = np.array([c.y for c in cands])
-                acres = 0.0
-                for x, y, a in zip(sx, sy, sa):
-                    up = math.radians((a + 180.0) % 360.0)
-                    ux, uy = math.sin(up), math.cos(up)          # bearing -> east, north components
-                    if np.all(ux * (cx - x) + uy * (cy - y) < 0):
-                        acres += cell_ac
+            if len(sx):
+                # uphill direction = aspect + 180 (bearing -> east, north components)
+                up = np.radians((sa + 180.0) % 360.0)
+                ux, uy = np.sin(up), np.cos(up)
+                if occ_pts:
+                    cx = np.array([c.x for c in occ_pts]); cy = np.array([c.y for c in occ_pts])
+                    cos_lim = math.cos(math.radians(v.backstop_clear_cone_deg))
+                    ok = np.ones(len(sx), dtype=bool)
+                    for k in range(0, len(sx), 2048):            # chunked: a big parcel has thousands of cells
+                        sl = slice(k, k + 2048)
+                        dx = cx[None, :] - sx[sl, None]
+                        dy = cy[None, :] - sy[sl, None]
+                        d = np.hypot(dx, dy)
+                        np.maximum(d, 1e-9, out=d)
+                        cosang = (ux[sl, None] * dx + uy[sl, None] * dy) / d
+                        ok[sl] = ~(cosang > cos_lim).any(axis=1)
+                    acres = cell_ac * int(ok.sum())
+                else:
+                    acres = cell_ac * len(sx)          # nothing occupied in range: every steep cell serves
                 P.at[i, "candidate_backstop_acres"] = round(acres, 2)
                 P.at[i, "candidate_backstop_slopes"] = bool(acres >= v.backstop_min_acres)
             else:
