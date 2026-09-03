@@ -525,6 +525,20 @@ def run_pipeline(cfg: Config, stages: Iterable[int] = (1, 2, 3, 4), out_dir: Opt
 
 def assemble_record(scored: gpd.GeoDataFrame) -> gpd.GeoDataFrame:
     scored = scored.copy()
+    # A permit can only ADD crossings, so neither permitted figure may sit below
+    # its strict counterpart. Removing a constraint occasionally re-cuts a narrow
+    # neck differently, which would otherwise leave the record contradicting
+    # itself (one parcel in 2,576 on the real data).
+    for strict_c, permitted_c in (("largest_contiguous_reachable_acres", "largest_reachable_if_crossings_permitted_acres"),
+                                  ("reachable_usable_acres", "reachable_if_crossings_permitted_acres")):
+        if strict_c in scored.columns and permitted_c in scored.columns:
+            a = pd.to_numeric(scored[strict_c], errors="coerce")
+            b = pd.to_numeric(scored[permitted_c], errors="coerce")
+            below = (b < a - 0.005) & a.notna() & b.notna()
+            if below.any():
+                log.info("%d parcels where permitting crossings re-cut a narrow neck: %s held at %s",
+                         int(below.sum()), permitted_c, strict_c)
+                scored.loc[below, permitted_c] = a[below]
     flag_cols = [c for c in ("manual_flags", "encumbrance_flags", "access_flags", "encroachment_flags",
                              "transmission_flags", "envelope_flags", "valuation_flags", "commute_flags") if c in scored.columns]
     merged = []
