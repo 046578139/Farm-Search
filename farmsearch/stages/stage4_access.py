@@ -160,6 +160,7 @@ def run_stage4(cfg: Config, parcels_all: gpd.GeoDataFrame, target_mask: pd.Serie
     deeds = P["deed_ref"].values if "deed_ref" in P.columns else np.array([None] * len(P))
     accts = P["account_id"].values
 
+    n_clamped = 0
     for i in np.flatnonzero(mask):
         acct = accts[i]
         pg = P.geometry.values[i]
@@ -278,6 +279,14 @@ def run_stage4(cfg: Config, parcels_all: gpd.GeoDataFrame, target_mask: pd.Serie
         for n, x in enumerate(isl):
             island_rows.append({"account_id": acct, "island_rank": n + 1, "acres": x})
         tot_x, largest_x = reachable_usable_via(g3["traversable"], usable, entry_pts, sliver_m2)
+        # A permit can only ADD crossings, so neither figure may fall below its
+        # strict counterpart. Removing a constraint occasionally re-cuts a narrow
+        # neck differently, which would otherwise leave the record contradicting
+        # itself (one parcel in 2,576 on the real data).
+        if largest_x < conn.largest_reachable_area or tot_x < conn.reachable_area:
+            n_clamped += 1
+            largest_x = max(largest_x, conn.largest_reachable_area)
+            tot_x = max(tot_x, conn.reachable_area)
         P.at[i, "reachable_if_crossings_permitted_acres"] = round(m2_to_acres(tot_x), 2)
         P.at[i, "largest_reachable_if_crossings_permitted_acres"] = round(m2_to_acres(largest_x), 2)
         recon = max(0.0, m2_to_acres(tot_x) - m2_to_acres(conn.reachable_area))
@@ -288,6 +297,9 @@ def run_stage4(cfg: Config, parcels_all: gpd.GeoDataFrame, target_mask: pd.Serie
             flags.append("usable_area_unreachable_from_frontage")
         P.at[i, "access_flags"] = flags
 
+    if n_clamped:
+        log.info("Stage 4: %d parcels where permitting crossings re-cut a narrow neck; the permitted "
+                 "figures were held at the strict ones (a permit can only add crossings)", n_clamped)
     crs = P.crs
     frontage = gpd.GeoDataFrame(front_rows, geometry="geometry", crs=crs) if front_rows else \
         gpd.GeoDataFrame({"account_id": [], "class": []}, geometry=[], crs=crs)

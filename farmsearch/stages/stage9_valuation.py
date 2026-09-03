@@ -30,6 +30,17 @@ from ..io.loaders import LayerNotAvailable, clean_geometries, read_layer
 
 log = logging.getLogger(__name__)
 
+# MDP jurisdiction codes, for comps in the margin beyond the study counties: the
+# band label should read Howard, not HOWA.
+JURISDICTIONS = {
+    "ALLE": "Allegany", "ANNE": "Anne Arundel", "BACI": "Baltimore City", "BACO": "Baltimore County",
+    "CALV": "Calvert", "CARO": "Caroline", "CARR": "Carroll", "CECI": "Cecil", "CHAR": "Charles",
+    "DORC": "Dorchester", "FRED": "Frederick", "GARR": "Garrett", "HARF": "Harford", "HOWA": "Howard",
+    "KENT": "Kent", "MONT": "Montgomery", "PRIN": "Prince George's", "QUEE": "Queen Anne's",
+    "SOME": "Somerset", "STMA": "St. Mary's", "TALB": "Talbot", "WASH": "Washington",
+    "WICO": "Wicomico", "WORC": "Worcester",
+}
+
 
 @dataclass
 class CompSet:
@@ -155,7 +166,10 @@ def build_comps(cfg: Config, clip: BaseGeometry, parcels_all: gpd.GeoDataFrame,
     # list is consulted directly: assigning it to the frame first would turn every
     # None into NaN, and `nan is not None` would skip the fallback entirely.
     if "JURSCODE" in C.columns:
-        counties = [c if c is not None else (cfg.counties.get(str(j).strip(), str(j).strip()) if pd.notna(j) else None)
+        def _county(code):
+            code = str(code).strip()
+            return cfg.counties.get(code) or JURISDICTIONS.get(code.upper(), code)
+        counties = [c if c is not None else (_county(j) if pd.notna(j) else None)
                     for c, j in zip(counties, C["JURSCODE"].values)]
     C["county"] = counties
     bands: dict[tuple[str, str], dict] = {}
@@ -197,14 +211,14 @@ def run_stage9(cfg: Config, scored: gpd.GeoDataFrame, comps: CompSet) -> Stage9R
         basis_scope = cty
         if b is None or b["n"] < q.min_comps_per_segment or b["median"] is None:
             b = comps.bands.get(("ALL", seg))
-            basis_scope = "three counties"
+            basis_scope = "the study area and its comp margin"
             if b is None or b["median"] is None:
                 other = comps.bands.get(("ALL", "uneased" if seg == "eased" else "eased"))
                 if other is None or other["median"] is None:
                     P.at[i, "valuation_flags"].append("valuation_unavailable_no_comps")
                     continue
                 b = other
-                basis_scope = "three counties, other segment"
+                basis_scope = "the study area and its comp margin, other segment"
                 P.at[i, "valuation_flags"].append("valuation_segment_borrowed")
         per_acre = b["median"]
         land = per_acre * float(gross.iloc[i])
