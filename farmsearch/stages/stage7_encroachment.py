@@ -133,6 +133,7 @@ _RES_RE = re.compile(r"resid", re.I)
 def residential_codes(cfg: Config) -> dict[str, set[str]]:
     """county -> zoning codes counted as residential, from every zoning spec's mapping."""
     out: dict[str, set[str]] = {}
+    explicit_false: dict[str, set[str]] = {}
     for spec in cfg.zoning:
         try:
             spec.load_mapping()
@@ -142,11 +143,18 @@ def residential_codes(cfg: Config) -> dict[str, set[str]]:
         codes = out.setdefault(spec.county, set())
         for code, m in spec.codes.items():
             res = m.get("is_residential")
+            if res is False:
+                explicit_false.setdefault(spec.county, set()).add(code)
+                continue
             if res is None:
+                # inferred from the description only ("Residential", "Residence"); a code
+                # letter is not evidence: ROW is a right of way, RC resource conservation
                 desc = m.get("description") or ""
-                res = (m.get("is_agricultural") is not True) and (bool(_RES_RE.search(desc)) or code.upper().startswith("R"))
+                res = (m.get("is_agricultural") is not True) and bool(_RES_RE.search(desc))
             if res:
                 codes.add(code)
+    for county, bad in explicit_false.items():
+        out.get(county, set()).difference_update(bad)
     return out
 
 

@@ -124,14 +124,16 @@ def load_occupied_structures(cfg: Config, parcels_all: gpd.GeoDataFrame, clip: B
             acct = sub["account_id"].values[a]
             ok = owner_key.values[sub.index[a]] if len(owner_key) else None
             pg = sub.geometry.values[a]
-            hits = by.get(a, [])
-            if hits:
-                for b in hits:
-                    fg = fps.geometry.values[b]
-                    inter = fg.intersection(pg)
-                    if inter.area >= 0.5 * fg.area:      # the footprint belongs to this parcel
-                        rows.append({"kind": kind, "account_id": acct, "owner_key": ok, "geometry": fg})
-            else:
+            assigned = False
+            for b in by.get(a, []):
+                fg = fps.geometry.values[b]
+                inter = fg.intersection(pg)
+                if inter.area >= 0.5 * fg.area:      # the footprint belongs to this parcel
+                    rows.append({"kind": kind, "account_id": acct, "owner_key": ok, "geometry": fg})
+                    assigned = True
+            if not assigned:
+                # no footprint (or only neighbours' buildings leaking across the line): the
+                # SDAT record says there is a structure, so the parcel point stands in
                 rows.append({"kind": kind, "account_id": acct, "owner_key": ok, "geometry": pg.representative_point()})
     for src in v.church_point_layers:
         try:

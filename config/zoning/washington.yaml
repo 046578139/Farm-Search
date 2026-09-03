@@ -1,20 +1,3 @@
-# Washington County zoning codes -> is_agricultural.
-#
-# Codes were generated from the live county layer with
-#     farmsearch zoning-domains --config config/pipeline.yaml --county Washington --write
-# (https://services2.arcgis.com/uxxyl33jRTSmjre5/arcgis/rest/services/Washington_County_Zoning/FeatureServer/21, field Zone).
-# is_agricultural was decided per code from the county zoning ordinance / official
-# district descriptions (see `citation`), then independently re-checked. Rule:
-# true for districts whose purpose is agriculture / rural or resource conservation
-# where a 40+ acre working farm is the intended use; false for residential (any
-# density), village, commercial, industrial, institutional, mixed-use, planned,
-# mining, recreation, airport, overlay districts and non-district placeholders.
-# Sources read:
-#   https://www.washco-md.net/wp-content/uploads/legal-ZoningOrd.pdf
-#   https://www.washco-md.net/document-repository/
-#   https://www.washco-md.net/planning-zoning/
-#   https://services2.arcgis.com/uxxyl33jRTSmjre5/arcgis/rest/services/Washington_County_Zoning/FeatureServer/21?f=pjson
-# Stage 1 aborts (on_unmapped_zoning: error) if a code seen in the data is missing here.
 code_field: Zone
 codes:
   A(R):
@@ -22,104 +5,126 @@ codes:
     is_agricultural: true
     confidence: high
     citation: https://www.washco-md.net/wp-content/uploads/legal-ZoningOrd.pdf — Article 3 Sec. 3.0 (Rural Districts) and Article 5A Sec. 5A.0 Purpose, Sec. 5A.3 Criteria
+    is_residential: false
   AP:
     description: Airport District
     is_agricultural: false
     confidence: high
     citation: https://www.washco-md.net/wp-content/uploads/legal-ZoningOrd.pdf — Article 21 Sec. 21.0 Purpose and Sec. 21.1 Airport Districts
+    is_residential: false
   BG:
     description: Business, General District
     is_agricultural: false
     confidence: high
     citation: https://www.washco-md.net/wp-content/uploads/legal-ZoningOrd.pdf — Article 12 Sec. 12.0 Purpose
+    is_residential: false
   BL:
     description: Business, Local District
     is_agricultural: false
     confidence: high
     citation: https://www.washco-md.net/wp-content/uploads/legal-ZoningOrd.pdf — Article 11 Sec. 11.0 Purpose
+    is_residential: false
   EC:
     description: Environmental Conservation District
     is_agricultural: true
     confidence: high
     citation: https://www.washco-md.net/wp-content/uploads/legal-ZoningOrd.pdf — Article 3 Sec. 3.0 (Rural Districts) and Article 5B Sec. 5B.0 Purpose, Sec. 5B.3 Criteria
+    is_residential: false
   ERT:
     description: Education, Research, and Technology District
     is_agricultural: false
     confidence: high
     citation: https://www.washco-md.net/wp-content/uploads/legal-ZoningOrd.pdf — Article 21C Sec. 21C.0 Purpose
+    is_residential: false
   HI:
     description: Highway Interchange District
     is_agricultural: false
     confidence: high
     citation: https://www.washco-md.net/wp-content/uploads/legal-ZoningOrd.pdf — Article 19 Sec. 19.1 Purpose, Sec. 19.2 Principal Permitted Uses
+    is_residential: false
   IG:
     description: Industrial, General District
     is_agricultural: false
     confidence: high
     citation: https://www.washco-md.net/wp-content/uploads/legal-ZoningOrd.pdf — Article 14 Sec. 14.0 Purpose
+    is_residential: false
   IR:
     description: Industrial, Restricted District
     is_agricultural: false
     confidence: high
     citation: https://www.washco-md.net/wp-content/uploads/legal-ZoningOrd.pdf — Article 13 Sec. 13.0 Purpose
+    is_residential: false
   ORI:
     description: Office, Research, and Industry District
     is_agricultural: false
     confidence: high
     citation: https://www.washco-md.net/wp-content/uploads/legal-ZoningOrd.pdf — Article 21B Sec. 21B.0 Purpose
+    is_residential: false
   ORT:
     description: Office, Research and Technology District
     is_agricultural: false
     confidence: high
     citation: https://www.washco-md.net/wp-content/uploads/legal-ZoningOrd.pdf — Article 21A Sec. 21A.0 Purpose
+    is_residential: false
   P:
     description: Preservation District
     is_agricultural: true
     confidence: high
     citation: https://www.washco-md.net/wp-content/uploads/legal-ZoningOrd.pdf — Article 3 Sec. 3.0 (Rural Districts) and Article 5C Sec. 5C.0 Purpose, Sec. 5C.3 Criteria
+    is_residential: false
   PB:
     description: Planned Business District (Shopping Centers)
     is_agricultural: false
     confidence: high
     citation: https://www.washco-md.net/wp-content/uploads/legal-ZoningOrd.pdf — Article 17 Sec. 17.0 Purpose
+    is_residential: false
   PI:
     description: Planned Industrial District (Industrial Park)
     is_agricultural: false
     confidence: high
     citation: https://www.washco-md.net/wp-content/uploads/legal-ZoningOrd.pdf — Article 18 Sec. 18.0 Purpose
+    is_residential: false
   RM:
     description: Residential, Multi-Family District
     is_agricultural: false
     confidence: high
     citation: https://www.washco-md.net/wp-content/uploads/legal-ZoningOrd.pdf — Article 10 Sec. 10.0 Purpose
+    is_residential: true
   RS:
     description: Residential, Suburban District
     is_agricultural: false
     confidence: high
     citation: https://www.washco-md.net/wp-content/uploads/legal-ZoningOrd.pdf — Article 8 Sec. 8.0 Purpose
+    is_residential: true
   RT:
     description: Residential, Transition District
     is_agricultural: false
     confidence: high
     citation: https://www.washco-md.net/wp-content/uploads/legal-ZoningOrd.pdf — Article 7A Sec. 7A.0 Purpose, Sec. 7A.1 Principal Permitted Uses
+    is_residential: true
   RU:
     description: Residential, Urban District
     is_agricultural: false
     confidence: high
     citation: https://www.washco-md.net/wp-content/uploads/legal-ZoningOrd.pdf — Article 9 Sec. 9.0 Purpose, Sec. 9.1 Principal Permitted Uses
+    is_residential: true
   RV:
     description: Rural Village District
     is_agricultural: false
     confidence: high
     citation: https://www.washco-md.net/wp-content/uploads/legal-ZoningOrd.pdf — Article 5D Sec. 5D.0 Purpose, Sec. 5D.3 Dimensional Requirements
+    is_residential: true
   SED:
     description: Special Economic Development District
     is_agricultural: false
     confidence: high
     citation: https://www.washco-md.net/wp-content/uploads/legal-ZoningOrd.pdf — Article 19C Sec. 19C.1 Purpose
+    is_residential: false
   TOWN:
     description: Incorporated municipality (GIS placeholder, not a county zoning district)
     is_agricultural: unknown
     confidence: high
     note: municipal placeholder — the county has no zoning opinion here; parcels are retained as zoning_unknown_retained
-    citation: https://www.washco-md.net/wp-content/uploads/legal-ZoningOrd.pdf — Article 2 Sec. 2.0 (Application within County and County Towns) and Article 3 Sec. 3.0 (district list, which does not include TOWN); GIS renderer value list at https://services2.arcgis.com/uxxyl33jRTSmjre5/arcgis/rest/services/Washington_County_Zoning/FeatureServer/21?f=pjson
+    citation: https://www.washco-md.net/wp-content/uploads/legal-ZoningOrd.pdf — Article 2 Sec. 2.0 (Application within County and County Towns) and Article 3 Sec. 3.0 (district list, which does not include
+      TOWN); GIS renderer value list at https://services2.arcgis.com/uxxyl33jRTSmjre5/arcgis/rest/services/Washington_County_Zoning/FeatureServer/21?f=pjson
+    is_residential: false

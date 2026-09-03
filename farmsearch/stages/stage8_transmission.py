@@ -146,7 +146,12 @@ def run_stage8(cfg: Config, scored: gpd.GeoDataFrame, layers: TransmissionLayers
             d, variant, name, rg = best
             P.at[i, "mprp_nearest_route_ft"] = round(m_to_ft(d), 0)
             P.at[i, "mprp_route_variant"] = variant
-            if d <= half:
+            # A corridor polygon is the route's footprint: inside means inside. Only a
+            # centerline needs the half-width around it.
+            lineal = rg.geom_type in ("LineString", "MultiLineString")
+            inside = any(pg.intersects(g) for _, _, g in layers.routes if g.geom_type not in ("LineString", "MultiLineString")) \
+                or any(pg.distance(g) <= half for _, _, g in layers.routes if g.geom_type in ("LineString", "MultiLineString"))
+            if inside:
                 tier = 1
                 flags.append("mprp_tier1_intersects_studied_route_exclude")
             elif d <= excl:

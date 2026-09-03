@@ -93,8 +93,15 @@ def build_comps(cfg: Config, clip: BaseGeometry, parcels_all: gpd.GeoDataFrame,
             & S[q.land_use_field].astype("string").fillna("").isin(q.agricultural_land_uses))
     C = S[keep].copy()
     C["improved"] = (sq > 0)[keep].values | (imp > 0)[keep].values
-    land = C["price"] - imp[keep].values
-    C["land_price"] = np.where(land > 0.2 * C["price"], land, C["price"] * 0.8)   # never let a stale improvement value erase the sale
+    land = (C["price"] - imp[keep].values).astype(float)
+    # A sale whose assessed improvements account for 80%+ of the price is a
+    # farmstead / house sale, not a land comp: dropped (and counted).
+    not_land = land <= 0.2 * C["price"]
+    n_not_land = int(not_land.sum())
+    if n_not_land:
+        log.info("Stage 9: %d sales dropped as improvement-dominated (land residual <= 20%% of price)", n_not_land)
+    C = C[~not_land].copy()
+    C["land_price"] = land[~not_land].values
     C["land_price_per_acre"] = C["land_price"] / C["acres"]
     C["account_id"] = C[q.account_field].astype(str).str.strip()
     # eased status from the sold parcel's polygon (our fabric) against the favorable easement union

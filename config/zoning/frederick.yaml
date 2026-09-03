@@ -1,18 +1,3 @@
-# Frederick County zoning codes -> is_agricultural.
-#
-# Codes were generated from the live county layer with
-#     farmsearch zoning-domains --config config/pipeline.yaml --county Frederick --write
-# (https://fcgis.frederickcountymd.gov/server_pub/rest/services/PlanningAndPermitting/Zoning/MapServer/1, field TYPE).
-# is_agricultural was decided per code from the county zoning ordinance / official
-# district descriptions (see `citation`), then independently re-checked. Rule:
-# true for districts whose purpose is agriculture / rural or resource conservation
-# where a 40+ acre working farm is the intended use; false for residential (any
-# density), village, commercial, industrial, institutional, mixed-use, planned,
-# mining, recreation, airport, overlay districts and non-district placeholders.
-# Sources read:
-#   https://frederickcountymd.gov/DocumentCenter/View/334390/Chapter-1-19-Zoning
-#   https://fcgis.frederickcountymd.gov/server_pub/rest/services/PlanningAndPermitting/Zoning/MapServer/1?f=pjson
-# Stage 1 aborts (on_unmapped_zoning: error) if a code seen in the data is missing here.
 code_field: TYPE
 codes:
   A:
@@ -20,109 +5,135 @@ codes:
     is_agricultural: true
     confidence: high
     citation: Frederick County Code Ch. 1-19, §1-19-5.220 and §1-19-7.300(A)-(B), https://frederickcountymd.gov/DocumentCenter/View/334390/Chapter-1-19-Zoning; GIS domain ZoneType 'A = Agricultural'
+    is_residential: false
   RC:
     description: Resource Conservation
     is_agricultural: true
     confidence: high
     citation: Frederick County Code Ch. 1-19, §1-19-5.210 and §1-19-7.200, https://frederickcountymd.gov/DocumentCenter/View/334390/Chapter-1-19-Zoning; GIS domain 'RC = Resource Conservation'
+    is_residential: false
   PUD:
     description: Planned Unit Development
     is_agricultural: false
     confidence: high
     citation: Frederick County Code Ch. 1-19, §1-19-10.500.1 Purpose and Intent, https://frederickcountymd.gov/DocumentCenter/View/334390/Chapter-1-19-Zoning; GIS domain 'PUD = Planned Unit Development'
+    is_residential: true
   VC:
     description: Village Center
     is_agricultural: false
     confidence: high
     citation: Frederick County Code Ch. 1-19, §1-19-5.240(B) and §1-19-7.500(A)-(B), https://frederickcountymd.gov/DocumentCenter/View/334390/Chapter-1-19-Zoning; GIS domain 'VC = Village Center'
+    is_residential: true
   GC:
     description: General Commercial
     is_agricultural: false
     confidence: high
     citation: Frederick County Code Ch. 1-19, §1-19-5.240(A),(C), https://frederickcountymd.gov/DocumentCenter/View/334390/Chapter-1-19-Zoning; GIS domain 'GC = General Commercial'
+    is_residential: false
   GI:
     description: General Industrial
     is_agricultural: false
     confidence: high
     citation: Frederick County Code Ch. 1-19, §1-19-5.250(A),(C), https://frederickcountymd.gov/DocumentCenter/View/334390/Chapter-1-19-Zoning; GIS domain 'GI = General Industrial'
+    is_residential: false
   LI:
     description: Limited Industrial
     is_agricultural: false
     confidence: high
     citation: Frederick County Code Ch. 1-19, §1-19-5.250(A),(B), https://frederickcountymd.gov/DocumentCenter/View/334390/Chapter-1-19-Zoning; GIS domain 'LI = Limited Industrial'
+    is_residential: false
   ORI:
     description: Office / Research / Industrial
     is_agricultural: false
     confidence: high
     citation: Frederick County Code Ch. 1-19, §1-19-5.250(E), https://frederickcountymd.gov/DocumentCenter/View/334390/Chapter-1-19-Zoning; GIS domain 'ORI = Office / Research / Industrial'
+    is_residential: false
   MXD:
     description: Mixed Use Development
     is_agricultural: false
     confidence: high
     citation: Frederick County Code Ch. 1-19, §1-19-10.500.1 Purpose and Intent, https://frederickcountymd.gov/DocumentCenter/View/334390/Chapter-1-19-Zoning; GIS domain 'MXD = Mixed Use Development'
+    is_residential: true
   MM:
     description: Mineral Mining
     is_agricultural: false
     confidence: high
     citation: Frederick County Code Ch. 1-19, §1-19-5.250(D) and §1-19-10.400, https://frederickcountymd.gov/DocumentCenter/View/334390/Chapter-1-19-Zoning; GIS domain 'MM = Mineral Mining'
+    is_residential: false
   Ie:
     description: Institutional (Euclidean Institutional)
     is_agricultural: false
     confidence: high
-    citation: Frederick County Code Ch. 1-19, §1-19-5.260 (see also §1-19-10.900 Institutional Floating District), https://frederickcountymd.gov/DocumentCenter/View/334390/Chapter-1-19-Zoning; GIS domain 'Ie = Institutional'; renderer label 'IE - Institutional'
+    citation: Frederick County Code Ch. 1-19, §1-19-5.260 (see also §1-19-10.900 Institutional Floating District), https://frederickcountymd.gov/DocumentCenter/View/334390/Chapter-1-19-Zoning; GIS domain
+      'Ie = Institutional'; renderer label 'IE - Institutional'
+    is_residential: false
   MUN:
     description: Municipality
     is_agricultural: unknown
     confidence: high
     note: municipal placeholder — the county has no zoning opinion here; parcels are retained as zoning_unknown_retained
-    citation: GIS layer ZoneType coded-value domain 'MUN = Municipality', renderer label 'MUN - Municipality', https://fcgis.frederickcountymd.gov/server_pub/rest/services/PlanningAndPermitting/Zoning/MapServer/1?f=pjson; no such district is established in Ch. 1-19 Article V
+    citation: GIS layer ZoneType coded-value domain 'MUN = Municipality', renderer label 'MUN - Municipality', https://fcgis.frederickcountymd.gov/server_pub/rest/services/PlanningAndPermitting/Zoning/MapServer/1?f=pjson;
+      no such district is established in Ch. 1-19 Article V
+    is_residential: false
   ROW:
     description: Right of Way
     is_agricultural: false
     confidence: high
-    citation: GIS layer ZoneType coded-value domain 'ROW = Right of Way', renderer label 'ROW - Right of Way', https://fcgis.frederickcountymd.gov/server_pub/rest/services/PlanningAndPermitting/Zoning/MapServer/1?f=pjson; no such district in Ch. 1-19 Article V
+    citation: GIS layer ZoneType coded-value domain 'ROW = Right of Way', renderer label 'ROW - Right of Way', https://fcgis.frederickcountymd.gov/server_pub/rest/services/PlanningAndPermitting/Zoning/MapServer/1?f=pjson;
+      no such district in Ch. 1-19 Article V
+    is_residential: false
   R1:
     description: Low Density Residential (R-1)
     is_agricultural: false
     confidence: high
     citation: Frederick County Code Ch. 1-19, §1-19-5.230(A) residential density table, https://frederickcountymd.gov/DocumentCenter/View/334390/Chapter-1-19-Zoning; GIS domain 'R1 = Low Density Residential'
+    is_residential: true
   R3:
     description: Low Density Residential (R-3)
     is_agricultural: false
     confidence: high
     citation: Frederick County Code Ch. 1-19, §1-19-5.230(A), https://frederickcountymd.gov/DocumentCenter/View/334390/Chapter-1-19-Zoning; GIS domain 'R3 = Low Density Residential'
+    is_residential: true
   R5:
     description: Medium Density Residential (R-5)
     is_agricultural: false
     confidence: high
     citation: Frederick County Code Ch. 1-19, §1-19-5.230(A), https://frederickcountymd.gov/DocumentCenter/View/334390/Chapter-1-19-Zoning; GIS domain 'R5 = Medium Density Residential'
+    is_residential: true
   R8:
     description: Medium Density Residential (R-8)
     is_agricultural: false
     confidence: high
     citation: Frederick County Code Ch. 1-19, §1-19-5.230(A), https://frederickcountymd.gov/DocumentCenter/View/334390/Chapter-1-19-Zoning; GIS domain 'R8 = Medium Density Residential'
+    is_residential: true
   R12:
     description: High Density Residential (R-12)
     is_agricultural: false
     confidence: high
     citation: Frederick County Code Ch. 1-19, §1-19-5.230(A), https://frederickcountymd.gov/DocumentCenter/View/334390/Chapter-1-19-Zoning; GIS domain 'R12 = High Density Residential'
+    is_residential: true
   R16:
     description: High Density Residential (R-16)
     is_agricultural: false
     confidence: high
     citation: Frederick County Code Ch. 1-19, §1-19-5.230(A), https://frederickcountymd.gov/DocumentCenter/View/334390/Chapter-1-19-Zoning; GIS domain 'R16 = High Density Residential'
+    is_residential: true
   W:
     description: Water
     is_agricultural: false
     confidence: high
-    citation: GIS layer ZoneType coded-value domain 'W = Water', https://fcgis.frederickcountymd.gov/server_pub/rest/services/PlanningAndPermitting/Zoning/MapServer/1?f=pjson; no such district in Ch. 1-19 Article V
+    citation: GIS layer ZoneType coded-value domain 'W = Water', https://fcgis.frederickcountymd.gov/server_pub/rest/services/PlanningAndPermitting/Zoning/MapServer/1?f=pjson; no such district in Ch. 1-19
+      Article V
+    is_residential: false
   OSR:
     description: Open Space Recreation
     is_agricultural: false
     confidence: high
     citation: Frederick County Code Ch. 1-19, §1-19-10.1000(A) Purpose and Intent, https://frederickcountymd.gov/DocumentCenter/View/334390/Chapter-1-19-Zoning; GIS domain 'OSR = Open Space Recreation'
+    is_residential: false
   MX:
     description: Mixed Use
     is_agricultural: false
     confidence: high
     citation: Frederick County Code Ch. 1-19, §1-19-5.240(D) and §1-19-7.520, https://frederickcountymd.gov/DocumentCenter/View/334390/Chapter-1-19-Zoning; GIS domain 'MX = Mixed Use'
+    is_residential: true

@@ -211,15 +211,20 @@ class RoadGraph:
         majors = [n for n in ego.nodes if n in self.major_nodes and n not in origins]
         if not majors:
             return 0
-        H = ego.copy()
+        # unit capacity on every road edge, unbounded source/sink edges: the max
+        # flow is the number of edge-disjoint road paths from the entrances
+        H = nx.DiGraph()
+        for a, b in ego.edges:
+            H.add_edge(a, b, capacity=1); H.add_edge(b, a, capacity=1)
         sink = ("SINK",); source = ("SOURCE",)
+        big = 10 ** 6
         for m in majors:
-            H.add_edge(m, sink, length=0.0)
+            H.add_edge(m, sink, capacity=big)
         for o in origins:
-            H.add_edge(source, o, length=0.0)
+            H.add_edge(source, o, capacity=big)
         try:
-            return len(list(nx.edge_disjoint_paths(H, source, sink)))
-        except nx.NetworkXNoPath:
+            return int(nx.maximum_flow_value(H, source, sink))
+        except (nx.NetworkXError, nx.NetworkXUnbounded):
             return 0
 
 

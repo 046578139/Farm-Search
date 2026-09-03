@@ -114,7 +114,7 @@ def run_stage6(cfg: Config, scored: gpd.GeoDataFrame, envelopes: gpd.GeoDataFram
         # usable, so the hillside sits at the envelope's edge) whose uphill side
         # faces away from the nearest dwelling
         slope, aspect = win.slope_aspect()
-        search = parts[0].buffer(ft_to_m(v.backstop_search_ft)).intersection(pg.buffer(ft_to_m(v.backstop_search_ft)))
+        search = parts[0].buffer(ft_to_m(v.backstop_search_ft)).intersection(pg)   # never a neighbour's hillside
         h, w = slope.shape
         xs = win.x0 + (np.arange(w) + 0.5) * win.cell
         ys = win.y1 - (np.arange(h) + 0.5) * win.cell

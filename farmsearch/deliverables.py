@@ -245,7 +245,7 @@ def render_dossiers(cfg: Config, out_dir: Path, shortlist: pd.DataFrame, pdf_pat
                          f"largest reachable {g.get('largest_contiguous_reachable_acres', 0):.1f} ac · score {row['shortlist_score']:.2f}", fontsize=11)
             if legend:
                 ax.legend(handles=legend, loc="upper left", bbox_to_anchor=(1.01, 1.0), fontsize=7, frameon=False)
-            fig.tight_layout()
+            fig.subplots_adjust(left=0.02, right=0.72, top=0.94, bottom=0.02)
             pdf.savefig(fig)
             if png_dir is not None:
                 Path(png_dir).mkdir(parents=True, exist_ok=True)
