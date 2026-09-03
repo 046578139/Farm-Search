@@ -16,7 +16,7 @@ import numpy as np
 import pandas as pd
 from shapely.geometry.base import BaseGeometry
 
-from ..config import Config, ConfigError
+from ..config import ZoningSpec, Config, ConfigError
 from ..io.loaders import LayerNotAvailable, clean_geometries, read_layer
 from ..io.schema import SchemaError, apply_schema, verify_parcels_schema
 from ..accounts import non_account_mask, owner_type_from_exemption
@@ -127,14 +127,16 @@ def load_parcels(cfg: Config, study_geom: BaseGeometry, parcels_raw: Optional[gp
 
 
 def load_zoning_layers(cfg: Config, study_geom: BaseGeometry) -> dict[str, gpd.GeoDataFrame]:
+    """Keyed by the county name for the primary layer (the historical key)
+    and by the spec's source name for fill layers."""
     out = {}
     for z in cfg.zoning:
         try:
             g = read_layer(z.source, cfg.working_crs, study_geom, clip_mode="intersects")
         except LayerNotAvailable as e:
-            log.warning("zoning layer for %s unavailable: %s", z.county, e)
+            log.warning("zoning layer %s for %s unavailable: %s", z.source.name, z.county, e)
             continue
-        out[z.county] = g
+        out[z.county if z.role == "primary" else z.source.name] = g
     return out
 
 
@@ -262,15 +264,55 @@ def attribute_study_area(gdf: gpd.GeoDataFrame, study_geom: BaseGeometry, mode: 
     return gdf
 
 
+def _zoning_areas(pgeoms, layer: gpd.GeoDataFrame, spec: ZoningSpec, county: str) -> dict[int, dict[str, float]]:
+    """Per parcel (positional index into pgeoms): zoning code -> intersected area."""
+    if spec.code_field not in layer.columns:
+        raise SchemaError(f"zoning {county} ({spec.source.name}): field {spec.code_field!r} not in layer; fields: {list(layer.columns)}")
+    pairs = layer.sindex.query(pgeoms, predicate="intersects")
+    by_parcel: dict[int, list[int]] = {}
+    for a, b in zip(pairs[0], pairs[1]):
+        by_parcel.setdefault(int(a), []).append(int(b))
+    raw_codes = layer[spec.code_field]
+    # A zoning polygon with no code (seen once in the live Frederick layer:
+    # a 0.003 ac sliver) carries no information; it must not become the
+    # unmapped code "None" and abort the run.
+    has_code = (raw_codes.notna() & (raw_codes.astype(str).str.strip() != "")).values
+    codes_col = raw_codes.astype(str).str.strip().values
+    n_blank = int((~has_code).sum())
+    if n_blank:
+        log.warning("zoning %s (%s): %d polygons with a null/blank %s ignored", county, spec.source.name, n_blank, spec.code_field)
+    out: dict[int, dict[str, float]] = {}
+    for a, blist in by_parcel.items():
+        pg = pgeoms[a]
+        areas: dict[str, float] = {}
+        for b in blist:
+            if not has_code[b]:
+                continue
+            x = pg.intersection(layer.geometry.values[b])
+            if x.is_empty:
+                continue
+            areas[codes_col[b]] = areas.get(codes_col[b], 0.0) + x.area
+        if areas:
+            out[a] = areas
+    return out
+
+
 def assign_zoning(gdf: gpd.GeoDataFrame, zoning_layers: dict[str, gpd.GeoDataFrame], cfg: Config,
                   scope_mask: Optional[pd.Series] = None) -> gpd.GeoDataFrame:
     """Majority-area zoning district per parcel, mapped through each county's
-    is_agricultural table. Split-zoned parcels report zoning_ag_pct."""
+    is_agricultural table. Split-zoned parcels report zoning_ag_pct.
+
+    A county's primary layer decides first. Where it maps the parcel to
+    "unknown" (a MUN / TOWN municipal placeholder) or does not cover it, the
+    fill layers (municipal zoning) are consulted in config order; the first
+    that covers the parcel with a code that is not itself "unknown" wins and
+    zoning_source records which layer answered."""
     gdf = gdf.copy()
     gdf["zoning"] = None
     gdf["zoning_ag_pct"] = np.nan
     gdf["is_agricultural"] = None
     gdf["zoning_codes_all"] = None
+    gdf["zoning_source"] = None
     gdf["zoning_unmapped"] = False
     gdf["zoning_layer_missing"] = False
     scope = scope_mask if scope_mask is not None else pd.Series(True, index=gdf.index)
@@ -279,67 +321,65 @@ def assign_zoning(gdf: gpd.GeoDataFrame, zoning_layers: dict[str, gpd.GeoDataFra
         sel = (gdf["county"] == county) & scope
         if not sel.any():
             continue
-        spec = cfg.zoning_for(county)
-        layer = zoning_layers.get(county)
-        if spec is None or layer is None or layer.empty:
+        specs = cfg.zoning_specs_for(county)
+        primary = cfg.zoning_for(county)
+        if primary is None or zoning_layers.get(county) is None or zoning_layers.get(county).empty:
             gdf.loc[sel, "zoning_layer_missing"] = True
             continue
-        spec.load_mapping()
-        if not spec.code_field:
-            raise ConfigError(f"zoning {county}: code_field not set (run `farmsearch zoning-domains`)")
-        if spec.code_field not in layer.columns:
-            raise SchemaError(f"zoning {county}: field {spec.code_field!r} not in layer; fields: {list(layer.columns)}")
         pidx = np.flatnonzero(sel.values)
         pgeoms = gdf.geometry.values[pidx]
-        pairs = layer.sindex.query(pgeoms, predicate="intersects")
-        by_parcel: dict[int, list[int]] = {}
-        for a, b in zip(pairs[0], pairs[1]):
-            by_parcel.setdefault(int(a), []).append(int(b))
-        raw_codes = layer[spec.code_field]
-        # A zoning polygon with no code (seen once in the live Frederick layer:
-        # a 0.003 ac sliver) carries no information; it must not become the
-        # unmapped code "None" and abort the run.
-        has_code = raw_codes.notna() & (raw_codes.astype(str).str.strip() != "")
-        codes_col = raw_codes.astype(str).values
-        n_blank = int((~has_code).sum())
-        if n_blank:
-            log.warning("zoning %s: %d polygons with a null/blank %s ignored", county, n_blank, spec.code_field)
-        has_code = has_code.values
-        for a, blist in by_parcel.items():
-            pg = pgeoms[a]
-            areas: dict[str, float] = {}
-            for b in blist:
-                if not has_code[b]:
-                    continue
-                x = pg.intersection(layer.geometry.values[b])
-                if x.is_empty:
-                    continue
-                areas[codes_col[b]] = areas.get(codes_col[b], 0.0) + x.area
-            if not areas:
+        undecided = set(range(len(pidx)))          # parcels still without a decisive answer
+        for spec in specs:
+            if not undecided:
+                break
+            key = county if spec.role == "primary" else spec.source.name
+            layer = zoning_layers.get(key)
+            if layer is None or layer.empty:
+                if spec.role != "primary":
+                    log.warning("zoning fill layer %s for %s not loaded; municipal holes stay unknown", spec.source.name, county)
                 continue
-            total = sum(areas.values())
-            major = max(areas, key=areas.get)
-            ag_area = 0.0
-            unmapped = False
-            for code, ar in areas.items():
-                m = spec.codes.get(code)
-                if m is None or m.get("is_agricultural") is None:
-                    unmapped = True
-                    unmapped_seen.setdefault(county, set()).add(code)
-                elif m["is_agricultural"] is True:
-                    ag_area += ar
-            i = gdf.index[pidx[a]]
-            gdf.at[i, "zoning"] = major
-            gdf.at[i, "zoning_codes_all"] = ";".join(f"{c}:{100*ar/total:.0f}%" for c, ar in sorted(areas.items(), key=lambda kv: -kv[1]))
-            gdf.at[i, "zoning_ag_pct"] = round(100 * ag_area / total, 1)
-            mm = spec.codes.get(major)
-            if mm is None or mm.get("is_agricultural") is None:
-                gdf.at[i, "zoning_unmapped"] = True
-                gdf.at[i, "is_agricultural"] = None
-            elif mm["is_agricultural"] == "unknown":
-                gdf.at[i, "is_agricultural"] = None          # known-unknown (municipal hole): retained, flagged
-            else:
-                gdf.at[i, "is_agricultural"] = bool(mm["is_agricultural"])
+            spec.load_mapping()
+            if not spec.code_field:
+                raise ConfigError(f"zoning {county} ({spec.source.name}): code_field not set (run `farmsearch zoning-domains`)")
+            sub = sorted(undecided)
+            areas_by = _zoning_areas(pgeoms[sub], layer, spec, county)
+            for a_sub, areas in areas_by.items():
+                a = sub[a_sub]
+                total = sum(areas.values())
+                major = max(areas, key=areas.get)
+                mm = spec.codes.get(major)
+                major_unknown = mm is not None and mm.get("is_agricultural") == "unknown"
+                already = gdf.at[gdf.index[pidx[a]], "zoning"] is not None
+                if major_unknown and spec.role == "primary":
+                    # Record the placeholder; a fill layer may still answer.
+                    pass
+                elif major_unknown and already:
+                    continue                      # a fill layer's own "unknown" adds nothing
+                ag_area = 0.0
+                unmapped = False
+                for code, ar in areas.items():
+                    m = spec.codes.get(code)
+                    if m is None or m.get("is_agricultural") is None:
+                        unmapped = True
+                        unmapped_seen.setdefault(f"{county}/{spec.source.name}", set()).add(code)
+                    elif m["is_agricultural"] is True:
+                        ag_area += ar
+                i = gdf.index[pidx[a]]
+                gdf.at[i, "zoning"] = major
+                gdf.at[i, "zoning_codes_all"] = ";".join(f"{c}:{100*ar/total:.0f}%" for c, ar in sorted(areas.items(), key=lambda kv: -kv[1]))
+                gdf.at[i, "zoning_ag_pct"] = round(100 * ag_area / total, 1)
+                gdf.at[i, "zoning_source"] = spec.source.name
+                if mm is None or mm.get("is_agricultural") is None:
+                    gdf.at[i, "zoning_unmapped"] = True
+                    gdf.at[i, "is_agricultural"] = None
+                    undecided.discard(a)
+                elif major_unknown:
+                    gdf.at[i, "is_agricultural"] = None          # known-unknown (municipal hole): retained, flagged
+                    gdf.at[i, "zoning_unmapped"] = False
+                else:
+                    gdf.at[i, "is_agricultural"] = bool(mm["is_agricultural"])
+                    gdf.at[i, "zoning_unmapped"] = False
+                    undecided.discard(a)
     if unmapped_seen:
         msg = "; ".join(f"{c}: {sorted(v)}" for c, v in unmapped_seen.items())
         if cfg.on_unmapped_zoning == "error":

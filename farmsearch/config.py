@@ -95,6 +95,10 @@ class ZoningSpec:
     source: LayerSource
     code_field: Optional[str]
     mapping_path: Path
+    # primary: the county layer. fill: a municipal layer consulted only where
+    # the primary layer maps the parcel to "unknown" (a MUN / TOWN placeholder)
+    # or does not cover it at all. Several fill layers may follow, in order.
+    role: str = "primary"
     # Loaded lazily: code -> {description, is_agricultural}
     codes: dict = field(default_factory=dict)
 
@@ -298,10 +302,18 @@ class Config:
                 raise ConfigError("parcels.acreage_source must be sdat|geometry")
             zoning = []
             for z in raw.get("zoning", []) or []:
+                role = str(z.get("role", "primary")).lower()
+                if role not in ("primary", "fill"):
+                    raise ConfigError(f"zoning {z.get('county')}: role must be primary|fill")
+                zname = z.get("name") or (f"zoning_{z['county']}" if role == "primary" else f"zoning_{z['county']}_fill{len(zoning)}")
                 zoning.append(ZoningSpec(county=z["county"],
-                                         source=LayerSource.from_dict(base, z, name=f"zoning_{z['county']}"),
+                                         source=LayerSource.from_dict(base, z, name=zname),
                                          code_field=z.get("code_field"),
-                                         mapping_path=_opt_path(base, z["mapping"])))
+                                         mapping_path=_opt_path(base, z["mapping"]),
+                                         role=role))
+            for c in {z.county for z in zoning}:
+                if sum(1 for z in zoning if z.county == c and z.role == "primary") > 1:
+                    raise ConfigError(f"zoning {c}: only one primary layer per county (mark the others role: fill)")
             constraints = [ConstraintSpec.from_dict(base, c) for c in (raw.get("constraints") or [])]
             names = [c.name for c in constraints]
             if len(names) != len(set(names)):
@@ -404,7 +416,13 @@ class Config:
         raise KeyError(name)
 
     def zoning_for(self, county: str) -> Optional[ZoningSpec]:
+        """The county's primary zoning layer."""
         for z in self.zoning:
-            if z.county.lower() == county.lower():
+            if z.county.lower() == county.lower() and z.role == "primary":
                 return z
         return None
+
+    def zoning_specs_for(self, county: str) -> list[ZoningSpec]:
+        """Primary layer first, then the fill (municipal) layers in config order."""
+        specs = [z for z in self.zoning if z.county.lower() == county.lower()]
+        return [z for z in specs if z.role == "primary"] + [z for z in specs if z.role != "primary"]

@@ -910,3 +910,30 @@ def test_blocks_travel_is_configured_per_constraint(tmp_path):
     d2 = dict(d, name="wetlands"); d2.pop("blocks_travel")
     assert ConstraintSpec.from_dict(tmp_path, d2).blocks_travel is True
     assert _cfg(tmp_path).access.min_contact_ft == 12 and _cfg(tmp_path).access.narrow_contact_ft == 30
+
+
+def test_municipal_fill_layer_answers_where_the_county_layer_says_unknown(tmp_path):
+    """County layer: everything 'A' except a MUN placeholder over parcel two.
+    Town layer (fill) covers parcel two with 'R1' (not ag) and parcel one
+    with 'AG' (ignored: the county layer already decided)."""
+    from farmsearch.stages.stage1_base_filter import assign_zoning, attribute_county, load_parcels
+    import yaml
+    raw = _parcels_raw()
+    county = gpd.GeoDataFrame({"TYPE": ["A", "MUN"]}, geometry=[box(-100, -100, 5000, 5000).difference(box(900, -100, 1400, 5000)), box(900, -100, 1400, 5000)], crs="EPSG:26985")
+    town = gpd.GeoDataFrame({"Code": ["R1", "AG"]}, geometry=[box(950, -50, 1350, 4000), box(-50, -50, 400, 400)], crs="EPSG:26985")
+    (tmp_path / "county.yaml").write_text(yaml.safe_dump({"code_field": "TYPE", "codes": {"A": {"is_agricultural": True}, "MUN": {"is_agricultural": "unknown"}}}))
+    (tmp_path / "town.yaml").write_text(yaml.safe_dump({"code_field": "Code", "codes": {"R1": {"is_agricultural": False}, "AG": {"is_agricultural": True}}}))
+    cfg = _cfg(tmp_path, zoning=[
+        {"county": "Frederick", "path": str(tmp_path / "c.gpkg"), "code_field": "TYPE", "mapping": str(tmp_path / "county.yaml")},
+        {"county": "Frederick", "name": "frederick_towns", "role": "fill", "path": str(tmp_path / "t.gpkg"), "code_field": "Code", "mapping": str(tmp_path / "town.yaml")},
+    ])
+    gdf = attribute_county(load_parcels(cfg, box(-10, -10, 5000, 5000), parcels_raw=raw), cfg)
+    out = assign_zoning(gdf, {"Frederick": county, "frederick_towns": town}, cfg).set_index("account_id")
+    assert out.loc["1101000001", "zoning"] == "A" and out.loc["1101000001", "is_agricultural"] is True
+    assert out.loc["1101000001", "zoning_source"] == "zoning_Frederick"
+    assert out.loc["1101000002", "zoning"] == "R1" and out.loc["1101000002", "is_agricultural"] is False
+    assert out.loc["1101000002", "zoning_source"] == "frederick_towns"
+    # without the fill layer the MUN parcel stays a known-unknown
+    out2 = assign_zoning(gdf, {"Frederick": county}, cfg).set_index("account_id")
+    assert out2.loc["1101000002", "zoning"] == "MUN" and out2.loc["1101000002", "is_agricultural"] is None and not out2.loc["1101000002", "zoning_unmapped"]
+    assert [z.source.name for z in cfg.zoning_specs_for("Frederick")] == ["zoning_Frederick", "frederick_towns"]
