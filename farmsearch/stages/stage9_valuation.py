@@ -77,6 +77,10 @@ def _parse_date(v) -> Optional[date]:
 
 def build_comps(cfg: Config, clip: BaseGeometry, parcels_all: gpd.GeoDataFrame,
                 favorable: Optional[BaseGeometry]) -> CompSet:
+    """The easement layers are filtered to the study counties, so within those a
+    missing easement is evidence of absence; for a comp from the margin in a
+    neighbouring county it is only absence of evidence, and the comp is neither
+    eased nor un-eased: it sits out the bands rather than be counted un-eased."""
     q = cfg.valuation
     missing: list[str] = []
     frames = []
@@ -149,16 +153,24 @@ def build_comps(cfg: Config, clip: BaseGeometry, parcels_all: gpd.GeoDataFrame,
     # eased status from the sold parcel's polygon (our fabric) against the favorable easement union
     geom_by = dict(zip(parcels_all["account_id"].astype(str).values, parcels_all.geometry.values))
     county_by = dict(zip(parcels_all["account_id"].astype(str).values, parcels_all["county"].values)) if "county" in parcels_all.columns else {}
+    def _county(code):
+        code = str(code).strip()
+        return cfg.counties.get(code) or JURISDICTIONS.get(code.upper(), code)
+    jurs = C["JURSCODE"].values if "JURSCODE" in C.columns else [None] * len(C)
     eased = []
     basis = []
     counties = []
-    for acct, accts, pt in zip(C["account_id"].values, C["accounts"].values, C.geometry.values):
+    for acct, accts, pt, jur in zip(C["account_id"].values, C["accounts"].values, C.geometry.values, jurs):
         polys = [geom_by[a] for a in str(accts).split(";") if a in geom_by]
         pg = unary_union(polys) if polys else None
-        cty = county_by.get(acct)
+        # the county decides whether an easement layer covers this comp at all
+        cty = county_by.get(acct) or (_county(jur) if jur is not None and pd.notna(jur) else None)
         if favorable is None or favorable.is_empty:
             eased.append(False)
             basis.append("no_easement_layer")
+        elif cty is not None and str(cty) not in set(cfg.counties.values()):
+            eased.append(None)                      # no easement layer covers that county
+            basis.append("unknown_no_easement_coverage")
         elif pg is not None:
             # the sold parcel is in our fabric: the share of it under easement decides
             eased.append(bool(pg.intersection(favorable).area >= q.eased_share_threshold * pg.area))
@@ -171,16 +183,6 @@ def build_comps(cfg: Config, clip: BaseGeometry, parcels_all: gpd.GeoDataFrame,
         counties.append(cty)
     C["eased"] = eased
     C["eased_basis"] = basis
-    # A sale point outside our fabric (a comp in the 5-mile margin) takes its county
-    # from JURSCODE, mapped through `counties:` so it lands in the same band. The
-    # list is consulted directly: assigning it to the frame first would turn every
-    # None into NaN, and `nan is not None` would skip the fallback entirely.
-    if "JURSCODE" in C.columns:
-        def _county(code):
-            code = str(code).strip()
-            return cfg.counties.get(code) or JURISDICTIONS.get(code.upper(), code)
-        counties = [c if c is not None else (_county(j) if pd.notna(j) else None)
-                    for c, j in zip(counties, C["JURSCODE"].values)]
     C["county"] = counties
     bands: dict[tuple[str, str], dict] = {}
     def band(df):
@@ -188,6 +190,10 @@ def build_comps(cfg: Config, clip: BaseGeometry, parcels_all: gpd.GeoDataFrame,
         v = v[(v > 0) & (v < v.quantile(0.99) * 1.0001 + 1)] if len(v) > 10 else v
         return {"n": int(len(v)), "median": float(v.median()) if len(v) else None,
                 "p25": float(v.quantile(0.25)) if len(v) else None, "p75": float(v.quantile(0.75)) if len(v) else None}
+    n_unknown = int(sum(1 for b in basis if b == "unknown_no_easement_coverage"))
+    if n_unknown:
+        log.info("Stage 9: %d comps lie beyond the easement layers' reach; neither eased nor un-eased, so they sit "
+                 "out the bands rather than be counted as un-eased", n_unknown)
     for seg, sub in C.groupby(C["eased"].map({True: "eased", False: "uneased"})):
         bands[("ALL", seg)] = band(sub)
         for cty, sub2 in sub.groupby("county"):

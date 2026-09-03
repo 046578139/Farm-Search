@@ -398,7 +398,7 @@ def run_pipeline(cfg: Config, stages: Iterable[int] = (1, 2, 3, 4), out_dir: Opt
         envelopes = structures = None
         if s5 is not None:
             envelopes, structures = s5.envelopes, s5.structures.structures
-        elif (out_dir / "envelope.gpkg").exists():
+        elif resume_from >= 5 and (out_dir / "envelope.gpkg").exists():
             # Stage 6 is the DEM-heavy stage and the likeliest to be interrupted:
             # its inputs are re-read from the Stage 5 outputs rather than redone
             envelopes = gpd.read_file(out_dir / "envelope.gpkg")

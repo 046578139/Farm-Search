@@ -38,9 +38,9 @@ def cmd_run(args) -> int:
     cfg = Config.load(args.config)
     stages = _stages(args.stages)
     resume = bool(getattr(args, "resume", False))
-    # Stages 2-4 rebuild what they need by running Stage 1 first; Stages 5-10
-    # cannot, so they need the state a previous run checkpointed.
-    if not resume and min(stages) >= 5:
+    # Stage 1 always runs when not resuming, so `--stages 2-...` is fine; Stage 3
+    # onwards needs the state after Stage 2, which only a checkpoint can supply.
+    if not resume and min(stages) > 2:
         raise SystemExit(f"--stages {args.stages} starts at Stage {min(stages)}, which needs the state after Stage 4: "
                          f"add --resume to continue from the previous run's checkpoint, or run --stages 1-10")
     res = run_pipeline(cfg, stages=stages, out_dir=args.out, resume=resume)

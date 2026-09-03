@@ -495,3 +495,28 @@ def test_normalize_percentile_of_50_is_rejected(tmp_path):
     from farmsearch.config import ConfigError
     with pytest.raises(ConfigError, match="above 50"):
         _cfg(tmp_path, shortlist={"normalize_percentile": 50})
+
+
+def test_stage9_comp_from_a_county_with_no_easement_layer_is_neither_eased_nor_uneased(tmp_path):
+    """The easement layers stop at the study counties. A comp from the margin in a
+    neighbouring county cannot be called un-eased just because nothing was read
+    there: it sits out the bands."""
+    import geopandas as gpd
+    from shapely.geometry import Point
+    from farmsearch.stages.stage9_valuation import build_comps
+    rows = [{"ACCTID": f"A{i}", "CONSIDR1": 1_000_000, "TRADATE": "20250601", "CONVEY1": 1, "ACRES": 40.0,
+             "DESCLU": "Agricultural", "SALIMPVL": 0, "SQFTSTRC": 0, "JURSCODE": j, "geometry": Point(100 * i, 0)}
+            for i, j in enumerate(["FRED", "FRED", "FRED", "FRED", "FRED", "MONT"])]
+    gpd.GeoDataFrame(rows, geometry="geometry", crs="EPSG:26985").to_file(str(tmp_path / "sales.gpkg"), driver="GPKG")
+    cfg = _cfg(tmp_path, counties={"FRED": "Frederick"},
+               valuation={"sales_layers": [{"name": "sales", "path": str(tmp_path / "sales.gpkg")}],
+                          "reference_date": "2025-09-01", "min_comps_per_segment": 1})
+    fabric = gpd.GeoDataFrame({"account_id": [], "county": []}, geometry=[], crs="EPSG:26985")
+    cs = build_comps(cfg, box(-2000, -2000, 2000, 2000), fabric, box(-10, -10, 10, 10))
+    by = dict(zip(cs.comps["account_id"], cs.comps["eased_basis"]))
+    assert by["A5"] == "unknown_no_easement_coverage"          # Montgomery: no layer reaches it
+    assert by["A1"] == "sale_point"                            # Frederick, outside the fabric
+    # A0 sits inside the easement, so four of the five Frederick comps are un-eased
+    assert cs.bands[("Frederick", "uneased")]["n"] == 4        # the Montgomery comp is not counted
+    assert cs.bands[("Frederick", "eased")]["n"] == 1
+    assert ("Montgomery", "uneased") not in cs.bands

@@ -209,6 +209,7 @@ on_unmapped_zoning: error
 #   5 Local protected lands (parks, HOA open space)  9 PDR/TDR (county programs)
 constraints:
   - name: malpf
+    fetch_margin_ft: 26400   # Stage 9 classifies comps out to the sales layer's 5-mile margin
     type: ag_preservation_malpf
     category: legal
     implication: favorable          # restricts subdivision; NOT farming/vehicles
@@ -220,6 +221,7 @@ constraints:
     where: "Category == 'Easement'"
     name_field: Loc_Nm
   - name: malpf_frederick
+    fetch_margin_ft: 26400   # Stage 9 classifies comps out to the sales layer's 5-mile margin
     # Frederick County's own MALPF easement layer: settlements through 2026-06,
     # ~14 months ahead of the state compilation. Same type; overlaps are
     # unioned before acreage is summed.
@@ -232,6 +234,7 @@ constraints:
     url: "https://fcgis.frederickcountymd.gov/server_pub/rest/services/PlanningAndPermitting/AgPreservation/MapServer/8"
     name_field: Project
   - name: county_ag_preservation
+    fetch_margin_ft: 26400   # Stage 9 classifies comps out to the sales layer's 5-mile margin
     # County PDR / TDR / IPP / Critical Farms / Next Generation easements as
     # compiled by MDP. OthrPrgNm names the program; CREP enrollments are in
     # the same layer and are split out below (they are restrictive strips,
@@ -247,6 +250,7 @@ constraints:
     where: "Category == 'Easement' and OthrPrgNm != 'CREP'"   # 'Other' = Next Generation OPTIONS, not easements
     name_field: OthrPrgNm
   - name: county_ag_preservation_frederick_ipp
+    fetch_margin_ft: 26400   # Stage 9 classifies comps out to the sales layer's 5-mile margin
     # Frederick Installment Purchase Program easements from the county (2025-26
     # settlements the state layer lacks).
     type: ag_preservation_county
@@ -258,6 +262,7 @@ constraints:
     url: "https://fcgis.frederickcountymd.gov/server_pub/rest/services/PlanningAndPermitting/AgPreservation/MapServer/5"
     name_field: Project
   - name: county_ag_preservation_frederick_critical_farms
+    fetch_margin_ft: 26400   # Stage 9 classifies comps out to the sales layer's 5-mile margin
     type: ag_preservation_county
     category: legal
     implication: favorable
@@ -267,6 +272,7 @@ constraints:
     url: "https://fcgis.frederickcountymd.gov/server_pub/rest/services/PlanningAndPermitting/AgPreservation/MapServer/3"
     name_field: Project
   - name: county_ag_preservation_frederick_county_held
+    fetch_margin_ft: 26400   # Stage 9 classifies comps out to the sales layer's 5-mile margin
     type: ag_preservation_county
     category: legal
     implication: favorable
@@ -276,6 +282,7 @@ constraints:
     url: "https://fcgis.frederickcountymd.gov/server_pub/rest/services/PlanningAndPermitting/AgPreservation/MapServer/2"
     name_field: Project
   - name: rural_legacy
+    fetch_margin_ft: 26400   # Stage 9 classifies comps out to the sales layer's 5-mile margin
     type: rural_legacy
     category: legal
     implication: favorable
@@ -287,6 +294,7 @@ constraints:
     # study-area clip does the work.
     name_field: RLArea
   - name: rural_legacy_frederick
+    fetch_margin_ft: 26400   # Stage 9 classifies comps out to the sales layer's 5-mile margin
     type: rural_legacy
     category: legal
     implication: favorable
