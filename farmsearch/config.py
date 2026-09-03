@@ -710,8 +710,10 @@ class Config:
                                         require_reachable_acres_min=bool(sl.get("require_reachable_acres_min", True)),
                                         exclude_owner_types=[str(x).lower() for x in (sl.get("exclude_owner_types") if sl.get("exclude_owner_types") is not None else dsl.exclude_owner_types)],
                                         normalize_percentile=float(sl.get("normalize_percentile", dsl.normalize_percentile)))
-            if not 50.0 <= shortlist.normalize_percentile <= 100.0:
-                raise ConfigError("shortlist.normalize_percentile must be between 50 and 100 (100 = plain min-max)")
+            if not 50.0 < shortlist.normalize_percentile <= 100.0:
+                # at exactly 50 the band collapses to the median and every metric
+                # contributes nothing, leaving a "ranking" in file order
+                raise ConfigError("shortlist.normalize_percentile must be above 50 and at most 100 (100 = plain min-max)")
             rc = raw.get("run", {}) or {}
             run = RunConfig(process_all=bool(rc.get("process_all", False)),
                             output_dir=_opt_path(base, rc.get("output_dir", "../outputs")))

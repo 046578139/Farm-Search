@@ -31,7 +31,8 @@ log = logging.getLogger(__name__)
 
 SHORTLIST_COLUMNS = [
     "account_id", "county", "owner_name", "owner_mailing_address", "owner_type", "gross_acres", "usable_acres",
-    "largest_contiguous_reachable_acres", "dischargeable_envelope_acres", "dischargeable_envelope_longest_dim_yards",
+    "largest_contiguous_reachable_acres", "largest_reachable_if_crossings_permitted_acres",
+    "dischargeable_envelope_acres", "dischargeable_envelope_longest_dim_yards",
     "dwellings_with_line_of_sight", "mprp_tier", "adjacent_residential_zoning_acres", "adjacent_planned_sewer",
     "approved_unbuilt_units_within_2mi", "adjacent_permanently_eased_acres", "est_market_value", "est_per_acre",
     "commute_bwi_peak_min", "commute_langley_peak_min", "commute_nova_peak_min", "route_redundancy",
@@ -90,9 +91,13 @@ def rank_shortlist(scored: pd.DataFrame, cfg: Config) -> tuple[pd.DataFrame, pd.
             # clip to the percentile band so one 2,500 ac outlier does not flatten everyone else
             q = min(max(sl.normalize_percentile, 50.0), 100.0) / 100.0
             lo, hi = float(vals.quantile(1 - q)), float(vals.quantile(q))
-        # a constant column separates nobody: it contributes nothing (0.5 is reserved for unknown)
+        # a constant column separates nobody: it contributes nothing
         norm = ((v.clip(lo, hi) - lo) / (hi - lo)) if hi > lo else pd.Series(0.0, index=v.index)
-        norm = norm.fillna(0.5)
+        # An unknown value takes the column's average contribution, so a parcel is
+        # neither punished nor rewarded for a layer that does not cover its county.
+        # (A fixed 0.5 would be a real penalty under a negative weight, and 0 would
+        # be a reward: neither is neutral.)
+        norm = norm.fillna(float(norm.mean()) if norm.notna().any() else 0.0)
         components[f"score_{col}"] = (w * norm).round(3)
         score = score + w * norm
     out = eligible.copy()
@@ -162,9 +167,14 @@ def _read(out_dir: Path, name: str, **kw):
 
 def render_dossiers(cfg: Config, out_dir: Path, shortlist: pd.DataFrame, pdf_path: Optional[Path] = None,
                     parcels_path: Optional[Path] = None, rows: Optional[gpd.GeoDataFrame] = None,
-                    png_dir: Optional[Path] = None) -> Path:
+                    png_dir: Optional[Path] = None) -> Optional[Path]:
     """One PDF, two pages per shortlist parcel: map + record. With png_dir,
-    each map page is also saved as <rank>_<account_id>.png."""
+    each map page is also saved as <rank>_<account_id>.png. Returns None when the
+    shortlist is empty: a zero-page PdfPages writes no file, and reporting a path
+    that does not exist would leave an earlier run's PDF looking current."""
+    if shortlist is None or not len(shortlist):
+        log.warning("no parcels on the shortlist: no dossiers written")
+        return None
     import matplotlib
     matplotlib.use("Agg")
     import matplotlib.pyplot as plt
@@ -283,7 +293,8 @@ def render_dossiers(cfg: Config, out_dir: Path, shortlist: pd.DataFrame, pdf_pat
             # page 2: the record
             fig = plt.figure(figsize=(11, 8.5)); fig.text(0.04, 0.96, f"{acct} — record", fontsize=13, weight="bold")
             keys = [c for c in SHORTLIST_COLUMNS if c in P.columns and c != "account_id"] + \
-                   ["reachable_if_crossings_permitted_acres", "unreachable_island_count", "hostile_easement_acres", "favorable_easement_acres",
+                   ["largest_reachable_if_crossings_permitted_acres", "reachable_if_crossings_permitted_acres",
+                    "unreachable_island_count", "hostile_easement_acres", "favorable_easement_acres",
                     "steep_slope_acres", "frontage_authorities", "zoning", "zoning_codes_all", "comp_basis", "mprp_route_variant",
                     "adjacent_zoning_codes", "corridor_road", "commute_basis"]
             y = 0.92

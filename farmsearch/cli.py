@@ -79,6 +79,9 @@ def cmd_dossiers(args) -> int:
         short = short.head(int(args.top))
     pdf = render_dossiers(cfg, out, short, pdf_path=(Path(args.pdf) if args.pdf else None),
                           png_dir=(Path(args.png_dir) if args.png_dir else None))
+    if pdf is None:
+        print("no parcels on the shortlist: nothing to render", file=sys.stderr)
+        return 1
     print(f"dossiers: {len(short)} parcels -> {pdf}")
     return 0
 

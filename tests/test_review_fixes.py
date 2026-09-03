@@ -459,3 +459,39 @@ def test_stage10_split_follows_the_centerline_direction(tmp_path):
         lens[round(g.G.nodes[nb]["x"] if "x" in g.G.nodes[nb] else g._node_xy[nb][0])] = round(g.G[node][nb]["length"])
     assert lens.get(0) == 900 and lens.get(1000) == 100
     undo()
+
+
+def test_shortlist_unknown_metric_is_neutral_not_a_penalty(tmp_path):
+    """A county with no published layer leaves a null. Under a negative weight a
+    fixed 0.5 midpoint would dock those parcels; 0 would reward them. The neutral
+    answer is the column's average contribution."""
+    from farmsearch.deliverables import rank_shortlist
+    cfg = _cfg(tmp_path, acreage_min=1,
+               shortlist={"top_n": 50, "weights": {"approved_unbuilt_units_within_2mi": -0.5,
+                                                   "largest_contiguous_reachable_acres": 0.0}})
+    df = pd.DataFrame({
+        "account_id": [f"P{i}" for i in range(10)],
+        "largest_contiguous_reachable_acres": [100.0] * 10,
+        # five Frederick parcels measured (0 .. 400 units), five elsewhere unknown
+        "approved_unbuilt_units_within_2mi": [0.0, 100.0, 200.0, 300.0, 400.0] + [None] * 5,
+        "owner_type": ["individual"] * 10,
+    })
+    sc = rank_shortlist(df, cfg)[0].set_index("account_id")
+    known = sc.loc[["P0", "P1", "P2", "P3", "P4"], "score_approved_unbuilt_units_within_2mi"]
+    unknown = sc.loc["P5", "score_approved_unbuilt_units_within_2mi"]
+    assert known.min() < unknown < known.max()          # sits inside the field, penalised neither way
+    assert unknown == pytest.approx(known.mean(), abs=1e-6)
+    assert sc.loc["P5", "shortlist_score"] < sc.loc["P0", "shortlist_score"]   # a measured zero still wins
+
+
+def test_empty_shortlist_renders_no_dossier_file(tmp_path):
+    from farmsearch.deliverables import render_dossiers
+    cfg = _cfg(tmp_path)
+    out = render_dossiers(cfg, tmp_path, pd.DataFrame(columns=["account_id", "rank"]))
+    assert out is None and not (tmp_path / "dossiers.pdf").exists()
+
+
+def test_normalize_percentile_of_50_is_rejected(tmp_path):
+    from farmsearch.config import ConfigError
+    with pytest.raises(ConfigError, match="above 50"):
+        _cfg(tmp_path, shortlist={"normalize_percentile": 50})
