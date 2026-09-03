@@ -270,9 +270,9 @@ subtraction, older layers) passed 2,527 parcels against today's 2,616.
 | county | parcels in study area | ≥ 40 ac | ag-zoned | zoning unknown | Stage 1 pass | median ac | acres passing |
 |---|---:|---:|---:|---:|---:|---:|---:|
 | Frederick (whole) | 105,797 | 2,059 | 1,883 | 39 | 1,922 | 89 | 205,389 |
-| Carroll (Mount Airy corner) | 11,153 | 223 | 208 | 2 | 210 | 78 | 20,531 |
+| Carroll (Mount Airy corner) | 11,153 | 223 | 205 | 2 | 207 | 78 | 20,271 |
 | Washington (SE) | 12,069 | 450 | 439 | 8 | 447 | 94 | 48,746 |
-| total | 129,019 | 2,732 | 2,530 | 49 | 2,579 | | 274,666 |
+| total | 129,019 | 2,732 | 2,527 | 49 | 2,576 | | 274,407 |
 
 Reading zoning over the context band rather than the study polygon changed
 three Carroll parcels that straddle the study line: covered only in part, each
@@ -295,24 +295,24 @@ are 195 government, 41 religious / non-profit, 2,380 untyped.
 
 | | total |
 |---|---:|
-| encumbrance rows (24 layers, 0 missing) | 8,790 |
-| parcels with a hostile easement / a favorable easement | 560 / 1,078 |
-| parcels bisected by a hostile constraint | 1,555 |
-| usable acres of gross acres | 188,551 of 274,666 |
-| parcels whose usable area falls below 40 ac | 774 |
+| encumbrance rows (24 layers, 0 missing) | 8,787 |
+| parcels with a hostile easement / a favorable easement | 559 / 1,078 |
+| parcels bisected by a hostile constraint | 1,554 |
+| usable acres of gross acres | 187,791 of 274,407 |
+| parcels whose usable area falls below 40 ac | 776 |
 | DEM windows failed | 0 |
-| public ROW features | 39,950 |
-| landlocked_apparent | 145 |
+| public ROW features | 39,985 |
+| landlocked_apparent | 144 |
 | frontage blocked by a foreign parcel (≥ 95 %) | 36 |
-| parcels with unreachable islands | 1,737 |
-| largest reachable block ≥ 40 ac / below | 1,291 / 1,288 |
+| parcels with unreachable islands | 1,727 |
+| largest reachable block ≥ 40 ac / below | 1,293 / 1,283 |
 | reserve strip detected | 127 |
 
 | county | scored | landlocked | frontage blocked | reserve strip | usable < 40 ac | largest reachable ≥ 40 ac | with islands |
 |---|---:|---:|---:|---:|---:|---:|---:|
-| Frederick | 1,922 | 84 | 24 | 85 | 574 | 972 | 1,285 |
-| Carroll | 210 | 15 | 3 | 19 | 70 | 92 | 164 |
-| Washington | 447 | 46 | 9 | 23 | 130 | 227 | 288 |
+| Frederick | 1,922 | 84 | 24 | 85 | 574 | 976 | 1,278 |
+| Carroll | 207 | 15 | 3 | 19 | 70 | 90 | 162 |
+| Washington | 447 | 45 | 9 | 23 | 132 | 227 | 287 |
 
 Reserve strips after the tightening: 186 strip rows on 150 parcels (130 flagged with a foreign owner, 25 same-owner rows), 170 distinct strip accounts, all vacant by the SDAT improvement fields, median 51 ft wide by 701 ft long. The first run flagged 744 parcels. Elapsed 22 min.
 
@@ -410,22 +410,26 @@ Decisions to keep in mind:
 
 ## Stages 5–10 on the real data
 
-`farmsearch run --stages 5-10 --resume` from the Stage 4 checkpoint, 3 min; stages run [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]; layers missing: none.
+`farmsearch run --stages 1-10` over the three counties, about 95 minutes end to
+end with every layer and DEM window cached (Stage 1 ~6 min, 2 ~3, 3 ~7, 4 ~16,
+5 ~3, 6 ~54, 7 ~12, 8 ~1, 9 ~9, 10 ~4, plus the deliverables). Stage 6 is the
+long pole: one DEM window per parcel, and a line of sight from five firing
+points to every household within 1,000 yards. Layers missing: none; 2,576
+parcels scored.
 
-**Stage 5.** 114,786 occupied structures and 237 school features shape the zones. Envelope: median 45 ac (p10 14, p90 119) of median usable 59 ac; 172 parcels below 10 ac, 124 with a longest dimension under 200 yd (median longest dimension 560 yd).
+**Stage 5.** 141,392 occupied structures (dwellings, other occupied buildings and churches) and 237 school features shape the zones. Envelope: median 44 ac (p10 13, p90 117) of median usable 59 ac; 184 parcels below 10 ac, 130 with a longest dimension under 200 yd (median 553 yd). 459 parcels are constrained by a house on the same owner's other parcel; 1,271 have at least one zone placed from the parcel's centre because no footprint matched.
 
-**Stage 6.** Terrain imageserver, 0 DEM windows failed. Dwellings within 1,000 yd: median 134; with line of sight: median 73 (p90 201); 14 parcels have every nearby dwelling terrain-shielded; 2,210 have a candidate natural backstop.
+**Stage 6.** Terrain imageserver, 0 DEM windows failed. Dwelling parcels within 1,000 yd: median 83; with line of sight: median 46 (p90 167); 1 parcels have at least one dwelling the DEM could not evaluate; 15 have every nearby dwelling terrain-shielded; 439 have a candidate natural backstop (slopes facing away from every nearby dwelling).
 
-**Stage 7.** 1,235 parcels adjoin residential zoning (median 1 ac where present); 277 adjoin planned sewer service; 84 sit inside a Priority Funding Area; 1,535 adjoin permanently eased land; approved-unbuilt units within 2 mi: median 0, p90 612 (Frederick pipeline only).
+**Stage 7.** 599 parcels adjoin residential zoning (median 9 ac where present); 275 adjoin planned sewer service; 81 sit inside a Priority Funding Area; 1,529 adjoin permanently eased land. Approved-unbuilt units within 2 mi: median 0, p90 949 across the 2,106 Frederick parcels the layer covers; the other 470 are null, not zero. Boundary accounted for by a known parcel or a road: median 100%, and 0 parcels fall below 50% (the fabric stops at the county set).
 
-**Stage 8.** MPRP tiers {'0': 1677, '3': 529, '2': 233, '1': 140} (routes: mprp_pseg_centerline (preferred), mprp_pseg_row150 (preferred), mprp_alternatives_550ft_corridor (alternative), mprp_frederick_county_copy (preferred)); near an existing HV corridor 590, near a substation 140, near data-center development 177.
+**Stage 8.** MPRP tiers {'0': 1677, '3': 527, '2': 237, '1': 135} (routes: mprp_pseg_centerline (preferred), mprp_pseg_row150 (preferred), mprp_alternatives_550ft_corridor (alternative), mprp_frederick_county_copy (preferred)); near an existing HV corridor 588, near a substation 138, near data-center development 177.
 
-**Stage 9.** 76 arms-length agricultural comps (3 yr, ≥ 20 ac). Bands: ALL/eased: n=10, median $10,272/ac; Carroll/eased: n=3, median $13,918/ac; Frederick/eased: n=5, median $10,201/ac; Washington/eased: n=3, median $10,343/ac; ALL/uneased: n=64, median $17,586/ac; Carroll/uneased: n=7, median $26,055/ac; Frederick/uneased: n=40, median $17,289/ac; Washington/uneased: n=14, median $16,607/ac. Parcels valued 2,579; median estimate $17,289/ac.
+**Stage 9.** 102 arms-length agricultural comps (3 yr, ≥ 20 ac, multi-account transfers collapsed, improvement-dominated sales dropped, read 5 mi beyond the study area). Bands: ALL/eased: n=14, median $9,802/ac; Carroll/eased: n=7, median $9,885/ac; Frederick/eased: n=5, median $9,719/ac; Washington/eased: n=3, median $10,343/ac; ALL/uneased: n=86, median $15,635/ac; Carroll/uneased: n=19, median $16,118/ac; Frederick/uneased: n=37, median $16,010/ac; Howard/uneased: n=4, median $18,374/ac; Montgomery/uneased: n=12, median $15,610/ac; Washington/uneased: n=11, median $8,189/ac. Parcels valued 2,576; median estimate $16,010/ac.
 
-**Stage 10.** Engine: osrm_freeflow_x_peak_factor (https://router.project-osrm.org); routed 2,579; median peak minutes bwi 104 min, langley 137 min, nova 128 min; route redundancy {'redundant': 1147, 'single_egress': 1043, 'no_route': 389}; median corridor durability 89.2.
+**Stage 10.** Engine: osrm_freeflow_x_peak_factor (https://router.project-osrm.org); routed 2,576; median peak minutes bwi 104 min, langley 137 min, nova 128 min; route redundancy {'redundant': 2219, 'no_route': 210, 'single_egress': 147}; median corridor durability 89.2.
 
-**Shortlist.** 40 parcels listed, 1,422 excluded by the hard rules, 2,023 distinct owners in `owner_list.csv`. Top five: 1122435531 (Frederick, 314 ac, reachable 309 ac, score 6.49); 1112290446 (Frederick, 203 ac, reachable 196 ac, score 6.41); 2220005947 (Washington, 250 ac, reachable 215 ac, score 6.14); 2220001178 (Washington, 247 ac, reachable 210 ac, score 6.07); 1122430718 (Frederick, 431 ac, reachable 330 ac, score 5.92).
-
+**Shortlist.** 40 parcels listed, 1,273 excluded by the hard rules (largest_reachable_block_below_acreage_min_even_with_crossings 1,076; mprp_tier_1_intersects_studied_route 135; owner_type_government 62), 2,022 distinct owners in `owner_list.csv`. Top five: 1122435531 (Frederick, 314 ac, reachable 309 ac, score 8.07); 1112290446 (Frederick, 203 ac, reachable 196 ac, score 7.88); 1122430718 (Frederick, 431 ac, reachable 330 ac, score 7.59); 1103126927 (Frederick, 166 ac, reachable 155 ac, score 7.58); 2220005947 (Washington, 250 ac, reachable 215 ac, score 7.53).
 
 
 ## What the second review round changed on the real data (2026-09-03)

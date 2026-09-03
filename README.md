@@ -137,9 +137,10 @@ service tree (same paths) and is what the config uses.
    farmsearch run --config config/pipeline.yaml --stages 1-4
    ```
    Check `outputs/summary.md` — the per-county counts are the Stage 1 sanity
-   check the spec asks for. The 2026-09-02 run over the three counties
-   (27 minutes for Stages 1–4 and 67 for Stages 5–10 with every layer cached;
-   Stage 6 fetches one DEM window per parcel) is recorded in `docs/HANDOFF.md`.
+   check the spec asks for. The 2026-09-03 run over the three counties (about
+   95 minutes with every layer and DEM window cached: 32 for Stages 1–4 and 63
+   for Stages 5–10, of which Stage 6 alone is 54 because it fetches one DEM
+   window per parcel) is recorded in `docs/HANDOFF.md`.
    Each stage leaves a checkpoint under `outputs/`; an interrupted run
    continues with `--stages 4 --resume` (or `2-4`, `3-4`). The default is
    `--stages 1-10`; Stages 5–10 can be run alone from the Stage 4 checkpoint
