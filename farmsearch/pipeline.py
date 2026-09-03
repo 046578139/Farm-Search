@@ -33,6 +33,8 @@ from .stages.stage1_base_filter import Stage1Result, run_stage1
 from .stages.stage2_encumbrance import load_constraint_layers, run_stage2
 from .stages.stage3_usable_area import SlopeProvider, run_stage3
 from .stages.stage4_access import load_row_layers, run_stage4
+from .stages.stage7_encroachment import load_encroachment_layers, load_favorable_layers, run_stage7
+from .stages.stage8_transmission import load_transmission_layers, run_stage8
 
 log = logging.getLogger(__name__)
 
@@ -42,6 +44,13 @@ RECORD_COLUMNS = [
     "gross_acres", "zoning", "county",
     "encumbrances_json", "usable_acres", "largest_contiguous_reachable_acres", "unreachable_islands_json",
     "landlocked_apparent", "frontage_blocked_by_foreign_parcel", "blocking_parcel_account_id",
+    "dischargeable_envelope_acres", "dischargeable_envelope_longest_dim_yards", "dwellings_with_line_of_sight",
+    "candidate_backstop_slopes",
+    "mprp_tier", "adjacent_residential_zoning_acres", "adjacent_planned_sewer", "approved_unbuilt_units_within_2mi",
+    "adjacent_permanently_eased_acres",
+    "est_market_value", "est_per_acre", "comp_basis",
+    "commute_bwi_peak_min", "commute_langley_peak_min", "commute_nova_peak_min", "route_redundancy",
+    "corridor_durability_score",
     "manual_verification_flags",
     # supporting detail
     "stage1_pass", "stage1_pass_reason", "meets_acreage", "is_agricultural", "zoning_ag_pct", "zoning_codes_all",
@@ -110,6 +119,16 @@ def _load_checkpoint(out_dir: Path, n: int) -> dict:
         return pickle.load(f)
 
 
+def _latest_checkpoint_at_or_before(out_dir: Path, n: int) -> int:
+    """Stages 5-10 each depend on Stages 1-4 but not on one another, so a
+    resume for Stage 8 may start from the state after Stage 4, 5, 6 or 7,
+    whichever was written last."""
+    for k in range(n, 0, -1):
+        if _checkpoint_path(out_dir, k).exists():
+            return k
+    raise FileNotFoundError(f"cannot resume: no checkpoint at or before Stage {n} in {out_dir}")
+
+
 def run_pipeline(cfg: Config, stages: Iterable[int] = (1, 2, 3, 4), out_dir: Optional[Path] = None,
                  parcels_raw: Optional[gpd.GeoDataFrame] = None, write: bool = True, resume: bool = False) -> dict:
     """Run the requested stages. Stage 1 always runs unless `resume` is set
@@ -133,15 +152,17 @@ def run_pipeline(cfg: Config, stages: Iterable[int] = (1, 2, 3, 4), out_dir: Opt
     resume_from = min(stages) - 1 if (resume and min(stages) > 1) else 0
 
     if resume_from:
-        # ---- Resume: the state after Stage `resume_from` ----------------
+        # ---- Resume: the state after Stage `resume_from` (or the latest earlier one) ----
+        if resume_from >= 4:
+            resume_from = _latest_checkpoint_at_or_before(out_dir, resume_from)
         ck1 = _load_checkpoint(out_dir, 1)
         ck = ck1 if resume_from == 1 else _load_checkpoint(out_dir, resume_from)
         parcels = ck1["parcels"]
         scored = ck["scored"]
         s2, s3 = ck.get("s2"), ck.get("s3")
-        for k in ("stage1", "stage2", "stage3", "missing_layers"):
-            if k in ck["summary"]:
-                summary[k] = ck["summary"][k]
+        for k, v in ck["summary"].items():
+            if k.startswith("stage") or k == "missing_layers":
+                summary[k] = v
         summary["resumed_from_stage"] = resume_from
         s1 = Stage1Result(parcels=parcels, summary=summary["stage1"])
         log.info("resumed from the Stage %d checkpoint: %d parcels, %d scored", resume_from, len(parcels), len(scored))
@@ -233,7 +254,61 @@ def run_pipeline(cfg: Config, stages: Iterable[int] = (1, 2, 3, 4), out_dir: Opt
                 _writable(s4.entry_points).to_file(out_dir / "entry_points.gpkg", driver="GPKG")
             s4.strips.to_csv(out_dir / "reserve_strips.csv", index=False)
             s4.islands.to_csv(out_dir / "islands.csv", index=False)
+            _save_checkpoint(out_dir, 4, {"scored": scored, "s2": s2, "s3": s3,
+                                          "summary": {k: v for k, v in summary.items() if k.startswith("stage") or k == "missing_layers"}})
         result["stage4"] = s4
+
+    def _later_checkpoint(n: int) -> None:
+        if write:
+            _save_checkpoint(out_dir, n, {"scored": scored, "s2": s2, "s3": s3,
+                                          "summary": {k: v for k, v in summary.items() if k.startswith("stage") or k == "missing_layers"}})
+
+    # ---- Stage 7: future encroachment ---------------------------------
+    if 7 in stages:
+        from .stages.stage1_base_filter import load_zoning_layers
+        zl = load_zoning_layers(cfg, context)
+        fav = load_favorable_layers(cfg, context)
+        layers7, missing = load_encroachment_layers(cfg, context, favorable_layers=fav)
+        summary["missing_layers"] += missing
+        s7 = run_stage7(cfg, scored, parcels, zl, layers7, missing)
+        scored = s7.parcels
+        summary["stage7"] = {
+            "layers_missing": missing,
+            "adjacent_residential_zoning": int((scored["adjacent_residential_zoning_acres"].fillna(0) > 0).sum()),
+            "adjacent_planned_sewer": int((scored["adjacent_planned_sewer"] == True).sum()),  # noqa: E712
+            "subject_in_pfa": int((scored["subject_in_pfa"] == True).sum()),  # noqa: E712
+            "adjacent_permanently_eased": int((scored["adjacent_permanently_eased_acres"].fillna(0) > 0).sum()),
+            "median_units_within_radius": (float(scored["approved_unbuilt_units_within_2mi"].median())
+                                           if scored["approved_unbuilt_units_within_2mi"].notna().any() else None),
+            "pipeline_radius_ft": cfg.encroachment.pipeline_radius_ft,
+        }
+        result["stage7"] = s7
+        _later_checkpoint(7)
+
+    # ---- Stage 8: transmission and industrial exposure ----------------
+    if 8 in stages:
+        layers8, missing = load_transmission_layers(cfg, context)
+        summary["missing_layers"] += missing
+        los = None
+        try:
+            from .terrain import line_of_sight_factory
+            los = line_of_sight_factory(cfg)
+        except Exception as ex:  # noqa: BLE001 - LOS is optional
+            log.warning("line of sight unavailable: %s", ex)
+        s8 = run_stage8(cfg, scored, layers8, missing, line_of_sight=los)
+        scored = s8.parcels
+        tiers = scored["mprp_tier"].value_counts(dropna=False).to_dict()
+        summary["stage8"] = {
+            "layers_missing": missing,
+            "routes_loaded": [f"{n} ({v})" for n, v, _ in layers8.routes],
+            "mprp_tier_counts": {str(k): int(v) for k, v in tiers.items()},
+            "near_existing_hv": int(scored["transmission_flags"].map(lambda f: "near_existing_hv_transmission_corridor" in (f or [])).sum()),
+            "near_substation": int(scored["transmission_flags"].map(lambda f: "near_substation" in (f or [])).sum()),
+            "near_data_center": int(scored["transmission_flags"].map(lambda f: "near_data_center_development" in (f or [])).sum()),
+            "status_note": cfg.transmission.status_note,
+        }
+        result["stage8"] = s8
+        _later_checkpoint(8)
 
     # ---- Final record --------------------------------------------------
     scored = assemble_record(scored)
@@ -253,7 +328,8 @@ def run_pipeline(cfg: Config, stages: Iterable[int] = (1, 2, 3, 4), out_dir: Opt
 
 def assemble_record(scored: gpd.GeoDataFrame) -> gpd.GeoDataFrame:
     scored = scored.copy()
-    flag_cols = [c for c in ("manual_flags", "encumbrance_flags", "access_flags") if c in scored.columns]
+    flag_cols = [c for c in ("manual_flags", "encumbrance_flags", "access_flags", "encroachment_flags",
+                             "transmission_flags", "envelope_flags", "valuation_flags", "commute_flags") if c in scored.columns]
     merged = []
     for _, r in scored.iterrows():
         out: list[str] = []
@@ -314,6 +390,23 @@ def render_summary(s: dict) -> str:
               f"landlocked_apparent {s4['landlocked_apparent']} · frontage blocked by foreign parcel {s4['frontage_blocked_by_foreign_parcel']} · "
               f"reserve strips {s4['reserve_strip_detected']} · parcels with islands {s4['parcels_with_unreachable_islands']}",
               f"largest reachable block ≥ acreage_min: {s4['largest_reachable_ge_acreage_min']} · below: {s4['largest_reachable_below_acreage_min']}"]
+    if "stage7" in s:
+        s7 = s["stage7"]
+        L += ["", "## Stage 7 — future encroachment", "",
+              f"adjacent residential zoning {s7['adjacent_residential_zoning']} · adjacent planned sewer {s7['adjacent_planned_sewer']} · "
+              f"inside PFA {s7['subject_in_pfa']} · adjacent permanently eased {s7['adjacent_permanently_eased']} · "
+              f"median approved-unbuilt units within {s7['pipeline_radius_ft']:.0f} ft: {s7['median_units_within_radius']}"]
+        if s7.get("layers_missing"):
+            L.append(f"layers missing: {', '.join(s7['layers_missing'])}")
+    if "stage8" in s:
+        s8 = s["stage8"]
+        L += ["", "## Stage 8 — transmission and industrial exposure", "",
+              f"routes: {', '.join(s8['routes_loaded']) or 'none'} · MPRP tiers {s8['mprp_tier_counts']} · "
+              f"near existing HV {s8['near_existing_hv']} · near substation {s8['near_substation']} · near data center {s8['near_data_center']}"]
+        if s8.get("status_note"):
+            L.append(f"MPRP status (re-verify at run time): {s8['status_note']}")
+        if s8.get("layers_missing"):
+            L.append(f"layers missing: {', '.join(s8['layers_missing'])}")
     L += ["", "## What this pipeline cannot determine", ""]
     L += [f"- {x}" for x in s["cannot_determine"]]
     return "\n".join(L) + "\n"

@@ -80,6 +80,8 @@ def coerce_geometry_kind(gdf: gpd.GeoDataFrame, kind: Optional[str] = None) -> g
     if gdf.empty:
         return gdf
     types = gdf.geometry.geom_type
+    if kind == "any":
+        return gdf                      # points, lines and polygons alike (route lines, substation points)
     if kind is None:
         n_areal = int(types.isin(_AREAL).sum())
         n_lineal = int(types.isin(_LINEAL).sum())

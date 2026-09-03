@@ -125,8 +125,15 @@ class ZoningSpec:
                 else:
                     raise ConfigError(f"zoning {self.county}: code {code!r} has is_agricultural={val!r}; "
                                       f"use true, false, unknown or null")
+            res = v.get("is_residential") if isinstance(v, dict) else None
+            if isinstance(res, str):
+                res = res.strip().lower() in ("true", "yes")
             self.codes[str(code)] = {"description": (v.get("description") if isinstance(v, dict) else None),
-                                     "is_agricultural": val}
+                                     "is_agricultural": val,
+                                     # Stage 7: residential zoning on adjoining land is the threat.
+                                     # Explicit in the YAML when given; else inferred from the code /
+                                     # description (R-prefixed codes, "residential" in the text).
+                                     "is_residential": (bool(res) if res is not None else None)}
 
 
 @dataclass
@@ -243,6 +250,50 @@ class AccessConfig:
 
 
 @dataclass
+class UnitsLayer:
+    """A residential-pipeline layer: features carrying approved-but-unbuilt units."""
+    source: LayerSource
+    units_field: str
+    status_field: Optional[str] = None
+
+
+@dataclass
+class EncroachmentConfig:
+    """Stage 7 inputs. Every layer is optional: a missing one degrades that
+    column to null and is listed under missing_layers."""
+    sewer_layers: list[LayerSource] = field(default_factory=list)      # each with `where` selecting PLANNED (or existing) service
+    sewer_existing_layers: list[LayerSource] = field(default_factory=list)
+    pfa_layers: list[LayerSource] = field(default_factory=list)
+    growth_area_layers: list[LayerSource] = field(default_factory=list)
+    pipeline_layers: list[UnitsLayer] = field(default_factory=list)
+    pipeline_radius_ft: float = 10560                                   # 2 miles
+    adjacency_tolerance_ft: float = 3
+
+
+@dataclass
+class RouteLayer:
+    source: LayerSource
+    variant: str = "studied"        # preferred | alternative | studied (any)
+
+
+@dataclass
+class TransmissionConfig:
+    """Stage 8 inputs."""
+    mprp_routes: list[RouteLayer] = field(default_factory=list)
+    mprp_corridor_width_ft: float = 150
+    mprp_exclusion_buffer_ft: float = 2000
+    mprp_general_corridor_ft: float = 5280
+    hv_line_layers: list[LayerSource] = field(default_factory=list)
+    hv_line_buffer_ft: float = 1000
+    substation_layers: list[LayerSource] = field(default_factory=list)
+    substation_buffer_ft: float = 2640
+    data_center_layers: list[LayerSource] = field(default_factory=list)
+    data_center_buffer_ft: float = 15840
+    points_of_concern: list[dict] = field(default_factory=list)         # [{name, lon, lat, buffer_ft}] e.g. Doubs substation
+    status_note: Optional[str] = None                                   # PSC case status, re-verified at run time by hand
+
+
+@dataclass
 class RunConfig:
     process_all: bool = False
     output_dir: Path = Path("outputs")
@@ -269,6 +320,8 @@ class Config:
     slope: SlopeConfig
     access: AccessConfig
     run: RunConfig
+    encroachment: EncroachmentConfig = field(default_factory=EncroachmentConfig)
+    transmission: TransmissionConfig = field(default_factory=TransmissionConfig)
     study_area_build: Optional[StudyAreaBuild] = None
     raw: dict = field(default_factory=dict)   # untouched YAML for later stages
 
@@ -374,6 +427,35 @@ class Config:
                 row_parcel_overlap=float(a.get("row_parcel_overlap", 0.5)),
                 sliver_acres=float(a.get("sliver_acres", 0.25)),
             )
+            def _layers(lst):
+                return [LayerSource.from_dict(base, d) for d in (lst or [])]
+            e = raw.get("encroachment", {}) or {}
+            encroachment = EncroachmentConfig(
+                sewer_layers=_layers(e.get("sewer_layers")),
+                sewer_existing_layers=_layers(e.get("sewer_existing_layers")),
+                pfa_layers=_layers(e.get("pfa_layers")),
+                growth_area_layers=_layers(e.get("growth_area_layers")),
+                pipeline_layers=[UnitsLayer(source=LayerSource.from_dict(base, d), units_field=str(d["units_field"]),
+                                            status_field=d.get("status_field")) for d in (e.get("pipeline_layers") or [])],
+                pipeline_radius_ft=float(e.get("pipeline_radius_ft", 10560)),
+                adjacency_tolerance_ft=float(e.get("adjacency_tolerance_ft", 3)),
+            )
+            t = raw.get("transmission", {}) or {}
+            transmission = TransmissionConfig(
+                mprp_routes=[RouteLayer(source=LayerSource.from_dict(base, d), variant=str(d.get("variant", "studied")))
+                             for d in (t.get("mprp_routes") or [])],
+                mprp_corridor_width_ft=float(t.get("mprp_corridor_width_ft", 150)),
+                mprp_exclusion_buffer_ft=float(t.get("mprp_exclusion_buffer_ft", raw.get("mprp_exclusion_buffer_ft", 2000))),
+                mprp_general_corridor_ft=float(t.get("mprp_general_corridor_ft", 5280)),
+                hv_line_layers=_layers(t.get("hv_line_layers")),
+                hv_line_buffer_ft=float(t.get("hv_line_buffer_ft", 1000)),
+                substation_layers=_layers(t.get("substation_layers")),
+                substation_buffer_ft=float(t.get("substation_buffer_ft", 2640)),
+                data_center_layers=_layers(t.get("data_center_layers")),
+                data_center_buffer_ft=float(t.get("data_center_buffer_ft", 15840)),
+                points_of_concern=[dict(x) for x in (t.get("points_of_concern") or [])],
+                status_note=t.get("status_note"),
+            )
             rc = raw.get("run", {}) or {}
             run = RunConfig(process_all=bool(rc.get("process_all", False)),
                             output_dir=_opt_path(base, rc.get("output_dir", "../outputs")))
@@ -397,6 +479,8 @@ class Config:
                 slope=slope,
                 access=access,
                 run=run,
+                encroachment=encroachment,
+                transmission=transmission,
                 study_area_build=sab,
                 raw=raw,
             )

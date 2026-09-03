@@ -1,6 +1,6 @@
 """Command-line interface.
 
-  farmsearch run             --config config/pipeline.yaml [--stages 1-4] [--out outputs] [--resume]
+  farmsearch run             --config config/pipeline.yaml [--stages 1-10] [--out outputs] [--resume]
   farmsearch verify-schema   --config config/pipeline.yaml
   farmsearch zoning-domains  --config config/pipeline.yaml --county Frederick [--code-field ZONING] [--write]
   farmsearch fetch           --config config/pipeline.yaml [--only name ...]
@@ -27,9 +27,9 @@ def _stages(spec: str) -> list[int]:
             out.update(range(int(a), int(b) + 1))
         elif part:
             out.add(int(part))
-    bad = sorted(x for x in out if x < 1 or x > 4)
+    bad = sorted(x for x in out if x < 1 or x > 10)
     if bad:
-        raise SystemExit(f"only Stages 1-4 are implemented (requested {bad})")
+        raise SystemExit(f"Stages are numbered 1-10 (requested {bad})")
     return sorted(out)
 
 
@@ -193,7 +193,7 @@ def main(argv=None) -> int:
 
     r = sub.add_parser("run", help="run the pipeline")
     r.add_argument("--config", default="config/pipeline.yaml")
-    r.add_argument("--stages", default="1-4", help="e.g. 1, 1-2, 1-4")
+    r.add_argument("--stages", default="1-10", help="e.g. 1, 1-4, 7-8, 1-10")
     r.add_argument("--out", default=None, help="output directory (default run.output_dir)")
     r.add_argument("--resume", action="store_true",
                    help="continue from the checkpoint written after the stage before the first requested one, "

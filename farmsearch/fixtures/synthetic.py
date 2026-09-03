@@ -139,6 +139,39 @@ def build_fixture(out: Path) -> Path:
     gpd.GeoDataFrame({"ROUTE": ["MD 999"]}, geometry=[B(-20, -50, 0, 1400)], crs=CRS) \
         .to_file(raw / "access" / "sha_row_polygons.gpkg", driver="GPKG")
 
+    # ---- Stage 7-8 layers ----------------------------------------------------
+    # Planned sewer (S-3) over the east end (G, O, F), existing sewer nowhere;
+    # PFA over G and the 40% residential part of L; growth area = same as PFA;
+    # pipeline: 120 approved units next to G, 40 units 1 km north of I (beyond
+    # 2 mi of nothing in this small county, so within radius of all).
+    (raw / "planning").mkdir(exist_ok=True)
+    gpd.GeoDataFrame({"CATEGORY": ["S-3", "S-1", "S-6"]},
+                     geometry=[B(3150, -50, 4200, 700), B(4200, -50, 4700, 700), B(-300, 1400, 4700, 1700)], crs=CRS) \
+        .to_file(raw / "planning" / "sewer_service.gpkg", driver="GPKG")
+    gpd.GeoDataFrame({"PFA": ["Y"]}, geometry=[unary_union([B(3400, 18, 4040, 658), B(2304, 658, 2560, 1298)])], crs=CRS) \
+        .to_file(raw / "planning" / "pfa.gpkg", driver="GPKG")
+    gpd.GeoDataFrame({"NAME": ["Growth Area East"]}, geometry=[B(3400, 18, 4040, 658)], crs=CRS) \
+        .to_file(raw / "planning" / "growth_areas.gpkg", driver="GPKG")
+    from shapely.geometry import Point
+    gpd.GeoDataFrame({"PROJECT": ["Golf Estates", "North Farms"], "UNITS_REMAINING": [120, 40], "STATUS": ["Approved", "Approved"]},
+                     geometry=[Point(OX + 4100, OY + 300), Point(OX + 320, OY + 2300)], crs=CRS) \
+        .to_file(raw / "planning" / "pipeline.gpkg", driver="GPKG")
+    # MPRP: preferred route crosses parcel I (north-west) diagonally; an
+    # alternative runs 400 m north of the north road. Existing HV line along
+    # x = 4500 (east of everything); substation 1 km east of O; a data-center
+    # polygon 2 km east of G.
+    (raw / "transmission").mkdir(exist_ok=True)
+    gpd.GeoDataFrame({"ROUTE": ["Preferred"]}, geometry=[LineString([(OX - 200, OY + 900), (OX + 640, OY + 1500)])], crs=CRS) \
+        .to_file(raw / "transmission" / "mprp_preferred.gpkg", driver="GPKG")
+    gpd.GeoDataFrame({"ROUTE": ["Alt B"]}, geometry=[LineString([(OX - 200, OY + 1700), (OX + 4700, OY + 1700)])], crs=CRS) \
+        .to_file(raw / "transmission" / "mprp_alternative.gpkg", driver="GPKG")
+    gpd.GeoDataFrame({"VOLTAGE": [230]}, geometry=[LineString([(OX + 4100, OY - 500), (OX + 4100, OY + 2000)])], crs=CRS) \
+        .to_file(raw / "transmission" / "hv_lines.gpkg", driver="GPKG")
+    gpd.GeoDataFrame({"NAME": ["Fixture Sub"]}, geometry=[Point(OX + 4300, OY + 978)], crs=CRS) \
+        .to_file(raw / "transmission" / "substations.gpkg", driver="GPKG")
+    gpd.GeoDataFrame({"NAME": ["Quantum Fixture"]}, geometry=[B(6000, 800, 6400, 1200)], crs=CRS) \
+        .to_file(raw / "transmission" / "data_centers.gpkg", driver="GPKG")
+
     # ---- Study area (EPSG:4326, like a user-drawn polygon) ------------------
     sa = gpd.GeoDataFrame({"name": ["fixture study area"]}, geometry=[B(-100, -100, 4500, 1500)], crs=CRS).to_crs("EPSG:4326")
     sa.to_file(out / "study_area.geojson", driver="GeoJSON")
@@ -200,6 +233,27 @@ def build_fixture(out: Path) -> Path:
             "contact_tolerance_ft": 3, "open_gap_ft": 25, "min_contact_ft": 20, "frontage_search_ft": 250,
             "frontage_sample_ft": 15, "frontage_blocked_threshold": 0.95, "strip_max_width_ft": 100,
             "strip_min_aspect": 6, "sliver_acres": 0.25,
+        },
+        "encroachment": {
+            "sewer_layers": [{"name": "sewer_planned", "path": "raw/planning/sewer_service.gpkg", "where": "CATEGORY in ['S-3', 'S-4', 'S-5']"}],
+            "sewer_existing_layers": [{"name": "sewer_existing", "path": "raw/planning/sewer_service.gpkg", "where": "CATEGORY == 'S-1'"}],
+            "pfa_layers": [{"name": "pfa", "path": "raw/planning/pfa.gpkg"}],
+            "growth_area_layers": [{"name": "growth_areas", "path": "raw/planning/growth_areas.gpkg"}],
+            "pipeline_layers": [{"name": "pipeline", "path": "raw/planning/pipeline.gpkg", "units_field": "UNITS_REMAINING"}],
+            "pipeline_radius_ft": 10560,
+        },
+        "transmission": {
+            "mprp_routes": [{"name": "mprp_preferred", "path": "raw/transmission/mprp_preferred.gpkg", "variant": "preferred"},
+                            {"name": "mprp_alternative", "path": "raw/transmission/mprp_alternative.gpkg", "variant": "alternative"}],
+            "mprp_corridor_width_ft": 150, "mprp_exclusion_buffer_ft": 2000, "mprp_general_corridor_ft": 5280,
+            "hv_line_layers": [{"name": "hv_lines", "path": "raw/transmission/hv_lines.gpkg"}],
+            "hv_line_buffer_ft": 1000,
+            "substation_layers": [{"name": "substations", "path": "raw/transmission/substations.gpkg"}],
+            "substation_buffer_ft": 2640,
+            "data_center_layers": [{"name": "data_centers", "path": "raw/transmission/data_centers.gpkg"}],
+            "data_center_buffer_ft": 15840,
+            "points_of_concern": [{"name": "Fixture Doubs", "lon": -77.45, "lat": 39.25, "buffer_ft": 100}],
+            "status_note": "fixture",
         },
         "run": {"process_all": False, "output_dir": "outputs"},
     }
