@@ -25,6 +25,7 @@ from pathlib import Path
 from typing import Iterable, Optional
 
 import geopandas as gpd
+import numpy as np
 import pandas as pd
 from shapely.ops import unary_union
 
@@ -128,6 +129,11 @@ def _load_checkpoint(out_dir: Path, n: int) -> dict:
         return pickle.load(f)
 
 
+# Stage 5 writes these, and Stage 6 reads them back when resumed on its own:
+# they describe the same state a checkpoint does and are retired with them.
+LATER_STAGE_OUTPUTS = ("envelope.gpkg", "occupied_structures.gpkg")
+
+
 def _drop_checkpoints_after(out_dir: Path, n: int) -> None:
     """Stage n has just been rewritten, so every later checkpoint describes a
     state that no longer exists: remove them rather than let a later --resume
@@ -137,6 +143,12 @@ def _drop_checkpoints_after(out_dir: Path, n: int) -> None:
         if p.exists():
             p.unlink()
             log.info("removed stale %s (Stage %d was re-run)", p.name, n)
+    if n < 5:
+        for name in LATER_STAGE_OUTPUTS:
+            p = out_dir / name
+            if p.exists():
+                p.unlink()
+                log.info("removed stale %s (Stage %d was re-run)", name, n)
 
 
 def _latest_checkpoint_at_or_before(out_dir: Path, n: int) -> int:
@@ -165,9 +177,17 @@ def _grow_context(context, parcels: gpd.GeoDataFrame, cfg: Config):
     g = parcels.loc[sel.fillna(False).astype(bool)]
     if not len(g):
         return context
-    grown = unary_union([context, g.geometry.union_all().buffer(ft_to_m(cfg.access.frontage_search_ft))])
-    log.info("layer context: study band %.0f km2 -> %.0f km2 including the %d parcels to be scored",
-             context.area / 1e6, grown.area / 1e6, int(len(g)))
+    # Only the parcels that actually reach outside the band matter: unioning all
+    # 2,576 outlines would node thousands of vertices into the clip geometry for
+    # no new area, and every later layer read pays for them.
+    inside = np.zeros(len(g), dtype=bool)
+    inside[g.sindex.query(context, predicate="contains")] = True
+    out = g[~inside]
+    if not len(out):
+        return context
+    grown = unary_union([context, out.geometry.union_all().buffer(ft_to_m(cfg.access.frontage_search_ft))])
+    log.info("layer context: study band %.0f km2 -> %.0f km2 covering the %d of %d scored parcels that reach past it",
+             context.area / 1e6, grown.area / 1e6, int(len(out)), int(len(g)))
     return grown
 
 
@@ -300,14 +320,19 @@ def run_pipeline(cfg: Config, stages: Iterable[int] = (1, 2, 3, 4), out_dir: Opt
         # positionally on the merge result, never by re-indexing on account_id.
         gname = parcels.geometry.name
         overlap = [c for c in scored.columns if c in parcels.columns and c not in ("account_id", gname)]
-        merged = parcels.merge(scored.drop(columns=[gname]), on="account_id", how="left", suffixes=("", "_scored"))
+        new_cols = [c for c in scored.columns if c not in parcels.columns]
+        merged = parcels.merge(scored[["account_id"] + new_cols], on="account_id", how="left")
         merged = gpd.GeoDataFrame(merged, geometry=gname, crs=parcels.crs)
-        mask = merged["account_id"].isin(scored["account_id"])
+        mask = merged["account_id"].isin(scored["account_id"]).to_numpy(dtype=bool)
+        # Overwrite in place rather than through a suffixed merge: a left join
+        # NaN-pads the 130k unscored rows, which would turn every int column of
+        # the record into float and every bool into object.
+        sc = scored.set_index("account_id")
+        scored_rows = merged.index[mask]          # NB `rows` is the ROW layer frame
         for c in overlap:
-            merged[c] = merged[f"{c}_scored"].where(mask, merged[c])
-        merged = merged.drop(columns=[f"{c}_scored" for c in overlap])
-        s4 = run_stage4(cfg, merged, mask, s3.geoms, rows, missing)
-        scored = s4.parcels[mask.values].reset_index(drop=True)
+            merged.loc[scored_rows, c] = sc[c].reindex(merged.loc[scored_rows, "account_id"]).values
+        s4 = run_stage4(cfg, merged, pd.Series(mask, index=merged.index), s3.geoms, rows, missing)
+        scored = s4.parcels[mask].reset_index(drop=True)
         summary["stage4"] = {
             "row_layers_missing": missing, "row_features": int(len(rows)),
             "landlocked_apparent": int(scored["landlocked_apparent"].sum()),

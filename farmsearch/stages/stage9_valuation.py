@@ -150,17 +150,27 @@ def build_comps(cfg: Config, clip: BaseGeometry, parcels_all: gpd.GeoDataFrame,
     geom_by = dict(zip(parcels_all["account_id"].astype(str).values, parcels_all.geometry.values))
     county_by = dict(zip(parcels_all["account_id"].astype(str).values, parcels_all["county"].values)) if "county" in parcels_all.columns else {}
     eased = []
+    basis = []
     counties = []
     for acct, accts, pt in zip(C["account_id"].values, C["accounts"].values, C.geometry.values):
         polys = [geom_by[a] for a in str(accts).split(";") if a in geom_by]
         pg = unary_union(polys) if polys else None
         cty = county_by.get(acct)
-        if pg is None or favorable is None or favorable.is_empty:
-            eased.append(False if pg is not None or favorable is None else bool(favorable.intersects(pt)))
-        else:
+        if favorable is None or favorable.is_empty:
+            eased.append(False)
+            basis.append("no_easement_layer")
+        elif pg is not None:
+            # the sold parcel is in our fabric: the share of it under easement decides
             eased.append(bool(pg.intersection(favorable).area >= q.eased_share_threshold * pg.area))
+            basis.append("parcel_area")
+        else:
+            # a comp from the margin beyond the parcel fabric: only the sale point is
+            # available, so "eased" here means the point falls inside an easement
+            eased.append(bool(favorable.intersects(pt)))
+            basis.append("sale_point")
         counties.append(cty)
     C["eased"] = eased
+    C["eased_basis"] = basis
     # A sale point outside our fabric (a comp in the 5-mile margin) takes its county
     # from JURSCODE, mapped through `counties:` so it lands in the same band. The
     # list is consulted directly: assigning it to the frame first would turn every
@@ -183,9 +193,12 @@ def build_comps(cfg: Config, clip: BaseGeometry, parcels_all: gpd.GeoDataFrame,
         for cty, sub2 in sub.groupby("county"):
             if cty is not None:
                 bands[(str(cty), seg)] = band(sub2)
-    log.info("Stage 9 comps: %d arms-length agricultural sales since %s; bands %s", len(C), (ref - timedelta(days=q.max_age_years * 365.25)).isoformat(),
+    log.info("Stage 9 comps: %d arms-length agricultural sales since %s (%s); bands %s", len(C),
+             (ref - timedelta(days=q.max_age_years * 365.25)).isoformat(),
+             ", ".join(f"{k}: {v}" for k, v in pd.Series(basis).value_counts().items()),
              {f"{k[0]}/{k[1]}": (v["n"], round(v["median"]) if v["median"] else None) for k, v in bands.items()})
-    cols = ["account_id", "accounts", "county", "sale_date", "price", "acres", "land_price", "land_price_per_acre", "eased", "improved"]
+    cols = ["account_id", "accounts", "county", "sale_date", "price", "acres", "land_price", "land_price_per_acre",
+            "eased", "eased_basis", "improved"]
     return CompSet(comps=pd.DataFrame(C[cols]), bands=bands, missing_layers=missing)
 
 
