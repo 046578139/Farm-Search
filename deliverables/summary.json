@@ -1,0 +1,276 @@
+{
+  "config": {
+    "acreage_min": 40.0,
+    "acreage_max": null,
+    "slope_max_pct": 15.0,
+    "study_area": "/home/user/Farm-Search/config/study_area.geojson",
+    "study_area_selection": "intersects",
+    "working_crs": "EPSG:26985"
+  },
+  "stages_run": [
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+    7,
+    8,
+    9,
+    10
+  ],
+  "missing_layers": [],
+  "cannot_determine": [
+    "Deeded access easements over neighboring land are recorded in land records, not mapped: a landlocked_apparent parcel may have good deeded access. Flag, never auto-delete.",
+    "Entrance permit feasibility: a perc approval says nothing about whether a driveway can be permitted. Call county public works (or SHA on state-numbered roads).",
+    "Stream crossing permits: crossing a stream generally requires an MDE nontidal wetlands and waterways permit regardless of easement status; agricultural crossings are routinely permitted.",
+    "County discharge ordinances and range zoning: verify with Carroll, Frederick and Washington County zoning offices.",
+    "Individual easement terms: MET and donated easements vary widely. Read them.",
+    "CREP riparian buffers are inferred from stream geometry; FSA enrollment data is not available parcel-by-parcel. Confirm with seller."
+  ],
+  "stage1": {
+    "parcels_loaded": 133090,
+    "parcels_in_study_area": 129019,
+    "acreage_min": 40.0,
+    "acreage_max": null,
+    "meets_acreage": 2732,
+    "stage1_pass": 2576,
+    "acreage_disagreements": 18769,
+    "unique_owner_keys_passing": 2022,
+    "per_county": {
+      "Carroll": {
+        "in_study_area": 11153,
+        "meets_acreage": 223,
+        "meets_acreage_and_ag_zoned": 205,
+        "meets_acreage_zoning_unknown": 2,
+        "stage1_pass": 207,
+        "median_acres_passing": 77.96,
+        "acres_passing_total": 20271.29,
+        "owner_types_passing": {
+          "unknown": 178,
+          "government": 28,
+          "religious_nonprofit": 1
+        }
+      },
+      "Frederick": {
+        "in_study_area": 105797,
+        "meets_acreage": 2059,
+        "meets_acreage_and_ag_zoned": 1883,
+        "meets_acreage_zoning_unknown": 39,
+        "stage1_pass": 1922,
+        "median_acres_passing": 88.58,
+        "acres_passing_total": 205389.18,
+        "owner_types_passing": {
+          "unknown": 1789,
+          "government": 100,
+          "religious_nonprofit": 33
+        }
+      },
+      "Washington": {
+        "in_study_area": 12069,
+        "meets_acreage": 450,
+        "meets_acreage_and_ag_zoned": 439,
+        "meets_acreage_zoning_unknown": 8,
+        "stage1_pass": 447,
+        "median_acres_passing": 94.15,
+        "acres_passing_total": 48746.23,
+        "owner_types_passing": {
+          "unknown": 388,
+          "government": 53,
+          "religious_nonprofit": 6
+        }
+      }
+    },
+    "non_parcel_polygons_excluded": 3,
+    "unlinked_polygons_excluded": 28,
+    "blocker_polygons_retained": 550,
+    "context_parcels_retained": 3521,
+    "owner_name_available_pct": 0.0,
+    "owner_key_unavailable": 222
+  },
+  "stage2": {
+    "constraint_layers_loaded": [
+      "county_ag_preservation",
+      "county_ag_preservation_frederick_county_held",
+      "county_ag_preservation_frederick_critical_farms",
+      "county_ag_preservation_frederick_ipp",
+      "crep_enrolled",
+      "floodplain",
+      "forest_banking_frederick",
+      "forest_conservation",
+      "forest_conservation_carroll",
+      "forest_conservation_frederick",
+      "forest_conservation_washington",
+      "local_protected_lands",
+      "malpf",
+      "malpf_frederick",
+      "met",
+      "met_frederick",
+      "other_easements_frederick",
+      "protected_lands_dnr",
+      "protected_lands_federal",
+      "riparian_presumed",
+      "riparian_presumed_shore",
+      "rural_legacy",
+      "rural_legacy_frederick",
+      "wetlands"
+    ],
+    "constraint_layers_missing": [],
+    "encumbrance_rows": 8787,
+    "parcels_with_hostile_easement": 559,
+    "parcels_with_favorable_easement": 1078,
+    "parcels_bisected_by_hostile_constraint": 1554
+  },
+  "stage3": {
+    "slope_source": "imageserver",
+    "slope_windows_failed": 0,
+    "parcels_not_slope_evaluated": 0,
+    "usable_acres_total": 187790.63,
+    "gross_acres_total": 274406.69999999995,
+    "parcels_usable_below_acreage_min": 776
+  },
+  "stage4": {
+    "row_layers_missing": [],
+    "row_features": 39985,
+    "landlocked_apparent": 144,
+    "frontage_blocked_by_foreign_parcel": 36,
+    "reserve_strip_detected": 127,
+    "parcels_with_unreachable_islands": 1727,
+    "largest_reachable_below_acreage_min": 1283,
+    "largest_reachable_ge_acreage_min": 1293
+  },
+  "stage5": {
+    "layers_missing": [],
+    "footprints_available": true,
+    "occupied_structures": 141392,
+    "school_features": 237,
+    "envelope_acres_total": 148969.7,
+    "parcels_envelope_below_min": 184,
+    "parcels_envelope_too_short": 130,
+    "safety_buffer_yards": 150.0,
+    "school_buffer_yards": 300.0
+  },
+  "stage6": {
+    "terrain_mode": "imageserver",
+    "windows_failed": 0,
+    "parcels_with_visible_dwellings": 2544,
+    "parcels_all_dwellings_shielded": 15,
+    "parcels_with_backstop_candidate": 439
+  },
+  "stage7": {
+    "layers_missing": [],
+    "adjacent_residential_zoning": 599,
+    "adjacent_planned_sewer": 275,
+    "subject_in_pfa": 81,
+    "adjacent_permanently_eased": 1529,
+    "median_units_within_radius": 0.0,
+    "parcels_without_pipeline_coverage": 470,
+    "pipeline_radius_ft": 10560.0
+  },
+  "stage8": {
+    "layers_missing": [],
+    "routes_loaded": [
+      "mprp_pseg_centerline (preferred)",
+      "mprp_pseg_row150 (preferred)",
+      "mprp_alternatives_550ft_corridor (alternative)",
+      "mprp_frederick_county_copy (preferred)"
+    ],
+    "mprp_tier_counts": {
+      "0": 1677,
+      "3": 527,
+      "2": 237,
+      "1": 135
+    },
+    "near_existing_hv": 588,
+    "near_substation": 138,
+    "near_data_center": 177,
+    "status_note": "PSC Case No. 9773: PSEG filed the CPCN application 2024-12-31; hearings were scheduled for 2026-09-21 to 09-28 with a decision targeted March 2027; as of April 2026 the schedule was in flux (PPRP: incomplete field surveys). Re-verify at run time; alternates return if the preferred route is rejected."
+  },
+  "resumed_from_stage": 8,
+  "stage9": {
+    "layers_missing": [],
+    "comps": 102,
+    "bands": {
+      "ALL/eased": {
+        "n": 15,
+        "median": 9718.825008572408,
+        "p25": 8614.954555821194,
+        "p75": 10806.385482588747
+      },
+      "Carroll/eased": {
+        "n": 8,
+        "median": 9589.785029256127,
+        "p25": 8720.355579628613,
+        "p75": 15019.386827786606
+      },
+      "Frederick/eased": {
+        "n": 5,
+        "median": 9718.825008572408,
+        "p25": 8724.290721513127,
+        "p75": 10168.02734004177
+      },
+      "Washington/eased": {
+        "n": 3,
+        "median": 10342.789598108748,
+        "p25": 7678.062097992159,
+        "p75": 11150.447622369493
+      },
+      "ALL/uneased": {
+        "n": 68,
+        "median": 15329.946674584891,
+        "p25": 9655.014293338487,
+        "p75": 23785.913257269396
+      },
+      "Carroll/uneased": {
+        "n": 18,
+        "median": 16371.123640964233,
+        "p25": 13274.618715750557,
+        "p75": 19768.90663277312
+      },
+      "Frederick/uneased": {
+        "n": 37,
+        "median": 16009.76800976801,
+        "p25": 9796.533534287866,
+        "p75": 25376.802096985582
+      },
+      "Washington/uneased": {
+        "n": 11,
+        "median": 8188.5856079404475,
+        "p25": 4996.6469986538705,
+        "p75": 11505.313116192057
+      }
+    },
+    "parcels_valued": 2576,
+    "median_est_per_acre": 16010.0,
+    "above_price_ceiling": 0
+  },
+  "stage10": {
+    "engine": "osrm_freeflow_x_peak_factor (https://router.project-osrm.org)",
+    "routed": 2576,
+    "layers_missing": [],
+    "destinations": [
+      "commute_bwi_peak_min",
+      "commute_langley_peak_min",
+      "commute_nova_peak_min"
+    ],
+    "median_minutes": {
+      "commute_bwi_peak_min": 104.3,
+      "commute_langley_peak_min": 136.9,
+      "commute_nova_peak_min": 127.6
+    },
+    "route_redundancy": {
+      "redundant": 2219,
+      "no_route": 210,
+      "single_egress": 147
+    },
+    "median_durability": 89.2
+  },
+  "scored_parcels": 2576,
+  "elapsed_s": 248.6,
+  "shortlist": {
+    "listed": 40,
+    "excluded": 1273,
+    "owners": 2022,
+    "top_n": 40
+  }
+}
