@@ -225,6 +225,8 @@ def run_stage7(cfg: Config, scored: gpd.GeoDataFrame, parcels_all: gpd.GeoDataFr
         _ = pipe.sindex
     radius = ft_to_m(e.pipeline_radius_ft)
     for i, pg in enumerate(P.geometry.values):
+        if i and i % 500 == 0:
+            log.info("Stage 7: %d/%d parcels", i, len(P))
         idx = neigh[i]
         P.at[i, "adjacent_parcel_count"] = len(idx)
         acres = 0.0; res_acres = 0.0; pfa_acres = 0.0; eased = 0.0

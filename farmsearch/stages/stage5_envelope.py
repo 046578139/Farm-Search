@@ -209,6 +209,8 @@ def run_stage5(cfg: Config, scored: gpd.GeoDataFrame, s3geoms: dict[str, dict], 
     okeys = P["owner_key"].values if "owner_key" in P.columns else np.array([None] * len(P))
     env_rows = []
     for i, (acct, pg) in enumerate(zip(P["account_id"].values, P.geometry.values)):
+        if i and i % 250 == 0:
+            log.info("Stage 5: %d/%d parcels", i, len(P))
         g3 = s3geoms.get(acct, {})
         usable = g3.get("usable", pg)
         flags = P.at[i, "envelope_flags"]

@@ -61,6 +61,8 @@ def run_stage6(cfg: Config, scored: gpd.GeoDataFrame, envelopes: gpd.GeoDataFram
     failed = 0
     okeys = P["owner_key"].values if "owner_key" in P.columns else np.array([None] * len(P))
     for i, (acct, pg) in enumerate(zip(P["account_id"].values, P.geometry.values)):
+        if i and i % 100 == 0:
+            log.info("Stage 6: %d/%d parcels (windows failed %d)", i, len(P), failed)
         env = env_by.get(acct)
         flags = P.at[i, "viewshed_flags"]
         if env is None or env.is_empty:
