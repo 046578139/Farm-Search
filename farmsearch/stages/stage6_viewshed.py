@@ -57,14 +57,15 @@ def run_stage6(cfg: Config, scored: gpd.GeoDataFrame, envelopes: gpd.GeoDataFram
     env_by = dict(zip(envelopes["account_id"].values, envelopes.geometry.values)) if len(envelopes) else {}
     # The viewshed counts households (dwellings and churches). The backstop test is
     # a safety question, so it uses every building people occupy, the shops and
-    # clubhouses NR 10-410 protects with the same 150 yd zone included.
-    dwell = structures[structures["kind"].isin(["dwelling", "church", "church_point"])] if len(structures) else structures
-    occupied = structures if len(structures) else structures
-    if len(dwell):
-        _ = dwell.sindex
+    # clubhouses NR 10-410 protects with the same 150 yd zone included. Both come
+    # from ONE pass over the structures: the distance test is the expensive part.
+    occupied = structures
+    is_dwelling = occupied["kind"].isin(["dwelling", "church", "church_point"]).values if len(occupied) else np.zeros(0, bool)
     if len(occupied):
         _ = occupied.sindex
     maxd = v.viewshed_max_distance_yards * YARD_M
+    occ_accts = occupied["account_id"].values if len(occupied) else np.zeros(0)
+    occ_owners = occupied["owner_key"].values if len(occupied) else np.zeros(0)
     failed = 0
     okeys = P["owner_key"].values if "owner_key" in P.columns else np.array([None] * len(P))
     for i, (acct, pg) in enumerate(zip(P["account_id"].values, P.geometry.values)):
@@ -83,32 +84,24 @@ def run_stage6(cfg: Config, scored: gpd.GeoDataFrame, envelopes: gpd.GeoDataFram
         # several footprints on one parcel are one household, not several: the
         # structures are grouped by the parcel they stand on
         households: dict = {}
-        cands = []
-        if len(dwell):
-            for h in dwell.sindex.query(env.buffer(maxd), predicate="intersects"):
-                if dwell["account_id"].values[h] == acct:
-                    continue
-                if v.exclude_same_owner and okeys[i] and dwell["owner_key"].values[h] == okeys[i]:
-                    continue
-                g = dwell.geometry.values[h]
-                if g.distance(env) <= maxd:
-                    pt = g.representative_point() if g.geom_type != "Point" else g
-                    households.setdefault(dwell["account_id"].values[h], []).append(pt)
-                    cands.append(pt)
-        P.at[i, "dwellings_within_viewshed_distance"] = len(households)
-        # every occupied building in range, for the backstop orientation test
-        occ_pts = []
+        occ_pts = []          # every occupied building in range, for the backstop test
         if len(occupied):
             for h in occupied.sindex.query(env.buffer(maxd), predicate="intersects"):
-                if occupied["account_id"].values[h] == acct:
+                if occ_accts[h] == acct:
                     continue
-                if v.exclude_same_owner and okeys[i] and occupied["owner_key"].values[h] == okeys[i]:
+                if v.exclude_same_owner and okeys[i] and occ_owners[h] == okeys[i]:
                     continue
                 g = occupied.geometry.values[h]
-                if g.distance(env) <= maxd:
-                    occ_pts.append(g.representative_point() if g.geom_type != "Point" else g)
-        if cands:
-            P.at[i, "nearest_dwelling_yards"] = round(min(c.distance(env) for c in cands) / YARD_M, 0)
+                if g.distance(env) > maxd:
+                    continue
+                pt = g.representative_point() if g.geom_type != "Point" else g
+                occ_pts.append(pt)
+                if is_dwelling[h]:
+                    households.setdefault(occ_accts[h], []).append(pt)
+        P.at[i, "dwellings_within_viewshed_distance"] = len(households)
+        near_pts = [p for pts in households.values() for p in pts]
+        if near_pts:
+            P.at[i, "nearest_dwelling_yards"] = round(min(c.distance(env) for c in near_pts) / YARD_M, 0)
         try:
             b = env.bounds
             pad = maxd + 20
