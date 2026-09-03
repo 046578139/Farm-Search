@@ -372,7 +372,9 @@ def run_stage7(cfg: Config, scored: gpd.GeoDataFrame, parcels_all: gpd.GeoDataFr
         units_partial = False
         if pipe is not None:
             disc = pg.buffer(radius)
-            reach_ctys = {cty_of[cty_codes[c]] for c in A.sindex.query(disc, predicate="intersects")} or {cty}
+            # a 2-mile disc can cover 10,000+ polygons: take the county codes with numpy
+            hits_all = A.sindex.query(disc, predicate="intersects")
+            reach_ctys = {cty_of[k] for k in np.unique(cty_codes[hits_all])} if len(hits_all) else {cty}
             pc = layers.pipeline_counties
             covered_ctys = reach_ctys if pc is None else {c for c in reach_ctys if c in pc}
             units_partial = covered_ctys != reach_ctys
