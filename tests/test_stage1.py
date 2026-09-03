@@ -9,9 +9,9 @@ from farmsearch.io.loaders import load_study_area
 def test_counts_are_sane(result):
     s = result["summary"]["stage1"]
     # N lies outside the study area and is never loaded (bbox read); A's two rows dissolve to one account
-    assert s["parcels_in_study_area"] == 16
+    assert s["parcels_in_study_area"] == 18                 # incl. the church and school lots (Stage 5 fixtures)
     assert s["stage1_pass"] == 11
-    assert s["per_county"]["Frederick"]["in_study_area"] == 15
+    assert s["per_county"]["Frederick"]["in_study_area"] == 17
     assert s["per_county"]["Carroll"]["stage1_pass"] == 1
 
 

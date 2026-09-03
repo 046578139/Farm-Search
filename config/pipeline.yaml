@@ -606,6 +606,49 @@ access:
   row_parcel_overlap: 0.5           # a neighbour with >= this share of its area inside public ROW is the road itself
   sliver_acres: 0.25                # usable fragments below this are noise, not islands
 
+# --- Stage 5-6: dischargeable envelope and viewshed ----------------------------
+# NR 10-410 (verified 2026-09-03, mgaleg.maryland.gov): 150 yd from a dwelling
+# house, residence, church or other building or camp occupied by human beings;
+# 300 yd from a public or nonpublic school during school hours or activities;
+# archery 50 yd in Frederick, Carroll and Washington (elevated position
+# required in Washington). Occupied structures are derived from the parcel
+# fabric (SDAT structure square footage under residential/agricultural land
+# uses; exemption classes naming churches and schools) and located with the
+# iMAP building footprints (193k in the study bbox). School points supplement
+# the exempt-class school parcels. Target shooting is governed by county
+# ordinance and zoning, not this statute: every parcel is flagged to verify.
+envelope:
+  safety_buffer_yards: 150
+  school_buffer_yards: 300
+  archery_buffer_yards: 50
+  min_dischargeable_acres: 10
+  min_envelope_length_yards: 200
+  footprint_layers:
+    - name: building_footprints
+      path: ../data/raw/structures/building_footprints.gpkg
+      url: "https://mdgeodata.md.gov/imap/rest/services/PlanningCadastre/MD_BuildingFootprints/MapServer/0"
+      page_size: 5000
+      fetch_margin_ft: 3000
+  school_point_layers:
+    - name: schools_public
+      path: ../data/raw/structures/schools_public.gpkg
+      url: "https://mdgeodata.md.gov/imap/rest/services/Education/MD_EducationFacilities/MapServer/5"
+      fetch_margin_ft: 3000
+    - name: schools_charter
+      path: ../data/raw/structures/schools_charter.gpkg
+      url: "https://mdgeodata.md.gov/imap/rest/services/Education/MD_EducationFacilities/MapServer/6"
+      fetch_margin_ft: 3000
+  dwelling_min_structure_sqft: 400
+  footprint_min_sqft: 400
+  exclude_same_owner: true
+  viewshed_max_distance_yards: 1000
+  observer_height_m: 1.7
+  target_height_m: 2.0
+  dem_cell_m: 10
+  firing_points: 5
+  backstop_slope_min_pct: 15
+  backstop_min_acres: 0.25
+
 # --- Stage 7: future encroachment ------------------------------------------
 # Verified 2026-09-03. Sewer service categories differ by county:
 #   Frederick (per-parcel polygons, SP_Type): S-1 existing 35,533; S-3/S-3 DEV

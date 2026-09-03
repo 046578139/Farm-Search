@@ -294,6 +294,35 @@ class TransmissionConfig:
 
 
 @dataclass
+class EnvelopeConfig:
+    """Stage 5 (hunting safety zones, NR 10-410) and Stage 6 (viewshed)."""
+    safety_buffer_yards: float = 150          # dwelling, residence, church, other building occupied by people
+    school_buffer_yards: float = 300          # public or nonpublic school during school hours / activities
+    archery_buffer_yards: float = 50          # Frederick, Carroll, Washington: archery safety zone
+    min_dischargeable_acres: float = 10
+    min_envelope_length_yards: float = 200
+    footprint_layers: list[LayerSource] = field(default_factory=list)      # building footprints (polygons)
+    school_point_layers: list[LayerSource] = field(default_factory=list)   # school points (supplement to exempt-class parcels)
+    church_point_layers: list[LayerSource] = field(default_factory=list)
+    dwelling_land_uses: list[str] = field(default_factory=lambda: [
+        "Residential", "Town House", "Agricultural", "Residential Condominium", "Apartments",
+        "Commercial/Residential", "Residential/Commercial", "Residential/Agricultural"])
+    dwelling_min_structure_sqft: float = 400
+    footprint_min_sqft: float = 400
+    church_exempt_regex: str = r"church|synagogue|parsonage|religious|mosque|temple"
+    school_exempt_regex: str = r"school|college"
+    exclude_same_owner: bool = True           # the owner/occupant exemption extends to the owner's other parcels
+    # Stage 6
+    viewshed_max_distance_yards: float = 1000
+    observer_height_m: float = 1.7
+    target_height_m: float = 2.0
+    dem_cell_m: float = 10.0
+    firing_points: int = 5
+    backstop_slope_min_pct: float = 15
+    backstop_min_acres: float = 0.25
+
+
+@dataclass
 class RunConfig:
     process_all: bool = False
     output_dir: Path = Path("outputs")
@@ -322,6 +351,7 @@ class Config:
     run: RunConfig
     encroachment: EncroachmentConfig = field(default_factory=EncroachmentConfig)
     transmission: TransmissionConfig = field(default_factory=TransmissionConfig)
+    envelope: EnvelopeConfig = field(default_factory=EnvelopeConfig)
     study_area_build: Optional[StudyAreaBuild] = None
     raw: dict = field(default_factory=dict)   # untouched YAML for later stages
 
@@ -456,6 +486,30 @@ class Config:
                 points_of_concern=[dict(x) for x in (t.get("points_of_concern") or [])],
                 status_note=t.get("status_note"),
             )
+            v = raw.get("envelope", {}) or {}
+            envelope = EnvelopeConfig(
+                safety_buffer_yards=float(v.get("safety_buffer_yards", raw.get("safety_buffer_yards", 150))),
+                school_buffer_yards=float(v.get("school_buffer_yards", raw.get("school_buffer_yards", 300))),
+                archery_buffer_yards=float(v.get("archery_buffer_yards", 50)),
+                min_dischargeable_acres=float(v.get("min_dischargeable_acres", raw.get("min_dischargeable_acres", 10))),
+                min_envelope_length_yards=float(v.get("min_envelope_length_yards", raw.get("min_envelope_length_yards", 200))),
+                footprint_layers=_layers(v.get("footprint_layers")),
+                school_point_layers=_layers(v.get("school_point_layers")),
+                church_point_layers=_layers(v.get("church_point_layers")),
+                dwelling_land_uses=[str(x) for x in (v.get("dwelling_land_uses") or EnvelopeConfig().dwelling_land_uses)],
+                dwelling_min_structure_sqft=float(v.get("dwelling_min_structure_sqft", 400)),
+                footprint_min_sqft=float(v.get("footprint_min_sqft", 400)),
+                church_exempt_regex=str(v.get("church_exempt_regex", EnvelopeConfig().church_exempt_regex)),
+                school_exempt_regex=str(v.get("school_exempt_regex", EnvelopeConfig().school_exempt_regex)),
+                exclude_same_owner=bool(v.get("exclude_same_owner", True)),
+                viewshed_max_distance_yards=float(v.get("viewshed_max_distance_yards", 1000)),
+                observer_height_m=float(v.get("observer_height_m", 1.7)),
+                target_height_m=float(v.get("target_height_m", 2.0)),
+                dem_cell_m=float(v.get("dem_cell_m", 10.0)),
+                firing_points=int(v.get("firing_points", 5)),
+                backstop_slope_min_pct=float(v.get("backstop_slope_min_pct", 15)),
+                backstop_min_acres=float(v.get("backstop_min_acres", 0.25)),
+            )
             rc = raw.get("run", {}) or {}
             run = RunConfig(process_all=bool(rc.get("process_all", False)),
                             output_dir=_opt_path(base, rc.get("output_dir", "../outputs")))
@@ -481,6 +535,7 @@ class Config:
                 run=run,
                 encroachment=encroachment,
                 transmission=transmission,
+                envelope=envelope,
                 study_area_build=sab,
                 raw=raw,
             )
@@ -514,6 +569,8 @@ class Config:
         out += e.sewer_layers + e.sewer_existing_layers + e.pfa_layers + e.growth_area_layers + [u.source for u in e.pipeline_layers]
         t = self.transmission
         out += [r.source for r in t.mprp_routes] + t.hv_line_layers + t.substation_layers + t.data_center_layers
+        v = self.envelope
+        out += v.footprint_layers + v.school_point_layers + v.church_point_layers
         seen: set = set()
         uniq = []
         for src in out:

@@ -47,12 +47,15 @@ def B(x0, y0, x1, y1):
     return box(OX + x0, OY + y0, OX + x1, OY + y1)
 
 
-def _parcel(acct, jurs, owner1, owner2, addr, city, zipc, geom, acres=None, lu="AG", zoning="A"):
+def _parcel(acct, jurs, owner1, owner2, addr, city, zipc, geom, acres=None, lu="AG", zoning="A",
+            sqft=0, desclu=None, descexcl=None):
     return {
         "ACCTID": acct, "JURSCODE": jurs, "OWNNAME1": owner1, "OWNNAME2": owner2,
         "OWNADD1": addr, "OWNADD2": None, "OWNCITY": city, "OWNSTATE": "MD", "OWNZIP": zipc,
         "ACRES": (round(geom.area / 4046.8564224, 2) if acres is None else acres),
-        "LU": lu, "ZONING": zoning, "geometry": geom,
+        "LU": lu, "ZONING": zoning, "SQFTSTRC": sqft,
+        "DESCLU": desclu or ("Agricultural" if lu == "AG" else "Residential"), "DESCEXCL": descexcl,
+        "geometry": geom,
     }
 
 
@@ -76,9 +79,13 @@ def build_fixture(out: Path) -> Path:
         _parcel("FRED-G", "FRED", "GOLF GARY", None, "700 GOLF RD", "FREDERICK", "21701", B(3400, 18, 4040, 658), zoning="R1"),
         _parcel("FRED-I", "FRED", "INDIA IRENE", None, "900 INDIA RD", "THURMONT", "21788", B(0, 658, 640, 1298)),
         _parcel("FRED-H", "FRED", "HOTEL HANK", None, "800 HOTEL RD", "FREDERICK", "21701", B(640, 658, 1280, 1200)),
-        _parcel("FRED-K", "FRED", "KILO KAREN", None, "1100 KILO RD", "FREDERICK", "21701", B(640, 1200, 1280, 1298)),
+        _parcel("FRED-K", "FRED", "KILO KAREN", None, "1100 KILO RD", "FREDERICK", "21701", B(640, 1200, 1280, 1298), sqft=1800),
+        _parcel("FRED-CH", "FRED", "ST FIXTURE CHURCH", None, "1 CHURCH LN", "FREDERICK", "21701", B(0, 1320, 80, 1400), lu="EX",
+                desclu="Exempt", descexcl="PVT Churches, Synagogues, & Parsonages"),
+        _parcel("FRED-SCH", "FRED", "BOARD OF EDUCATION", None, "2 SCHOOL RD", "FREDERICK", "21701", B(4040, 18, 4300, 318), lu="EX",
+                desclu="Exempt", descexcl="JUR Schools (Public, including Junior College)"),
         _parcel("FRED-J", "FRED", "JULIET JOAN", None, "1000 JULIET RD", "FREDERICK", "21701", B(1280, 658, 1920, 1298)),
-        _parcel("FRED-L", "FRED", "LIMA LARRY", None, "1200 LIMA RD", "FREDERICK", "21701", B(1920, 658, 2560, 1298)),
+        _parcel("FRED-L", "FRED", "LIMA LARRY", None, "1200 LIMA RD", "FREDERICK", "21701", B(1920, 658, 2560, 1298), sqft=2200),
         _parcel("FRED-M", "FRED", "MIKE MARTHA", None, "1300 MIKE RD", "FREDERICK", "21701", B(2560, 658, 3200, 1298), acres=80.0),
         _parcel("CARR-O", "CARR", "OSCAR OLIVIA TRUST", None, "1500 OSCAR RD", "MOUNT AIRY", "21771", B(3200, 658, 3840, 1298), zoning="AG"),
         _parcel("FRED-N", "FRED", "NOVEMBER NED", None, "1400 NOV RD", "FREDERICK", "21701", B(6000, 18, 6640, 658)),
@@ -139,6 +146,17 @@ def build_fixture(out: Path) -> Path:
     gpd.GeoDataFrame({"ROUTE": ["MD 999"]}, geometry=[B(-20, -50, 0, 1400)], crs=CRS) \
         .to_file(raw / "access" / "sha_row_polygons.gpkg", driver="GPKG")
 
+    # ---- Stage 5 layers: building footprints and school points ---------------
+    # K's house (15 x 12 m) near the middle of K; L's farmhouse east of J's hill;
+    # the church building on CH; a school point on SCH.
+    (raw / "structures").mkdir(exist_ok=True)
+    gpd.GeoDataFrame({"ID": [1, 2, 3, 4]},
+                     geometry=[B(952, 1243, 967, 1255), B(1992, 972, 2008, 984), B(20, 1340, 40, 1360), B(4100, 100, 4160, 140)], crs=CRS) \
+        .to_file(raw / "structures" / "footprints.gpkg", driver="GPKG")
+    from shapely.geometry import Point as _Pt
+    gpd.GeoDataFrame({"SCHOOL_NAME": ["Fixture Elementary"]}, geometry=[_Pt(OX + 4130, OY + 120)], crs=CRS) \
+        .to_file(raw / "structures" / "schools.gpkg", driver="GPKG")
+
     # ---- Stage 7-8 layers ----------------------------------------------------
     # Planned sewer (S-3) over the east end (G, O, F), existing sewer nowhere;
     # PFA over G and the 40% residential part of L; growth area = same as PFA;
@@ -182,7 +200,8 @@ def build_fixture(out: Path) -> Path:
         "required": {"account_id": ["ACCTID"], "county_code": ["JURSCODE"], "owner_name": ["OWNNAME1"],
                      "owner_addr_line1": ["OWNADD1"], "owner_city": ["OWNCITY"], "owner_state": ["OWNSTATE"], "owner_zip": ["OWNZIP"]},
         "optional": {"owner_name2": ["OWNNAME2"], "owner_addr_line2": ["OWNADD2"], "acreage_sdat": ["ACRES"],
-                     "land_use_code": ["LU"], "zoning_sdat": ["ZONING"], "assessed_total_value": ["NFMTTLVL"]},
+                     "land_use_code": ["LU"], "land_use_desc": ["DESCLU"], "exempt_class_desc": ["DESCEXCL"],
+                     "structure_sqft": ["SQFTSTRC"], "zoning_sdat": ["ZONING"], "assessed_total_value": ["NFMTTLVL"]},
     }))
     (out / "zoning").mkdir(exist_ok=True)
     (out / "zoning" / "frederick.yaml").write_text(yaml.safe_dump({
@@ -233,6 +252,13 @@ def build_fixture(out: Path) -> Path:
             "contact_tolerance_ft": 3, "open_gap_ft": 25, "min_contact_ft": 20, "frontage_search_ft": 250,
             "frontage_sample_ft": 15, "frontage_blocked_threshold": 0.95, "strip_max_width_ft": 100,
             "strip_min_aspect": 6, "sliver_acres": 0.25,
+        },
+        "envelope": {
+            "safety_buffer_yards": 150, "school_buffer_yards": 300, "archery_buffer_yards": 50,
+            "min_dischargeable_acres": 10, "min_envelope_length_yards": 200,
+            "footprint_layers": [{"name": "footprints", "path": "raw/structures/footprints.gpkg"}],
+            "school_point_layers": [{"name": "schools", "path": "raw/structures/schools.gpkg"}],
+            "viewshed_max_distance_yards": 1000, "dem_cell_m": 5.0,
         },
         "encroachment": {
             "sewer_layers": [{"name": "sewer_planned", "path": "raw/planning/sewer_service.gpkg", "where": "CATEGORY in ['S-3', 'S-4', 'S-5']"}],

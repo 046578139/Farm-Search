@@ -33,6 +33,8 @@ from .stages.stage1_base_filter import Stage1Result, run_stage1
 from .stages.stage2_encumbrance import load_constraint_layers, run_stage2
 from .stages.stage3_usable_area import SlopeProvider, run_stage3
 from .stages.stage4_access import load_row_layers, run_stage4
+from .stages.stage5_envelope import load_occupied_structures, run_stage5
+from .stages.stage6_viewshed import run_stage6
 from .stages.stage7_encroachment import load_encroachment_layers, load_favorable_layers, run_stage7
 from .stages.stage8_transmission import load_transmission_layers, run_stage8
 
@@ -263,6 +265,45 @@ def run_pipeline(cfg: Config, stages: Iterable[int] = (1, 2, 3, 4), out_dir: Opt
             _save_checkpoint(out_dir, n, {"scored": scored, "s2": s2, "s3": s3,
                                           "summary": {k: v for k, v in summary.items() if k.startswith("stage") or k == "missing_layers"}})
 
+    # ---- Stage 5: dischargeable envelope ------------------------------
+    s5 = None
+    if 5 in stages:
+        if s3 is None:
+            raise ValueError("Stage 5 requires Stage 3 (usable area)")
+        occ = load_occupied_structures(cfg, parcels, context)
+        summary["missing_layers"] += occ.missing_layers
+        s5 = run_stage5(cfg, scored, s3.geoms, occ)
+        scored = s5.parcels
+        summary["stage5"] = {
+            "layers_missing": occ.missing_layers, "footprints_available": occ.footprints_available,
+            "occupied_structures": int(len(occ.structures)), "school_features": int(len(occ.schools)),
+            "envelope_acres_total": float(scored["dischargeable_envelope_acres"].fillna(0).sum()),
+            "parcels_envelope_below_min": int((scored["dischargeable_envelope_acres"] < cfg.envelope.min_dischargeable_acres).sum()),
+            "parcels_envelope_too_short": int((scored["dischargeable_envelope_longest_dim_yards"] < cfg.envelope.min_envelope_length_yards).sum()),
+            "safety_buffer_yards": cfg.envelope.safety_buffer_yards, "school_buffer_yards": cfg.envelope.school_buffer_yards,
+        }
+        if write:
+            _writable(s5.envelopes).to_file(out_dir / "envelope.gpkg", driver="GPKG")
+            if len(occ.structures):
+                _writable(occ.structures).to_file(out_dir / "occupied_structures.gpkg", driver="GPKG")
+        result["stage5"] = s5
+        _later_checkpoint(5)
+
+    # ---- Stage 6: viewshed ----------------------------------------------
+    if 6 in stages:
+        if s5 is None:
+            raise ValueError("Stage 6 requires Stage 5 (envelope) in the same run")
+        s6 = run_stage6(cfg, scored, s5.envelopes, s5.structures.structures)
+        scored = s6.parcels
+        summary["stage6"] = {
+            "terrain_mode": s6.terrain_mode, "windows_failed": s6.windows_failed,
+            "parcels_with_visible_dwellings": int((scored["dwellings_with_line_of_sight"].fillna(0) > 0).sum()),
+            "parcels_all_dwellings_shielded": int(scored["viewshed_flags"].map(lambda f: "all_nearby_dwellings_terrain_shielded" in (f or [])).sum()),
+            "parcels_with_backstop_candidate": int((scored["candidate_backstop_slopes"] == True).sum()),  # noqa: E712
+        }
+        result["stage6"] = s6
+        _later_checkpoint(6)
+
     # ---- Stage 7: future encroachment ---------------------------------
     if 7 in stages:
         from .stages.stage1_base_filter import load_zoning_layers
@@ -390,6 +431,17 @@ def render_summary(s: dict) -> str:
               f"landlocked_apparent {s4['landlocked_apparent']} · frontage blocked by foreign parcel {s4['frontage_blocked_by_foreign_parcel']} · "
               f"reserve strips {s4['reserve_strip_detected']} · parcels with islands {s4['parcels_with_unreachable_islands']}",
               f"largest reachable block ≥ acreage_min: {s4['largest_reachable_ge_acreage_min']} · below: {s4['largest_reachable_below_acreage_min']}"]
+    if "stage5" in s:
+        s5 = s["stage5"]
+        L += ["", "## Stage 5 — dischargeable envelope", "",
+              f"occupied structures {s5['occupied_structures']} · school features {s5['school_features']} · "
+              f"envelope {s5['envelope_acres_total']:.0f} ac total · below minimum {s5['parcels_envelope_below_min']} · too short {s5['parcels_envelope_too_short']} "
+              f"(safety {s5['safety_buffer_yards']:.0f} yd, school {s5['school_buffer_yards']:.0f} yd)"]
+    if "stage6" in s:
+        s6 = s["stage6"]
+        L += ["", "## Stage 6 — viewshed", "",
+              f"terrain {s6['terrain_mode']} (windows failed {s6['windows_failed']}) · parcels with a visible dwelling {s6['parcels_with_visible_dwellings']} · "
+              f"all nearby dwellings shielded {s6['parcels_all_dwellings_shielded']} · backstop candidates {s6['parcels_with_backstop_candidate']}"]
     if "stage7" in s:
         s7 = s["stage7"]
         L += ["", "## Stage 7 — future encroachment", "",
