@@ -320,6 +320,7 @@ class EnvelopeConfig:
     firing_points: int = 5
     backstop_slope_min_pct: float = 15
     backstop_min_acres: float = 0.25
+    backstop_search_ft: float = 300           # steep ground this far beyond the envelope edge still serves as a backstop
 
 
 @dataclass
@@ -509,6 +510,7 @@ class Config:
                 firing_points=int(v.get("firing_points", 5)),
                 backstop_slope_min_pct=float(v.get("backstop_slope_min_pct", 15)),
                 backstop_min_acres=float(v.get("backstop_min_acres", 0.25)),
+                backstop_search_ft=float(v.get("backstop_search_ft", 300)),
             )
             rc = raw.get("run", {}) or {}
             run = RunConfig(process_all=bool(rc.get("process_all", False)),

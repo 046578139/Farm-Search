@@ -24,7 +24,7 @@ from shapely.geometry.base import BaseGeometry
 from ..config import Config
 from ..geometry.position import polygon_parts
 from ..terrain import TerrainSampler, observer_points
-from ..units import m2_to_acres
+from ..units import ft_to_m, m2_to_acres
 
 log = logging.getLogger(__name__)
 YARD_M = 0.9144
@@ -108,8 +108,11 @@ def run_stage6(cfg: Config, scored: gpd.GeoDataFrame, envelopes: gpd.GeoDataFram
         P.at[i, "dwellings_with_line_of_sight"] = seen
         if cands and seen == 0:
             flags.append("all_nearby_dwellings_terrain_shielded")
-        # backstops: steep cells in the envelope whose uphill side faces away from the nearest dwelling
+        # backstops: steep cells in or just beyond the envelope (steep ground is never
+        # usable, so the hillside sits at the envelope's edge) whose uphill side
+        # faces away from the nearest dwelling
         slope, aspect = win.slope_aspect()
+        search = parts[0].buffer(ft_to_m(v.backstop_search_ft)).intersection(pg.buffer(ft_to_m(v.backstop_search_ft)))
         h, w = slope.shape
         xs = win.x0 + (np.arange(w) + 0.5) * win.cell
         ys = win.y1 - (np.arange(h) + 0.5) * win.cell
@@ -117,7 +120,7 @@ def run_stage6(cfg: Config, scored: gpd.GeoDataFrame, envelopes: gpd.GeoDataFram
         steep = slope >= v.backstop_slope_min_pct
         if steep.any() and cands:
             from shapely import contains_xy
-            inside = contains_xy(parts[0].buffer(0), X[steep], Y[steep])
+            inside = contains_xy(search.buffer(0), X[steep], Y[steep])
             sx, sy, sa = X[steep][inside], Y[steep][inside], aspect[steep][inside]
             if len(sx):
                 # uphill direction = aspect + 180; away from the nearest dwelling when the angle between the
