@@ -1,6 +1,6 @@
 """Command-line interface.
 
-  farmsearch run             --config config/pipeline.yaml [--stages 1-4] [--out outputs]
+  farmsearch run             --config config/pipeline.yaml [--stages 1-4] [--out outputs] [--resume]
   farmsearch verify-schema   --config config/pipeline.yaml
   farmsearch zoning-domains  --config config/pipeline.yaml --county Frederick [--code-field ZONING] [--write]
   farmsearch fetch           --config config/pipeline.yaml [--only name ...]
@@ -36,7 +36,7 @@ def _stages(spec: str) -> list[int]:
 def cmd_run(args) -> int:
     from .pipeline import run_pipeline
     cfg = Config.load(args.config)
-    res = run_pipeline(cfg, stages=_stages(args.stages), out_dir=args.out)
+    res = run_pipeline(cfg, stages=_stages(args.stages), out_dir=args.out, resume=bool(getattr(args, "resume", False)))
     from .pipeline import render_summary
     print(render_summary(res["summary"]))
     return 0
@@ -200,6 +200,9 @@ def main(argv=None) -> int:
     r.add_argument("--config", default="config/pipeline.yaml")
     r.add_argument("--stages", default="1-4", help="e.g. 1, 1-2, 1-4")
     r.add_argument("--out", default=None, help="output directory (default run.output_dir)")
+    r.add_argument("--resume", action="store_true",
+                   help="continue from the checkpoint written after the stage before the first requested one, "
+                        "e.g. `--stages 4 --resume` after a run that died in Stage 4")
     r.set_defaults(func=cmd_run)
 
     v = sub.add_parser("verify-schema", help="resolve the parcel field map against the real data")

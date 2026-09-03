@@ -10,11 +10,16 @@ Outputs (in run.output_dir):
   islands.csv                  unreachable usable islands (Stage 4)
   parcels_scored.gpkg/.csv/.geojson   per-parcel record (spec "Output")
   summary.json / summary.md    counts, per county, for the sanity check
+  checkpoint_stage{1,2,3}.pkl  in-memory state after each stage, so that
+                               `run --stages 4 --resume` continues a run
+                               that was interrupted (a 30-minute run in an
+                               environment that may restart underneath it)
 """
 from __future__ import annotations
 
 import json
 import logging
+import pickle
 import time
 from pathlib import Path
 from typing import Iterable, Optional
@@ -24,7 +29,7 @@ import pandas as pd
 
 from .config import Config
 from .io.loaders import load_study_area
-from .stages.stage1_base_filter import run_stage1
+from .stages.stage1_base_filter import Stage1Result, run_stage1
 from .stages.stage2_encumbrance import load_constraint_layers, run_stage2
 from .stages.stage3_usable_area import SlopeProvider, run_stage3
 from .stages.stage4_access import load_row_layers, run_stage4
@@ -84,8 +89,33 @@ def _drop_private(gdf: gpd.GeoDataFrame) -> gpd.GeoDataFrame:
     return gdf[[c for c in gdf.columns if not c.startswith("_")]]
 
 
+def _checkpoint_path(out_dir: Path, n: int) -> Path:
+    return out_dir / f"checkpoint_stage{n}.pkl"
+
+
+def _save_checkpoint(out_dir: Path, n: int, payload: dict) -> None:
+    p = _checkpoint_path(out_dir, n)
+    tmp = p.with_suffix(".partial")
+    with open(tmp, "wb") as f:
+        pickle.dump(payload, f, protocol=pickle.HIGHEST_PROTOCOL)
+    tmp.replace(p)
+    log.info("checkpoint after Stage %d written to %s", n, p)
+
+
+def _load_checkpoint(out_dir: Path, n: int) -> dict:
+    p = _checkpoint_path(out_dir, n)
+    if not p.exists():
+        raise FileNotFoundError(f"cannot resume: no checkpoint after Stage {n} in {out_dir} (run the earlier stages first)")
+    with open(p, "rb") as f:
+        return pickle.load(f)
+
+
 def run_pipeline(cfg: Config, stages: Iterable[int] = (1, 2, 3, 4), out_dir: Optional[Path] = None,
-                 parcels_raw: Optional[gpd.GeoDataFrame] = None, write: bool = True) -> dict:
+                 parcels_raw: Optional[gpd.GeoDataFrame] = None, write: bool = True, resume: bool = False) -> dict:
+    """Run the requested stages. Stage 1 always runs unless `resume` is set
+    and the first requested stage is later than 1, in which case the state
+    saved after the preceding stage (checkpoint_stage{n}.pkl in out_dir) is
+    loaded instead and the run continues from there."""
     stages = set(stages)
     out_dir = Path(out_dir or cfg.run.output_dir)
     if write:
@@ -96,20 +126,42 @@ def run_pipeline(cfg: Config, stages: Iterable[int] = (1, 2, 3, 4), out_dir: Opt
                                 "study_area_selection": cfg.study_area_selection, "working_crs": cfg.working_crs},
                      "stages_run": sorted(stages), "missing_layers": [], "cannot_determine": CANNOT_DETERMINE}
     study = load_study_area(cfg)
+    s2 = s3 = s4 = None
+    resume_from = min(stages) - 1 if (resume and min(stages) > 1) else 0
 
-    # ---- Stage 1 ------------------------------------------------------
-    s1 = run_stage1(cfg, study, parcels_raw=parcels_raw)
-    parcels = s1.parcels
-    summary["stage1"] = s1.summary
-    log.info("Stage 1: %d parcels in study area, %d pass", len(parcels), int(parcels["stage1_pass"].sum()))
-    if write:
-        _writable(_drop_private(parcels)).to_file(out_dir / "parcels_stage1.gpkg", driver="GPKG")
-    targets = parcels["stage1_pass"] | cfg.run.process_all
-    scored = parcels[targets].reset_index(drop=True)
+    if resume_from:
+        # ---- Resume: the state after Stage `resume_from` ----------------
+        ck1 = _load_checkpoint(out_dir, 1)
+        ck = ck1 if resume_from == 1 else _load_checkpoint(out_dir, resume_from)
+        parcels = ck1["parcels"]
+        scored = ck["scored"]
+        s2, s3 = ck.get("s2"), ck.get("s3")
+        for k in ("stage1", "stage2", "stage3", "missing_layers"):
+            if k in ck["summary"]:
+                summary[k] = ck["summary"][k]
+        summary["resumed_from_stage"] = resume_from
+        s1 = Stage1Result(parcels=parcels, summary=summary["stage1"])
+        log.info("resumed from the Stage %d checkpoint: %d parcels, %d scored", resume_from, len(parcels), len(scored))
+    else:
+        # ---- Stage 1 --------------------------------------------------
+        s1 = run_stage1(cfg, study, parcels_raw=parcels_raw)
+        parcels = s1.parcels
+        summary["stage1"] = s1.summary
+        log.info("Stage 1: %d parcels in study area, %d pass", len(parcels), int(parcels["stage1_pass"].sum()))
+        if write:
+            _writable(_drop_private(parcels)).to_file(out_dir / "parcels_stage1.gpkg", driver="GPKG")
+        targets = parcels["stage1_pass"] | cfg.run.process_all
+        scored = parcels[targets].reset_index(drop=True)
+        if write:
+            _save_checkpoint(out_dir, 1, {"parcels": parcels, "scored": scored, "s2": None, "s3": None,
+                                          "summary": {"stage1": summary["stage1"], "missing_layers": []}})
     result = {"study_area": study, "stage1": s1}
+    if s2 is not None:
+        result["stage2"] = s2
+    if s3 is not None:
+        result["stage3"] = s3
 
     # ---- Stage 2 ------------------------------------------------------
-    s2 = s3 = s4 = None
     if 2 in stages:
         layers, missing = load_constraint_layers(cfg, study)
         summary["missing_layers"] += missing
@@ -124,6 +176,8 @@ def run_pipeline(cfg: Config, stages: Iterable[int] = (1, 2, 3, 4), out_dir: Opt
         }
         if write:
             s2.encumbrances.to_csv(out_dir / "encumbrances.csv", index=False)
+            _save_checkpoint(out_dir, 2, {"scored": scored, "s2": s2, "s3": None,
+                                          "summary": {k: summary[k] for k in ("stage1", "stage2", "missing_layers")}})
         result["stage2"] = s2
 
     # ---- Stage 3 ------------------------------------------------------
@@ -143,6 +197,8 @@ def run_pipeline(cfg: Config, stages: Iterable[int] = (1, 2, 3, 4), out_dir: Opt
         }
         if write:
             _writable(s3.usable).to_file(out_dir / "usable_area.gpkg", driver="GPKG")
+            _save_checkpoint(out_dir, 3, {"scored": scored, "s2": s2, "s3": s3,
+                                          "summary": {k: summary[k] for k in ("stage1", "stage2", "stage3", "missing_layers")}})
         result["stage3"] = s3
 
     # ---- Stage 4 ------------------------------------------------------

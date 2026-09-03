@@ -1,5 +1,6 @@
 import json
 
+import pandas as pd
 import pytest
 
 
@@ -118,3 +119,23 @@ def test_outputs_written(fixture_dir):
     assert set(fr["class"]) >= {"open", "encumbered", "foreign_parcel", "same_owner_parcel"}
     md = (out / "summary.md").read_text()
     assert "Stage 4" in md and "cannot determine" in md
+
+
+def test_resume_from_checkpoint_matches_the_full_run(cfg, fixture_dir, result):
+    from farmsearch.pipeline import run_pipeline
+    out = fixture_dir / "outputs_resume"
+    run_pipeline(cfg, stages=(1, 2, 3), out_dir=out, write=True)
+    assert (out / "checkpoint_stage3.pkl").exists() and not (out / "frontage.gpkg").exists()
+    res = run_pipeline(cfg, stages=(4,), out_dir=out, write=True, resume=True)
+    assert res["summary"]["resumed_from_stage"] == 3
+    assert res["summary"]["stage4"] == result["summary"]["stage4"]
+    assert res["summary"]["stage1"] == result["summary"]["stage1"]
+    assert res["summary"]["stage3"] == result["summary"]["stage3"]
+    cols = ["largest_contiguous_reachable_acres", "landlocked_apparent", "reserve_strip_detected",
+            "frontage_open_ft", "usable_acres", "manual_verification_flags"]
+    a = res["scored"].set_index("account_id").sort_index()[cols]
+    b = result["scored"].set_index("account_id").sort_index()[cols]
+    pd.testing.assert_frame_equal(a, b)
+    assert (out / "frontage.gpkg").exists() and (out / "summary.json").exists()
+    with pytest.raises(FileNotFoundError):
+        run_pipeline(cfg, stages=(3, 4), out_dir=fixture_dir / "nowhere", write=True, resume=True)
