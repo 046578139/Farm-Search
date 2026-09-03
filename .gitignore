@@ -11,3 +11,4 @@ data/raw/*
 outputs/*
 !outputs/.gitkeep
 data/fixture/
+data/raw_prev/

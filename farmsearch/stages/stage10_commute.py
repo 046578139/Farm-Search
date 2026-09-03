@@ -344,7 +344,7 @@ def run_stage10(cfg: Config, scored: gpd.GeoDataFrame, entry_points: Optional[gp
     # ---- durations -------------------------------------------------------
     engine = "none"
     if c.destinations:
-        origins_ll = [(float(x), float(y)) for x, y in zip(*gpd.GeoSeries(origin_pts, crs=P.crs).to_crs(4326).apply(lambda p: (p.x, p.y)).str)] if False else             [(p.x, p.y) for p in gpd.GeoSeries(origin_pts, crs=P.crs).to_crs(4326)]
+        origins_ll = [(float(p.x), float(p.y)) for p in gpd.GeoSeries(origin_pts, crs=P.crs).to_crs(4326)]
         dests_ll = [(d.lon, d.lat) for d in c.destinations]
         n = len(origins_ll) if c.max_parcels is None else min(len(origins_ll), c.max_parcels)
         M = None
