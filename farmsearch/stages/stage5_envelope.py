@@ -44,6 +44,7 @@ import pandas as pd
 from shapely.geometry import LineString, Point
 from shapely.geometry.base import BaseGeometry
 from shapely.ops import unary_union
+from shapely.prepared import prep
 
 from ..config import Config
 from ..geometry.position import polygon_parts
@@ -214,7 +215,12 @@ def run_stage5(cfg: Config, scored: gpd.GeoDataFrame, s3geoms: dict[str, dict], 
         g3 = s3geoms.get(acct, {})
         usable = g3.get("usable", pg)
         flags = P.at[i, "envelope_flags"]
-        reach = usable.buffer(max(safety, school_b))
+        # Candidates come from the (simple) parcel polygon's neighbourhood; the
+        # exact test is "the structure's zone touches the usable area", done
+        # with a prepared geometry because usable polygons carry thousands of
+        # vertices from the raster-derived slope subtraction.
+        reach = pg.buffer(max(safety, school_b))
+        usable_p = prep(usable)
         zones = []
         zones_archery = []
         n_struct = n_own = 0
@@ -227,22 +233,22 @@ def run_stage5(cfg: Config, scored: gpd.GeoDataFrame, s3geoms: dict[str, dict], 
                 if v.exclude_same_owner and okeys[i] and S["owner_key"].values[h] == okeys[i]:
                     n_own += 1
                     continue
-                geom = S.geometry.values[h]
-                if geom.distance(usable) <= safety:
+                zone = S.geometry.values[h].buffer(safety)
+                if usable_p.intersects(zone):
                     n_struct += 1
-                    zones.append(geom.buffer(safety))
-                    zones_archery.append(geom.buffer(archery))
+                    zones.append(zone)
+                    zones_archery.append(S.geometry.values[h].buffer(archery))
         n_school = 0
         if len(Sc):
             hits = Sc.sindex.query(reach, predicate="intersects")
             for h in hits:
                 if Sc["account_id"].values[h] == acct:
                     continue
-                geom = Sc.geometry.values[h]
-                if geom.distance(usable) <= school_b:
+                zone = Sc.geometry.values[h].buffer(school_b)
+                if usable_p.intersects(zone):
                     n_school += 1
-                    zones.append(geom.buffer(school_b))
-                    zones_archery.append(geom.buffer(school_b))
+                    zones.append(zone)
+                    zones_archery.append(zone)
         env = usable.difference(unary_union(zones)) if zones else usable
         env_a = usable.difference(unary_union(zones_archery)) if zones_archery else usable
         parts = sorted(polygon_parts(env), key=lambda p: -p.area)
