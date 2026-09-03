@@ -410,13 +410,6 @@ Decisions to keep in mind:
 
 ## Stages 5–10 on the real data
 
-`farmsearch run --stages 1-10` over the three counties, about 95 minutes end to
-end with every layer and DEM window cached (Stage 1 ~6 min, 2 ~3, 3 ~7, 4 ~16,
-5 ~3, 6 ~54, 7 ~12, 8 ~1, 9 ~9, 10 ~4, plus the deliverables). Stage 6 is the
-long pole: one DEM window per parcel, and a line of sight from five firing
-points to every household within 1,000 yards. Layers missing: none; 2,576
-parcels scored.
-
 **Stage 5.** 141,392 occupied structures (dwellings, other occupied buildings and churches) and 237 school features shape the zones. Envelope: median 44 ac (p10 13, p90 117) of median usable 59 ac; 184 parcels below 10 ac, 130 with a longest dimension under 200 yd (median 553 yd). 459 parcels are constrained by a house on the same owner's other parcel; 1,271 have at least one zone placed from the parcel's centre because no footprint matched.
 
 **Stage 6.** Terrain imageserver, 0 DEM windows failed. Dwelling parcels within 1,000 yd: median 83; with line of sight: median 46 (p90 167); 1 parcels have at least one dwelling the DEM could not evaluate; 15 have every nearby dwelling terrain-shielded; 439 have a candidate natural backstop (slopes facing away from every nearby dwelling).
@@ -425,7 +418,7 @@ parcels scored.
 
 **Stage 8.** MPRP tiers {'0': 1677, '3': 527, '2': 237, '1': 135} (routes: mprp_pseg_centerline (preferred), mprp_pseg_row150 (preferred), mprp_alternatives_550ft_corridor (alternative), mprp_frederick_county_copy (preferred)); near an existing HV corridor 588, near a substation 138, near data-center development 177.
 
-**Stage 9.** 102 arms-length agricultural comps (3 yr, ≥ 20 ac, multi-account transfers collapsed, improvement-dominated sales dropped, read 5 mi beyond the study area). Bands: ALL/eased: n=14, median $9,802/ac; Carroll/eased: n=7, median $9,885/ac; Frederick/eased: n=5, median $9,719/ac; Washington/eased: n=3, median $10,343/ac; ALL/uneased: n=86, median $15,635/ac; Carroll/uneased: n=19, median $16,118/ac; Frederick/uneased: n=37, median $16,010/ac; Howard/uneased: n=4, median $18,374/ac; Montgomery/uneased: n=12, median $15,610/ac; Washington/uneased: n=11, median $8,189/ac. Parcels valued 2,576; median estimate $16,010/ac.
+**Stage 9.** 102 arms-length agricultural comps (3 yr, ≥ 20 ac, multi-account transfers collapsed, improvement-dominated sales dropped, read 5 mi beyond the study area). Their eased status rests on the share of the sold parcel under easement where the fabric covers it (66), on the sale point alone beyond it (19), or is unknown because no easement layer reaches that county (17 in Howard and Montgomery, which therefore sit out the bands). Bands: ALL/eased: n=15, median $9,719/ac; Carroll/eased: n=8, median $9,590/ac; Frederick/eased: n=5, median $9,719/ac; Washington/eased: n=3, median $10,343/ac; ALL/uneased: n=68, median $15,330/ac; Carroll/uneased: n=18, median $16,371/ac; Frederick/uneased: n=37, median $16,010/ac; Washington/uneased: n=11, median $8,189/ac. Parcels valued 2,576; median estimate $16,010/ac.
 
 **Stage 10.** Engine: osrm_freeflow_x_peak_factor (https://router.project-osrm.org); routed 2,576; median peak minutes bwi 104 min, langley 137 min, nova 128 min; route redundancy {'redundant': 2219, 'no_route': 210, 'single_egress': 147}; median corridor durability 89.2.
 
@@ -445,7 +438,7 @@ comparable to the 2026-09-02 one column by column:
 | dwellings with line of sight (median) | 73 | 46 | several footprints on one parcel are one household, not one per barn |
 | parcels adjoining residential zoning | 1,235 | 599 | `ROW` (right of way) and other letter-only codes are no longer inferred residential |
 | route redundancy: redundant / single / none | 1,147 / 1,043 / 389 | 2,219 / 147 / 210 | entrances attach to the real centerline rather than a straight chord, and independence is a max flow rather than a count bounded by the number of entrances |
-| arms-length comps | 76 | 102 | multi-account transfers collapse into one comp, comps read out to the layer's own 5-mile margin, the acreage cut applies to the whole transfer |
+| arms-length comps (banded) | 76 | 85 | multi-account transfers collapse into one comp, comps read out to the layer's own 5-mile margin, the acreage cut applies to the whole transfer; 17 more are read but sit out the bands because no easement layer covers their county |
 | median estimated value | $17,289/ac | $16,010/ac | the larger, better-segmented comp set |
 | dischargeable envelope (median) | 45 ac | 44 ac | a house on the seller's other parcel now constrains the buyer, and buildings people occupy that are not dwellings get the same 150 yd zone |
 | shortlist exclusions | 1,422 | 1,273 | a block reachable only with a permitted stream crossing still counts |
