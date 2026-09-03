@@ -162,7 +162,10 @@ def load_occupied_structures(cfg: Config, parcels_all: gpd.GeoDataFrame, clip: B
 
 def longest_interior_chord_m(poly: BaseGeometry, max_pts: int = 64) -> float:
     """Length of the longest straight segment that stays inside `poly`
-    (the largest part if multipart). Endpoints are sampled on the boundary."""
+    (the largest part if multipart). Endpoints are sampled on the boundary;
+    candidate pairs are tested longest-first against a prepared geometry, so
+    the first covered chord is the answer."""
+    from shapely.prepared import prep
     parts = sorted(polygon_parts(poly), key=lambda p: -p.area)
     if not parts:
         return 0.0
@@ -171,18 +174,16 @@ def longest_interior_chord_m(poly: BaseGeometry, max_pts: int = 64) -> float:
     Q = P.simplify(tol, preserve_topology=True) if tol > 0 else P
     ring = Q.exterior
     n = max(8, min(max_pts, len(ring.coords)))
-    pts = [ring.interpolate(i / n, normalized=True) for i in range(n)]
-    best = 0.0
-    Pb = P.buffer(0.05)
-    for i in range(n):
-        for j in range(i + 1, n):
-            d = pts[i].distance(pts[j])
-            if d <= best:
-                continue
-            seg = LineString([pts[i], pts[j]])
-            if Pb.covers(seg):
-                best = d
-    return best
+    pts = np.array([[pt.x, pt.y] for pt in (ring.interpolate(i / n, normalized=True) for i in range(n))])
+    d = np.hypot(pts[:, None, 0] - pts[None, :, 0], pts[:, None, 1] - pts[None, :, 1])
+    iu = np.triu_indices(n, k=1)
+    order = np.argsort(-d[iu])
+    covers = prep(P.buffer(0.05)).covers
+    for k in order:
+        i, j = iu[0][k], iu[1][k]
+        if covers(LineString([pts[i], pts[j]])):
+            return float(d[i, j])
+    return 0.0
 
 
 def run_stage5(cfg: Config, scored: gpd.GeoDataFrame, s3geoms: dict[str, dict], occ: OccupiedStructures,
