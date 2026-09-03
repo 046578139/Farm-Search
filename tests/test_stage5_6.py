@@ -61,5 +61,7 @@ def test_stage6_hill_shields_the_far_house(r56):
     assert h["dwellings_with_line_of_sight"] == 2
     assert h["nearest_dwelling_yards"] < 200
     j = sc.loc["FRED-J"]
-    assert j["candidate_backstop_slopes"] is True or j["candidate_backstop_slopes"] == True  # noqa: E712  steep ring of the hill
+    # J's hill has K's house to the west and L's to the east: no slope faces away from
+    # both, so the hill is not a safe backstop (see test_stage6_backstop_orientation)
+    assert j["candidate_backstop_slopes"] == False and j["candidate_backstop_acres"] == 0.0  # noqa: E712
     assert summ["stage6"]["terrain_mode"] == "local" and summ["stage6"]["windows_failed"] == 0

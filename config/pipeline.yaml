@@ -35,10 +35,8 @@ school_buffer_yards: 300     # statutory (Stage 5)
 min_dischargeable_acres: 10  # Stage 5
 min_envelope_length_yards: 200   # longest usable dimension for a shooting bay (Stage 5)
 mprp_exclusion_buffer_ft: 2000   # Stage 8
-commute_destinations:            # Stage 10 — reported column, NEVER a filter
-  - BWI
-  - Langley, VA
-  - Northern Virginia (TBD specific)
+# Stage 10 destinations (reported columns, NEVER a filter) are configured with
+# their coordinates and peak factors under `commute:` near the bottom of this file.
 
 # --- Study area ---------------------------------------------------------------
 # Built from real county boundaries with `farmsearch build-study-area`
@@ -643,7 +641,10 @@ envelope:
       fetch_margin_ft: 3000
   dwelling_min_structure_sqft: 400
   footprint_min_sqft: 400
-  exclude_same_owner: true
+  # An acquisition screen buys the subject parcel: a house on the seller's other
+  # parcel constrains the buyer like any neighbour's. true only makes sense when
+  # the owner's whole holding is bought at once.
+  exclude_same_owner: false
   viewshed_max_distance_yards: 1000
   observer_height_m: 1.7
   target_height_m: 2.0
@@ -670,31 +671,38 @@ envelope:
 encroachment:
   sewer_layers:
     - name: sewer_planned_frederick_county
+      county: Frederick
       path: ../data/raw/planning/sewer_planned_frederick_county.gpkg
       url: "https://fcgis.frederickcountymd.gov/server_pub/rest/services/PlanningAndPermitting/WaterSewerServiceAreas/MapServer/2"
       rest_where: "SP_Type IN ('S-3','S-3 DEV','S-4','S-4 DEV','S-5','S-5 DEV','PS')"
     - name: sewer_planned_frederick_city
+      county: Frederick
       path: ../data/raw/planning/sewer_planned_frederick_city.gpkg
       url: "https://fcgis.frederickcountymd.gov/server_pub/rest/services/PlanningAndPermitting/WaterSewerServiceAreas/MapServer/3"
       rest_where: "SP_Type IN ('S-3','S-3 DEV','S-4','S-4 DEV','S-5','S-5 DEV','PS')"
     - name: sewer_planned_carroll
+      county: Carroll
       path: ../data/raw/planning/sewer_planned_carroll.gpkg
       url: "https://services.arcgis.com/Uf0DiYpD9NOFO5YH/arcgis/rest/services/SewerServiceAreas_CarrollCounty/FeatureServer/0"
       rest_where: "Service IN ('Priority','Future','Long Range')"
     - name: sewer_planned_washington
+      county: Washington
       path: ../data/raw/planning/sewer_planned_washington.gpkg
       url: "https://services2.arcgis.com/uxxyl33jRTSmjre5/arcgis/rest/services/vw_Sewer%20Service%20Area_Public/FeatureServer/0"
       rest_where: "Priority_Designation IN ('3-Programmed Service','5-Long Term Planned Service')"
   sewer_existing_layers:
     - name: sewer_existing_frederick_county
+      county: Frederick
       path: ../data/raw/planning/sewer_existing_frederick_county.gpkg
       url: "https://fcgis.frederickcountymd.gov/server_pub/rest/services/PlanningAndPermitting/WaterSewerServiceAreas/MapServer/2"
       rest_where: "SP_Type = 'S-1'"
     - name: sewer_existing_carroll
+      county: Carroll
       path: ../data/raw/planning/sewer_existing_carroll.gpkg
       url: "https://services.arcgis.com/Uf0DiYpD9NOFO5YH/arcgis/rest/services/SewerServiceAreas_CarrollCounty/FeatureServer/0"
       rest_where: "Service = 'Existing'"
     - name: sewer_existing_washington
+      county: Washington
       path: ../data/raw/planning/sewer_existing_washington.gpkg
       url: "https://services2.arcgis.com/uxxyl33jRTSmjre5/arcgis/rest/services/vw_Sewer%20Service%20Area_Public/FeatureServer/0"
       rest_where: "Priority_Designation = '1-Existing Service'"
@@ -705,21 +713,26 @@ encroachment:
       url: "https://mdgeodata.md.gov/imap/rest/services/PlanningCadastre/MD_PriorityFundingAreas/MapServer/0"
   growth_area_layers:
     - name: growth_areas_frederick
+      county: Frederick
       path: ../data/raw/planning/growth_areas_frederick.gpkg
       url: "https://fcgis.frederickcountymd.gov/server_pub/rest/services/PlanningAndPermitting/CommunityGrowthArea/MapServer/2"
     - name: growth_areas_carroll
+      county: Carroll
       path: ../data/raw/planning/growth_areas_carroll.gpkg
       url: "https://services.arcgis.com/Uf0DiYpD9NOFO5YH/arcgis/rest/services/GrowthAreas_CarrollCounty/FeatureServer/0"
     - name: growth_areas_washington
+      county: Washington
       path: ../data/raw/planning/growth_areas_washington.gpkg
       url: "https://services2.arcgis.com/uxxyl33jRTSmjre5/arcgis/rest/services/Growth_Areas_2025_View/FeatureServer/0"
   pipeline_layers:
     - name: residential_pipeline_frederick
+      county: Frederick
       path: ../data/raw/planning/residential_pipeline_frederick.gpkg
       url: "https://fcgis.frederickcountymd.gov/server_pub/rest/services/PlanningAndPermitting/ResidentialDevelopmentPipeline/MapServer/0"
       units_field: D_AMinusC_AvailablePipeline
       fetch_margin_ft: 10560
     - name: residential_pipeline_frederick_eaglehead
+      county: Frederick
       path: ../data/raw/planning/residential_pipeline_frederick_eaglehead.gpkg
       url: "https://fcgis.frederickcountymd.gov/server_pub/rest/services/PlanningAndPermitting/ResidentialDevelopmentPipeline/MapServer/1"
       units_field: D_AMinusC_AvailablePipeline

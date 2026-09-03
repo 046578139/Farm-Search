@@ -169,7 +169,10 @@ def run_stage3(cfg: Config, parcels: gpd.GeoDataFrame, enc_geoms: dict[str, dict
         fav = [g for g in fav if g is not None and not g.is_empty]
         if fav:
             parcels.at[i, "ag_easement_within_usable_acres"] = round(m2_to_acres(unary_union(fav).intersection(usable).area), 2)
-        geoms[acct] = {"usable": usable, "traversable": traversable, "passable": passable, "hostile": hostile}
+        geoms[acct] = {"usable": usable, "traversable": traversable, "passable": passable, "hostile": hostile,
+                       # the subset a vehicle cannot cross: a mapped floodplain is
+                       # hostile to building, not to driving (Stage 4 entry nodes)
+                       "hostile_blocking": {k: g for k, g in hostile.items() if k in blocking}}
         usable_rows.append({"account_id": acct, "usable_acres": parcels.at[i, "usable_acres"], "geometry": usable})
 
     usable_gdf = gpd.GeoDataFrame(usable_rows, geometry="geometry", crs=parcels.crs) if usable_rows else \

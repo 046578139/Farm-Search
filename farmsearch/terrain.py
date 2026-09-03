@@ -26,6 +26,7 @@ from shapely.geometry.base import BaseGeometry
 from shapely.ops import nearest_points
 
 from .config import Config
+from .slope import IMAGESERVER_NODATA
 from .units import ft_to_m
 
 log = logging.getLogger(__name__)
@@ -88,10 +89,12 @@ class TerrainSampler:
         return "local" if self._local is not None else "imageserver"
 
     def _clean(self, arr: np.ndarray, nodata) -> np.ndarray:
-        a = arr.astype("float64") * self.vscale
+        raw = arr.astype("float64")
+        a = raw * self.vscale
         bad = ~np.isfinite(a)
         if nodata is not None:
-            bad |= np.isclose(arr.astype("float64"), float(nodata))
+            bad |= np.isclose(raw, float(nodata))
+        bad |= raw <= -9000.0            # ImageServer nodata (-9999) with or without a TIFF tag
         if self.min_valid is not None:
             bad |= a < self.min_valid
         bad |= a > self.max_valid
@@ -102,40 +105,48 @@ class TerrainSampler:
         """DEM covering bounds (working CRS metres), snapped to the cell grid."""
         minx, miny, maxx, maxy = bounds
         c = self.cell
-        key = (round(minx / c) , round(miny / c), round(maxx / c), round(maxy / c))
-        if key in self._cache:
-            return self._cache[key]
         minx, miny = math.floor(minx / c) * c, math.floor(miny / c) * c
         maxx, maxy = math.ceil(maxx / c) * c, math.ceil(maxy / c) * c
+        key = (int(round(minx / c)), int(round(miny / c)), int(round(maxx / c)), int(round(maxy / c)))   # the snapped window
+        if key in self._cache:
+            return self._cache[key]
         if self._local is not None:
-            from rasterio.warp import Resampling, reproject
+            from rasterio.warp import Resampling, reproject, transform_bounds
             from rasterio.transform import from_origin
+            from rasterio.windows import Window, from_bounds
             w = max(2, int(round((maxx - minx) / c))); h = max(2, int(round((maxy - miny) / c)))
             dst = np.full((h, w), np.nan, dtype="float64")
             src_nodata = self._local.nodata
-            reproject(source=self._local.read(1), destination=dst, src_transform=self._local.transform, src_crs=self._local.crs,
-                      src_nodata=src_nodata, dst_transform=from_origin(minx, maxy, c, c), dst_crs=self.cfg.working_crs,
-                      dst_nodata=np.nan, resampling=Resampling.bilinear)
+            # read only the source window the request needs (plus a two-cell pad), never the whole raster
+            try:
+                sb = transform_bounds(self.cfg.working_crs, self._local.crs, minx, miny, maxx, maxy, densify_pts=5)
+                pad = 2.0 * max(abs(self._local.res[0]), abs(self._local.res[1]))
+                wr = from_bounds(sb[0] - pad, sb[1] - pad, sb[2] + pad, sb[3] + pad, transform=self._local.transform)
+                wr = wr.round_offsets().round_lengths().intersection(Window(0, 0, self._local.width, self._local.height))
+            except Exception:  # noqa: BLE001 - outside the raster
+                wr = None
+            if wr is not None and wr.width > 0 and wr.height > 0:
+                reproject(source=self._local.read(1, window=wr), destination=dst,
+                          src_transform=self._local.window_transform(wr), src_crs=self._local.crs,
+                          src_nodata=src_nodata, dst_transform=from_origin(minx, maxy, c, c), dst_crs=self.cfg.working_crs,
+                          dst_nodata=np.nan, resampling=Resampling.bilinear)
             win = DEMWindow(self._clean(dst, None), minx, maxy, c)
         else:
             payload = self._image.export((minx, miny, maxx, maxy), self.epsg, c)
             with MemoryFile(payload) as mf, mf.open() as ds:
                 arr = ds.read(1)
                 t = ds.transform
-                win = DEMWindow(self._clean(arr, ds.nodata), float(t.c), float(t.f), float(abs(t.a)))
+                nodata = ds.nodata if ds.nodata is not None else IMAGESERVER_NODATA
+                win = DEMWindow(self._clean(arr, nodata), float(t.c), float(t.f), float(abs(t.a)))
         if len(self._cache) > 64:
             self._cache.clear()
         self._cache[key] = win
         return win
 
     # ------------------------------------------------------------------
-    def line_of_sight(self, win: DEMWindow, p1: Point, p2: Point, h1: float, h2: float, step: Optional[float] = None) -> Optional[bool]:
-        """True if the straight line from p1 (eye h1 above ground) to p2
-        (target h2 above ground) clears the terrain profile; None when the
-        profile has no valid samples."""
+    def _profile(self, win: DEMWindow, p1: Point, p2: Point, step: Optional[float] = None):
+        """(t, z) ground samples along p1 -> p2; None when the endpoints have no valid elevation."""
         d = p1.distance(p2)
-        if d < 1e-6:
-            return True
         step = step or self.cell
         n = max(2, int(math.ceil(d / step)) + 1)
         t = np.linspace(0.0, 1.0, n)
@@ -143,6 +154,17 @@ class TerrainSampler:
         ys = p1.y + (p2.y - p1.y) * t
         z = win.sample(xs, ys)
         if not np.isfinite(z[0]) or not np.isfinite(z[-1]):
+            return None, None
+        return t, z
+
+    def line_of_sight(self, win: DEMWindow, p1: Point, p2: Point, h1: float, h2: float, step: Optional[float] = None) -> Optional[bool]:
+        """True if the straight line from p1 (eye h1 above ground) to p2
+        (target h2 above ground) clears the terrain profile; None when the
+        profile has no valid samples."""
+        if p1.distance(p2) < 1e-6:
+            return True
+        t, z = self._profile(win, p1, p2, step)
+        if t is None:
             return None
         z0 = z[0] + h1
         z1 = z[-1] + h2
@@ -156,8 +178,17 @@ class TerrainSampler:
 
     def profile_has_ridge(self, win: DEMWindow, p1: Point, p2: Point, rise_m: float = 3.0) -> Optional[bool]:
         """Is there terrain at least rise_m above the straight ground line between p1 and p2?"""
-        r = self.line_of_sight(win, p1, p2, 0.0, 0.0)
-        return None if r is None else (not r)
+        if p1.distance(p2) < 1e-6:
+            return False
+        t, z = self._profile(win, p1, p2)
+        if t is None:
+            return None
+        line = z[0] + (z[-1] - z[0]) * t
+        rise = z[1:-1] - line[1:-1]
+        ok = np.isfinite(rise)
+        if not ok.any():
+            return False
+        return bool(np.max(rise[ok]) >= rise_m)
 
 
 # ----------------------------------------------------------------------------

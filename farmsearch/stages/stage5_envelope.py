@@ -57,7 +57,7 @@ YARD_M = 0.9144
 
 @dataclass
 class OccupiedStructures:
-    structures: gpd.GeoDataFrame     # kind (dwelling|church), account_id, owner_key, geometry (polygon or point)
+    structures: gpd.GeoDataFrame     # kind (dwelling|church|occupied|church_point), account_id, owner_key, located_by, geometry
     schools: gpd.GeoDataFrame        # kind (school_parcel|school_point), account_id, geometry
     footprints_available: bool = False
     missing_layers: list[str] = field(default_factory=list)
@@ -80,18 +80,30 @@ def load_occupied_structures(cfg: Config, parcels_all: gpd.GeoDataFrame, clip: B
     v = cfg.envelope
     missing: list[str] = []
     A = parcels_all.reset_index(drop=True)
+    # Without the land use and structure size the safety zones cannot be built at
+    # all: that is a degraded input, never "no neighbour has a house".
+    for f in ("land_use_desc", "structure_sqft"):
+        if f not in A.columns:
+            log.warning("parcel fabric has no %r: occupied structures cannot be identified", f)
+            missing.append(f"parcels:{f}")
     lu = A["land_use_desc"].astype("string").fillna("") if "land_use_desc" in A.columns else pd.Series([""] * len(A))
     sqft = _num(A["structure_sqft"]) if "structure_sqft" in A.columns else pd.Series(0.0, index=A.index)
     exc = A["exempt_class_desc"].astype("string").fillna("") if "exempt_class_desc" in A.columns else pd.Series([""] * len(A))
     is_acct = A["is_account"].astype(bool) if "is_account" in A.columns else pd.Series(True, index=A.index)
-    dwelling = is_acct & (sqft >= v.dwelling_min_structure_sqft) & lu.isin(v.dwelling_land_uses).astype(bool)
+    has_structure = is_acct & (sqft >= v.dwelling_min_structure_sqft)
+    dwelling = has_structure & lu.isin(v.dwelling_land_uses).astype(bool)
+    # NR 10-410 covers any "other building ... occupied by human beings": a shop,
+    # a store, a clubhouse. Same 150 yd zone, but not a dwelling for the viewshed.
+    occupied = has_structure & lu.isin(v.occupied_land_uses).astype(bool) & ~dwelling
     church = is_acct & exc.str.contains(v.church_exempt_regex, case=False, regex=True).astype(bool)
     school = is_acct & exc.str.contains(v.school_exempt_regex, case=False, regex=True).astype(bool)
     # a church-owned camp / school parcel is occupied too; treat schools separately (300 yd)
     dwelling = dwelling & ~school
-    church = church & ~school
-    log.info("occupied structures: %d dwelling parcels, %d church parcels, %d school parcels (of %d)",
-             int(dwelling.sum()), int(church.sum()), int(school.sum()), len(A))
+    occupied = occupied & ~school & ~church
+    # a parsonage is a dwelling AND a church parcel: one structure, emitted once
+    church = church & ~school & ~dwelling
+    log.info("occupied structures: %d dwelling parcels, %d other occupied buildings, %d church parcels, %d school parcels (of %d)",
+             int(dwelling.sum()), int(occupied.sum()), int(church.sum()), int(school.sum()), len(A))
 
     # footprints
     fp_parts = []
@@ -109,7 +121,7 @@ def load_occupied_structures(cfg: Config, parcels_all: gpd.GeoDataFrame, clip: B
 
     owner_key = A["owner_key"] if "owner_key" in A.columns else pd.Series([None] * len(A))
     rows = []
-    for kind, mask in (("dwelling", dwelling), ("church", church)):
+    for kind, mask in (("dwelling", dwelling), ("occupied", occupied), ("church", church)):
         sub = A[mask]
         if sub.empty:
             continue
@@ -129,12 +141,13 @@ def load_occupied_structures(cfg: Config, parcels_all: gpd.GeoDataFrame, clip: B
                 fg = fps.geometry.values[b]
                 inter = fg.intersection(pg)
                 if inter.area >= 0.5 * fg.area:      # the footprint belongs to this parcel
-                    rows.append({"kind": kind, "account_id": acct, "owner_key": ok, "geometry": fg})
+                    rows.append({"kind": kind, "account_id": acct, "owner_key": ok, "located_by": "footprint", "geometry": fg})
                     assigned = True
             if not assigned:
                 # no footprint (or only neighbours' buildings leaking across the line): the
                 # SDAT record says there is a structure, so the parcel point stands in
-                rows.append({"kind": kind, "account_id": acct, "owner_key": ok, "geometry": pg.representative_point()})
+                rows.append({"kind": kind, "account_id": acct, "owner_key": ok, "located_by": "parcel_point",
+                             "geometry": pg.representative_point()})
     for src in v.church_point_layers:
         try:
             g = clean_geometries(read_layer(src, cfg.working_crs, clip, clip_mode="intersects"), kind="any")
@@ -143,9 +156,9 @@ def load_occupied_structures(cfg: Config, parcels_all: gpd.GeoDataFrame, clip: B
             missing.append(src.name)
             continue
         for geom in g.geometry.values:
-            rows.append({"kind": "church_point", "account_id": None, "owner_key": None, "geometry": geom})
+            rows.append({"kind": "church_point", "account_id": None, "owner_key": None, "located_by": "point_layer", "geometry": geom})
     structures = gpd.GeoDataFrame(rows, geometry="geometry", crs=cfg.working_crs) if rows else \
-        gpd.GeoDataFrame({"kind": [], "account_id": [], "owner_key": []}, geometry=[], crs=cfg.working_crs)
+        gpd.GeoDataFrame({"kind": [], "account_id": [], "owner_key": [], "located_by": []}, geometry=[], crs=cfg.working_crs)
 
     srows = [{"kind": "school_parcel", "account_id": acct, "geometry": pg}
              for acct, pg in zip(A.loc[school, "account_id"].values, A.geometry.values[school.values])]
@@ -160,7 +173,9 @@ def load_occupied_structures(cfg: Config, parcels_all: gpd.GeoDataFrame, clip: B
             srows.append({"kind": "school_point", "account_id": None, "geometry": geom})
     schools = gpd.GeoDataFrame(srows, geometry="geometry", crs=cfg.working_crs) if srows else \
         gpd.GeoDataFrame({"kind": [], "account_id": []}, geometry=[], crs=cfg.working_crs)
-    return OccupiedStructures(structures=structures, schools=schools, footprints_available=fps is not None, missing_layers=missing)
+    # a footprint layer that opens but yields nothing in the clip is not coverage
+    return OccupiedStructures(structures=structures, schools=schools,
+                              footprints_available=fps is not None and len(fps) > 0, missing_layers=missing)
 
 
 def longest_interior_chord_m(poly: BaseGeometry, max_pts: int = 64) -> float:
@@ -199,7 +214,7 @@ def run_stage5(cfg: Config, scored: gpd.GeoDataFrame, s3geoms: dict[str, dict], 
     cols = {"dischargeable_envelope_acres": np.nan, "dischargeable_envelope_largest_block_acres": np.nan,
             "dischargeable_envelope_longest_dim_yards": np.nan, "archery_envelope_acres": np.nan,
             "occupied_structures_within_safety_zone": 0, "schools_within_school_zone": 0,
-            "own_structures_exempted": 0, "envelope_flags": None}
+            "own_structures_exempted": 0, "same_owner_structures_within_safety_zone": 0, "envelope_flags": None}
     for k, val in cols.items():
         P[k] = val
     P["envelope_flags"] = [[] for _ in range(len(P))]
@@ -210,6 +225,7 @@ def run_stage5(cfg: Config, scored: gpd.GeoDataFrame, s3geoms: dict[str, dict], 
     if len(Sc):
         _ = Sc.sindex
     okeys = P["owner_key"].values if "owner_key" in P.columns else np.array([None] * len(P))
+    located_by = S["located_by"].values if ("located_by" in S.columns and len(S)) else None
     env_rows = []
     for i, (acct, pg) in enumerate(zip(P["account_id"].values, P.geometry.values)):
         if i and i % 250 == 0:
@@ -225,19 +241,29 @@ def run_stage5(cfg: Config, scored: gpd.GeoDataFrame, s3geoms: dict[str, dict], 
         usable_p = prep(usable)
         zones = []
         zones_archery = []
-        n_struct = n_own = 0
+        n_struct = n_own = n_same = 0
+        by_point = False
         if len(S):
             hits = S.sindex.query(reach, predicate="intersects")
             for h in hits:
                 if S["account_id"].values[h] == acct:
                     n_own += 1
                     continue
-                if v.exclude_same_owner and okeys[i] and S["owner_key"].values[h] == okeys[i]:
-                    n_own += 1
-                    continue
+                same_owner = bool(okeys[i]) and S["owner_key"].values[h] == okeys[i]
                 zone = S.geometry.values[h].buffer(safety)
-                if usable_p.intersects(zone):
+                touching = usable_p.intersects(zone)
+                if same_owner:
+                    # a house on the seller's OTHER parcel constrains the buyer of this
+                    # one; it is exempt only if the whole holding is acquired
+                    if touching:
+                        n_same += 1
+                    if v.exclude_same_owner:
+                        n_own += 1
+                        continue
+                if touching:
                     n_struct += 1
+                    if located_by is not None and located_by[h] == "parcel_point":
+                        by_point = True
                     zones.append(zone)
                     zones_archery.append(S.geometry.values[h].buffer(archery))
         n_school = 0
@@ -262,6 +288,7 @@ def run_stage5(cfg: Config, scored: gpd.GeoDataFrame, s3geoms: dict[str, dict], 
         P.at[i, "occupied_structures_within_safety_zone"] = n_struct
         P.at[i, "schools_within_school_zone"] = n_school
         P.at[i, "own_structures_exempted"] = n_own
+        P.at[i, "same_owner_structures_within_safety_zone"] = n_same
         if m2_to_acres(env.area) < v.min_dischargeable_acres:
             flags.append("dischargeable_envelope_below_minimum")
         if largest is None or P.at[i, "dischargeable_envelope_longest_dim_yards"] < v.min_envelope_length_yards:
@@ -269,6 +296,12 @@ def run_stage5(cfg: Config, scored: gpd.GeoDataFrame, s3geoms: dict[str, dict], 
         flags.append("target_shooting_verify_county_discharge_ordinance_and_zoning")
         if not occ.footprints_available:
             flags.append("safety_zones_from_parcel_points_no_footprints")
+        elif by_point:
+            flags.append("safety_zone_located_by_parcel_point")
+        if n_same and v.exclude_same_owner:
+            flags.append("envelope_assumes_same_owner_dwellings_acquired")
+        if any(m.startswith("parcels:") for m in occ.missing_layers):
+            flags.append("safety_zones_not_evaluated_no_dwelling_fields")
         env_rows.append({"account_id": acct, "envelope_acres": P.at[i, "dischargeable_envelope_acres"], "geometry": env})
     envelopes = gpd.GeoDataFrame(env_rows, geometry="geometry", crs=P.crs) if env_rows else \
         gpd.GeoDataFrame({"account_id": [], "envelope_acres": []}, geometry=[], crs=P.crs)

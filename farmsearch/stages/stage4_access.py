@@ -165,13 +165,14 @@ def run_stage4(cfg: Config, parcels_all: gpd.GeoDataFrame, target_mask: pd.Serie
         pg = P.geometry.values[i]
         g3 = s3geoms.get(acct, {"usable": pg, "traversable": pg, "passable": pg, "hostile": {}})
         hostile = g3["hostile"]
+        blocking = set(g3.get("hostile_blocking", hostile))
         flags: list[str] = []
 
         # -- 1-3. Frontage ------------------------------------------------
         fr = analyze_frontage(int(i), pg, owners[i], addrs[i], P, public_rows, hostile,
                               search_ft=a.frontage_search_ft, sample_ft=a.frontage_sample_ft,
                               contact_tol_ft=a.contact_tolerance_ft, open_gap_ft=a.open_gap_ft,
-                              subject_deed=deeds[i], row_like=is_row_like)
+                              subject_deed=deeds[i], row_like=is_row_like, blocking=blocking)
         L = fr.length_by_class()
         facing = fr.road_facing_m
         direct = L["open"] + L["encumbered"]

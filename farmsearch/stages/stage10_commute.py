@@ -135,16 +135,18 @@ class RoadGraph:
                 if self.G.has_edge(a, b):
                     if ln.length < self.G[a][b]["length"]:
                         self.G[a][b]["length"] = ln.length
+                        self.G[a][b]["geom"] = ln
                 else:
-                    self.G.add_edge(a, b, length=ln.length)
+                    self.G.add_edge(a, b, length=ln.length, geom=ln)
                 if is_major:
                     self.major_nodes.add(a); self.major_nodes.add(b)
         self._nodes = np.array([self._node_xy[n] for n in self.G.nodes]) if self.G.number_of_nodes() else np.zeros((0, 2))
         self._node_list = list(self.G.nodes)
-        # straight edge geometries for attaching an origin mid-segment
+        # the real centerline of each edge, for attaching an origin mid-segment:
+        # a curved segment's chord can be hundreds of metres from the road
         self._edges = [(a, b) for a, b in self.G.edges]
-        self._edge_geoms = gpd.GeoSeries([LineString([self._node_xy[a], self._node_xy[b]]) for a, b in self._edges]) \
-            if self._edges else gpd.GeoSeries([], dtype="geometry")
+        self._edge_geoms = gpd.GeoSeries([self.G[a][b].get("geom") or LineString([self._node_xy[a], self._node_xy[b]])
+                                          for a, b in self._edges]) if self._edges else gpd.GeoSeries([], dtype="geometry")
         if len(self._edge_geoms):
             _ = self._edge_geoms.sindex
 
@@ -172,7 +174,8 @@ class RoadGraph:
         if seg.distance(pt) > max_m:
             return None, None
         a, b = self._edges[j]
-        proj = seg.interpolate(seg.project(pt))
+        along = seg.project(pt)
+        proj = seg.interpolate(along)
         for end in (a, b):
             if Point(self._node_xy[end]).distance(proj) <= self.snap:
                 return end, (lambda: None)
@@ -182,8 +185,15 @@ class RoadGraph:
             return o, (lambda: None)
         if not self.G.has_edge(a, b):
             return self.nearest_node(pt, max_m), (lambda: None)
-        length = self.G[a][b]["length"]
-        la = Point(self._node_xy[a]).distance(proj); lb = Point(self._node_xy[b]).distance(proj)
+        data = dict(self.G[a][b])
+        # split along the real centerline so the two halves still sum to its length
+        la = along if seg.length else 0.0
+        lb = max(0.0, seg.length - along)
+        if not seg.length:
+            la = lb = data["length"] / 2.0
+        elif abs(seg.length - data["length"]) > 1.0:      # a merged duplicate: keep the stored length
+            scale = data["length"] / seg.length
+            la, lb = la * scale, lb * scale
         self.G.remove_edge(a, b)
         self.G.add_edge(a, o, length=la); self.G.add_edge(o, b, length=lb)
         if a in self.major_nodes and b in self.major_nodes:
@@ -192,7 +202,7 @@ class RoadGraph:
         def undo():
             if self.G.has_node(o):
                 self.G.remove_node(o)
-            self.G.add_edge(a, b, length=length)
+            self.G.add_edge(a, b, **data)
             self.major_nodes.discard(o)
         return o, undo
 
@@ -265,12 +275,20 @@ def osrm_durations(base_url: str, origins_ll: list[tuple[float, float]], dests_l
     return out
 
 
+# Routes API computeRouteMatrix: at most 100 elements (origins x destinations)
+# per request with TRAFFIC_AWARE_OPTIMAL, 625 otherwise.
+GOOGLE_MAX_ELEMENTS_TRAFFIC_AWARE_OPTIMAL = 100
+
+
 def google_durations(api_key: str, origins_ll: list[tuple[float, float]], dests_ll: list[tuple[float, float]],
-                     departure: datetime, session=None, timeout: int = 120, batch: int = 50) -> np.ndarray:
+                     departure: datetime, session=None, timeout: int = 120, batch: Optional[int] = None) -> np.ndarray:
     """Traffic-aware minutes via the Routes API computeRouteMatrix (departureTime honoured)."""
     import requests
     s = session or requests.Session()
     out = np.full((len(origins_ll), len(dests_ll)), np.nan)
+    if not len(dests_ll):
+        return out
+    batch = batch or max(1, GOOGLE_MAX_ELEMENTS_TRAFFIC_AWARE_OPTIMAL // len(dests_ll))
     url = "https://routes.googleapis.com/distanceMatrix/v2:computeRouteMatrix"
     headers = {"Content-Type": "application/json", "X-Goog-Api-Key": api_key,
                "X-Goog-FieldMask": "originIndex,destinationIndex,duration,condition"}
@@ -290,6 +308,20 @@ def google_durations(api_key: str, origins_ll: list[tuple[float, float]], dests_
 
 
 # ---------------------------------------------------------------------------
+def _road_name(row) -> Optional[str]:
+    """A usable road name, or None. NaN is truthy, so `a or b` would return it."""
+    for k in ("ROADNAME", "ROAD_NAME", "RTE_NAME"):
+        v = row.get(k)
+        if v is not None and pd.notna(v) and str(v).strip():
+            return str(v).strip()
+    parts = []
+    for k in ("ID_PREFIX", "ID_RTE_NO"):
+        v = row.get(k)
+        if v is not None and pd.notna(v) and str(v).strip():
+            parts.append(str(v).strip())
+    return "".join(parts) or None
+
+
 def _aadt_trend(row) -> tuple[Optional[float], Optional[float]]:
     """(latest AADT, fractional change from the earliest available year)."""
     years = sorted((c for c in row.index if str(c).upper().startswith("AADT_") and str(c)[5:9].isdigit()), key=lambda c: int(str(c)[5:9]))
@@ -352,7 +384,7 @@ def run_stage10(cfg: Config, scored: gpd.GeoDataFrame, entry_points: Optional[gp
         if pt is None and roads is not None and len(roads):
             near = roads.iloc[list(roads.sindex.query(pg.buffer(500), predicate="intersects"))]
             if len(near):
-                _, rp = nearest_points(pg, near.geometry.unary_union if hasattr(near.geometry, "unary_union") else near.geometry.union_all())
+                _, rp = nearest_points(pg, near.geometry.union_all() if hasattr(near.geometry, "union_all") else near.geometry.unary_union)
                 pt = rp
         origin_pts.append(pt if pt is not None else pg.representative_point())
 
@@ -363,28 +395,44 @@ def run_stage10(cfg: Config, scored: gpd.GeoDataFrame, entry_points: Optional[gp
         dests_ll = [(d.lon, d.lat) for d in c.destinations]
         n = len(origins_ll) if c.max_parcels is None else min(len(origins_ll), c.max_parcels)
         M = None
-        try:
-            if durations_fn is not None:
+        if durations_fn is not None:
+            try:
                 M = durations_fn(origins_ll[:n], dests_ll); engine = "injected"
-            elif c.provider == "google":
-                key = os.environ.get(c.google_api_key_env)
-                if key:
+            except Exception as e:  # noqa: BLE001
+                log.warning("injected durations failed: %s", e)
+                M, engine = None, f"failed: {e}"
+        elif c.provider == "google":
+            key = os.environ.get(c.google_api_key_env)
+            if key:
+                try:
                     M = google_durations(key, origins_ll[:n], dests_ll, _next_departure(c)); engine = "google_routes_traffic_aware"
-                else:
-                    log.warning("commute provider google: no key in $%s; falling back to OSRM free-flow", c.google_api_key_env)
-            if M is None and c.provider in ("google", "osrm"):
-                M = osrm_durations(c.osrm_url, origins_ll[:n], dests_ll, batch=c.osrm_batch); engine = f"osrm_freeflow_x_peak_factor ({c.osrm_url})"
-        except Exception as e:  # noqa: BLE001
-            log.warning("commute routing failed: %s", e)
-            M = None
-            engine = f"failed: {e}"
+                except Exception as e:  # noqa: BLE001 - degrade to OSRM, as the log promises
+                    log.warning("Google Routes failed (%s); falling back to OSRM free-flow", e)
+            else:
+                log.warning("commute provider google: no key in $%s; falling back to OSRM free-flow", c.google_api_key_env)
+        if M is None and c.provider in ("google", "osrm"):
+            try:
+                M = osrm_durations(c.osrm_url, origins_ll[:n], dests_ll, batch=c.osrm_batch)
+                engine = f"osrm_freeflow_x_peak_factor ({c.osrm_url})"
+            except Exception as e:  # noqa: BLE001
+                log.warning("commute routing failed: %s", e)
+                M, engine = None, f"failed: {e}"
         if M is not None:
+            traffic_aware = engine.startswith(("google", "injected"))
+            measured_peak = engine.startswith("google")     # the only engine whose minutes already include traffic
             for j, d in enumerate(c.destinations):
-                ff = M[:, j]
-                peak = ff if engine.startswith(("google", "injected")) else ff * d.peak_factor
-                P.loc[: n - 1, d.column.replace("_peak_min", "_freeflow_min")] = np.round(ff, 1)
+                raw = M[:, j]
+                peak = raw if traffic_aware else raw * d.peak_factor
+                # the matrix is free-flow only when the engine is not departure-time
+                # aware; writing traffic-aware minutes into a "freeflow" column would
+                # show zero congestion everywhere
+                if not measured_peak:
+                    P.loc[: n - 1, d.column.replace("_peak_min", "_freeflow_min")] = np.round(raw, 1)
                 P.loc[: n - 1, d.column] = np.round(peak, 1)
-            basis = ("traffic-aware, departure Tuesday 07:00 local" if engine.startswith("google")
+            basis = ("traffic-aware, departure {} {} local".format(
+                        ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"][c.departure_weekday % 7],
+                        c.departure_time) if engine.startswith("google")
+                     else "durations supplied to the stage directly (test / injected engine); no peak factor applied" if engine == "injected"
                      else "free-flow minutes x configured peak_factor per destination (no traffic engine); a placeholder, not a measurement")
             P["commute_basis"] = basis
             for i in range(n, len(P)):
@@ -453,7 +501,7 @@ def run_stage10(cfg: Config, scored: gpd.GeoDataFrame, entry_points: Optional[gp
                 row = sub.iloc[j]
                 aadt, trend = _aadt_trend(row)
                 _, access_pt = nearest_points(pt, row.geometry)
-                P.at[i, "corridor_road"] = str(row.get("ROADNAME") or row.get("ROAD_NAME") or row.get("ID_PREFIX", "") + str(row.get("ID_RTE_NO", "")))
+                P.at[i, "corridor_road"] = _road_name(row)
                 if aadt is not None:
                     P.at[i, "corridor_aadt"] = round(aadt, 0)
                 if trend is not None:

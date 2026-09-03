@@ -36,6 +36,7 @@ class LayerSource:
     page_size: Optional[int] = None    # override the service maxRecordCount when paging (heavy geometries)
     dedupe_geometry: bool = False      # drop rows whose geometry duplicates an earlier row (double-published easements)
     fetch_margin_ft: Optional[float] = None   # fetch bbox margin beyond the study area (default: context_buffer_ft)
+    county: Optional[str] = None       # the one county this source covers (Stage 7 nulls the column elsewhere); None = all
 
     @classmethod
     def from_dict(cls, base: Path, d: dict, name: Optional[str] = None) -> "LayerSource":
@@ -45,7 +46,8 @@ class LayerSource:
                    rest_where=d.get("rest_where"),
                    page_size=(int(d["page_size"]) if d.get("page_size") else None),
                    dedupe_geometry=bool(d.get("dedupe_geometry", False)),
-                   fetch_margin_ft=(float(d["fetch_margin_ft"]) if d.get("fetch_margin_ft") is not None else None))
+                   fetch_margin_ft=(float(d["fetch_margin_ft"]) if d.get("fetch_margin_ft") is not None else None),
+                   county=(str(d["county"]) if d.get("county") else None))
 
 
 @dataclass
@@ -127,7 +129,13 @@ class ZoningSpec:
                                       f"use true, false, unknown or null")
             res = v.get("is_residential") if isinstance(v, dict) else None
             if isinstance(res, str):
-                res = res.strip().lower() in ("true", "yes")
+                r = res.strip().lower()
+                if r in ("true", "yes"):
+                    res = True
+                elif r in ("false", "no"):
+                    res = False
+                else:
+                    raise ConfigError(f"zoning {self.county}: code {code!r} has is_residential={res!r}; use true, false or null")
             self.codes[str(code)] = {"description": (v.get("description") if isinstance(v, dict) else None),
                                      "is_agricultural": val,
                                      # Stage 7: residential zoning on adjoining land is the threat.
@@ -181,6 +189,9 @@ class ConstraintSpec:
             src = LayerSource.from_dict(base, d)
         if src is None and dfl is None:
             raise ConfigError(f"constraint {d['name']}: needs path/url or derive_from_lines")
+        if bool(d["subtract_from_usable"]) and not bool(d.get("blocks_travel", True)) and not bool(d["crossable_with_permit"]):
+            raise ConfigError(f"constraint {d['name']}: blocks_travel: false means a vehicle crosses it today, so "
+                              f"crossable_with_permit: false contradicts it (the permitted-crossings area would be smaller than the base)")
         return cls(name=d["name"], type=d["type"], category=d["category"],
                    implication=d["implication"],
                    subtract_from_usable=bool(d["subtract_from_usable"]),
@@ -312,11 +323,22 @@ class EnvelopeConfig:
     dwelling_land_uses: list[str] = field(default_factory=lambda: [
         "Residential", "Town House", "Agricultural", "Residential Condominium", "Apartments",
         "Commercial/Residential", "Residential/Commercial", "Residential/Agricultural"])
+    # Non-residential buildings occupied by people (NR 10-410: "other building
+    # ... occupied by human beings"): same 150 yd zone, but not a dwelling for
+    # the Stage 6 viewshed counts.
+    occupied_land_uses: list[str] = field(default_factory=lambda: [
+        "Commercial", "Commercial Condominium", "Industrial", "Exempt", "Exempt Commercial", "Country Club"])
     dwelling_min_structure_sqft: float = 400
     footprint_min_sqft: float = 400
     church_exempt_regex: str = r"church|synagogue|parsonage|religious|mosque|temple"
     school_exempt_regex: str = r"school|college"
-    exclude_same_owner: bool = True           # the owner/occupant exemption extends to the owner's other parcels
+    # The statute exempts the owner/occupant of the dwelling. After an
+    # acquisition the buyer owns the subject parcel only, so a house on the
+    # seller's retained lot constrains the buyer like any neighbour's: the
+    # default exempts the subject parcel's own structures alone. True extends
+    # the exemption to every parcel under the same owner key (a multi-account
+    # farm bought whole); the same-owner count is reported either way.
+    exclude_same_owner: bool = False
     # Stage 6
     viewshed_max_distance_yards: float = 1000
     observer_height_m: float = 1.7
@@ -339,6 +361,12 @@ class ValuationConfig:
     date_field: str = "TRADATE"              # YYYYMMDD
     conveyance_field: str = "CONVEY1"
     arms_length_codes: list[int] = field(default_factory=lambda: [1, 2, 3])
+    # SDAT conveyance 3 = arms-length sale of several accounts at once: the
+    # consideration is for the whole transfer, so the accounts are collapsed
+    # into one comp (acres and improvements summed) keyed by date, price and
+    # deed reference.
+    multi_account_codes: list[int] = field(default_factory=lambda: [3])
+    deed_ref_fields: list[str] = field(default_factory=lambda: ["DR1LIBER", "DR1FOLIO"])
     acres_field: str = "ACRES"
     land_use_field: str = "DESCLU"
     agricultural_land_uses: list[str] = field(default_factory=lambda: ["Agricultural"])
@@ -595,11 +623,12 @@ class Config:
                 school_point_layers=_layers(v.get("school_point_layers")),
                 church_point_layers=_layers(v.get("church_point_layers")),
                 dwelling_land_uses=[str(x) for x in (v.get("dwelling_land_uses") or EnvelopeConfig().dwelling_land_uses)],
+                occupied_land_uses=[str(x) for x in (v.get("occupied_land_uses") if v.get("occupied_land_uses") is not None else EnvelopeConfig().occupied_land_uses)],
                 dwelling_min_structure_sqft=float(v.get("dwelling_min_structure_sqft", 400)),
                 footprint_min_sqft=float(v.get("footprint_min_sqft", 400)),
                 church_exempt_regex=str(v.get("church_exempt_regex", EnvelopeConfig().church_exempt_regex)),
                 school_exempt_regex=str(v.get("school_exempt_regex", EnvelopeConfig().school_exempt_regex)),
-                exclude_same_owner=bool(v.get("exclude_same_owner", True)),
+                exclude_same_owner=bool(v.get("exclude_same_owner", False)),
                 viewshed_max_distance_yards=float(v.get("viewshed_max_distance_yards", 1000)),
                 observer_height_m=float(v.get("observer_height_m", 1.7)),
                 target_height_m=float(v.get("target_height_m", 2.0)),
@@ -618,6 +647,8 @@ class Config:
                 date_field=str(q.get("date_field", dv.date_field)),
                 conveyance_field=str(q.get("conveyance_field", dv.conveyance_field)),
                 arms_length_codes=[int(x) for x in (q.get("arms_length_codes") or dv.arms_length_codes)],
+                multi_account_codes=[int(x) for x in (q.get("multi_account_codes") if q.get("multi_account_codes") is not None else dv.multi_account_codes)],
+                deed_ref_fields=[str(x) for x in (q.get("deed_ref_fields") if q.get("deed_ref_fields") is not None else dv.deed_ref_fields)],
                 acres_field=str(q.get("acres_field", dv.acres_field)),
                 land_use_field=str(q.get("land_use_field", dv.land_use_field)),
                 agricultural_land_uses=[str(x) for x in (q.get("agricultural_land_uses") or dv.agricultural_land_uses)],
@@ -636,7 +667,11 @@ class Config:
             dcm = CommuteConfig()
             dests = []
             for d in (cm.get("destinations") or []):
-                dests.append(Destination(name=str(d["name"]), column=str(d.get("column") or f"commute_{str(d['name']).lower().replace(' ', '_')}_peak_min"),
+                col = str(d.get("column") or f"commute_{str(d['name']).lower().replace(' ', '_')}_peak_min")
+                if not col.endswith("_peak_min"):
+                    raise ConfigError(f"commute destination {d.get('name')}: column {col!r} must end with _peak_min "
+                                      f"(the free-flow column is derived from it)")
+                dests.append(Destination(name=str(d["name"]), column=col,
                                          lon=float(d["lon"]), lat=float(d["lat"]), peak_factor=float(d.get("peak_factor", 1.0))))
             commute = CommuteConfig(
                 destinations=dests,
@@ -667,6 +702,8 @@ class Config:
                                         require_reachable_acres_min=bool(sl.get("require_reachable_acres_min", True)),
                                         exclude_owner_types=[str(x).lower() for x in (sl.get("exclude_owner_types") if sl.get("exclude_owner_types") is not None else dsl.exclude_owner_types)],
                                         normalize_percentile=float(sl.get("normalize_percentile", dsl.normalize_percentile)))
+            if not 50.0 <= shortlist.normalize_percentile <= 100.0:
+                raise ConfigError("shortlist.normalize_percentile must be between 50 and 100 (100 = plain min-max)")
             rc = raw.get("run", {}) or {}
             run = RunConfig(process_all=bool(rc.get("process_all", False)),
                             output_dir=_opt_path(base, rc.get("output_dir", "../outputs")))

@@ -221,12 +221,20 @@ def attribute_acreage(gdf: gpd.GeoDataFrame, cfg: Config) -> gpd.GeoDataFrame:
 
 
 def attribute_county(gdf: gpd.GeoDataFrame, cfg: Config) -> gpd.GeoDataFrame:
+    """An unmapped jurisdiction inside the study area is a configuration error.
+    The context band necessarily reaches into neighbouring counties (Montgomery,
+    Howard): those rows are never scored or counted, so they keep county=None
+    instead of aborting the run."""
     gdf = gdf.copy()
     codes = gdf["county_code"].astype(str).str.strip()
-    unknown = sorted(set(codes.unique()) - set(cfg.counties))
+    scored_rows = gdf["in_study_area"].astype(bool) if "in_study_area" in gdf.columns else pd.Series(True, index=gdf.index)
+    unknown = sorted(set(codes[scored_rows].unique()) - set(cfg.counties))
     if unknown:
         raise ConfigError(f"jurisdiction codes in the data are not listed under `counties:` in the config: {unknown}. "
                           f"Known: {list(cfg.counties)}. Verify the county field ({cfg.parcels.schema_path}) and mapping.")
+    outside = sorted(set(codes[~scored_rows].unique()) - set(cfg.counties))
+    if outside:
+        log.info("context rows from jurisdictions outside `counties:` (kept as neighbours only): %s", outside)
     gdf["county_code"] = codes
     gdf["county"] = codes.map(cfg.counties)
     return gdf
@@ -418,10 +426,14 @@ def run_stage1(cfg: Config, study_geom: BaseGeometry, parcels_raw: Optional[gpd.
     gdf = attribute_owners(gdf)
     gdf = attribute_acreage(gdf, cfg)
     if zoning_layers is None:
-        zoning_layers = load_zoning_layers(cfg, study_geom)
+        # the context geometry, so a parcel straddling the study line is covered by
+        # zoning over its whole area (a partial cover flips the majority code)
+        zoning_layers = load_zoning_layers(cfg, load_geom)
     if "is_account" not in gdf.columns:
         gdf["is_account"] = True
-    gdf = assign_zoning(gdf, zoning_layers, cfg, scope_mask=gdf["meets_acreage"] & gdf["is_account"])
+    # context rows are never scored: an unmapped code out there must not abort the run
+    gdf = assign_zoning(gdf, zoning_layers, cfg,
+                        scope_mask=gdf["meets_acreage"] & gdf["is_account"] & gdf["in_study_area"].astype(bool))
 
     flags = [[] for _ in range(len(gdf))]
     for i, (dis, unm, miss, inc) in enumerate(zip(gdf["acreage_disagrees"], gdf["zoning_unmapped"],
@@ -438,6 +450,18 @@ def run_stage1(cfg: Config, study_geom: BaseGeometry, parcels_raw: Optional[gpd.
             flags[i].append("zoning_unmapped")
         if miss:
             flags[i].append("zoning_layer_missing")
+    # Constraint, ROW and slope layers are loaded out to the context band; a parcel
+    # reaching past it keeps whatever those layers cover, so say so.
+    if context_geom is not None:
+        inside_ctx = np.zeros(len(gdf), dtype=bool)
+        if len(gdf):
+            inside_ctx[gdf.sindex.query(context_geom, predicate="contains")] = True
+        beyond = (gdf["is_account"] & gdf["in_study_area"]).values & ~inside_ctx
+        for i in np.flatnonzero(beyond):
+            flags[i].append("extends_beyond_layer_context_verify_constraints_there")
+        if beyond.any():
+            log.info("%d parcels extend beyond the context band: their far end is covered only as far as each layer was fetched",
+                     int(beyond.sum()))
     gdf["manual_flags"] = flags
     ag = gdf["is_agricultural"]
     # Unknown zoning (layer missing / unmapped under flag mode) is retained: never auto-delete.

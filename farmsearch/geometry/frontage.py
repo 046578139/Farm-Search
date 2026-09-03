@@ -16,7 +16,8 @@ questions, independently:
 
 The pair collapses to a class:
   open               row + clear inside          -> a usable entry node
-  encumbered         clear outside + hostile inside
+  encumbered         clear outside + hostile inside (still an entry when the
+                     constraint does not stop a vehicle, e.g. a floodplain)
   foreign_parcel     someone else's land between you and the road
   same_owner_parcel  your other deed between you and the road (entry, flagged)
   gap                indeterminate
@@ -51,6 +52,7 @@ class Subsegment:
     outside_pt: Point
     outside: str = "gap"                  # row | foreign_parcel | same_owner_parcel | gap
     inside_constraint: Optional[str] = None
+    inside_blocks_travel: bool = True     # can a vehicle enter here despite the constraint?
     blocking_index: Optional[int] = None  # index into the parcels frame
     blocking_account_id: Optional[str] = None
     blocking_owner: Optional[str] = None
@@ -71,6 +73,10 @@ class Subsegment:
 
     @property
     def is_entry(self) -> bool:
+        if self.cls == "encumbered" and not self.inside_blocks_travel and self.outside == "row":
+            # a driveway may cross a mapped floodplain: the ground is encumbered
+            # for building, not impassable (the same rule Stage 3 uses inside)
+            return True
         return self.cls in ("open", "same_owner_parcel")
 
 
@@ -173,12 +179,15 @@ def _offset_points(parcel: BaseGeometry, mid: Point, tangent: tuple[float, float
 def analyze_frontage(subject_idx: int, subject: BaseGeometry, subject_owner: Optional[str], subject_addr: Optional[str],
                      parcels: gpd.GeoDataFrame, rows: gpd.GeoDataFrame, hostile: dict[str, BaseGeometry],
                      search_ft: float, sample_ft: float, contact_tol_ft: float, open_gap_ft: float,
-                     subject_deed: Optional[str] = None, row_like=None) -> FrontageResult:
+                     subject_deed: Optional[str] = None, row_like=None,
+                     blocking: Optional[set] = None) -> FrontageResult:
     """Classify the road-facing boundary of one parcel.
 
     parcels: all parcels (account_id, owner_name, owner_mailing_address, geometry) with a spatial index
     rows:    public ROW polygons (authority, geometry) with a spatial index
     hostile: constraint name -> geometry of subtracted constraints within this parcel
+    blocking: names of those constraints a vehicle cannot cross (default: all of
+             them). Frontage over a non-blocking constraint is still an entry.
     row_like: optional callable(index) -> True when that neighbouring polygon is
              itself public road (a road held as an assessment account, a
              tax-map ROW sliver): a probe that hits it has reached the road.
@@ -225,6 +234,7 @@ def analyze_frontage(subject_idx: int, subject: BaseGeometry, subject_owner: Opt
             for k, g in hostile_items:
                 if g.intersects(in_pt):
                     sub.inside_constraint = k
+                    sub.inside_blocks_travel = (k in blocking) if blocking is not None else True
                     break
             # Authority of the nearest ROW feature
             try:

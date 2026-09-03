@@ -53,6 +53,8 @@ RECORD_COLUMNS = [
     "landlocked_apparent", "frontage_blocked_by_foreign_parcel", "blocking_parcel_account_id",
     "dischargeable_envelope_acres", "dischargeable_envelope_longest_dim_yards", "dwellings_with_line_of_sight",
     "candidate_backstop_slopes",
+    "same_owner_structures_within_safety_zone", "dwellings_line_of_sight_unevaluated",
+    "subject_pfa_acres", "approved_unbuilt_units_radius_ft", "adjacent_boundary_covered_pct",
     "mprp_tier", "adjacent_residential_zoning_acres", "adjacent_planned_sewer", "approved_unbuilt_units_within_2mi",
     "adjacent_permanently_eased_acres",
     "est_market_value", "est_per_acre", "comp_basis",
@@ -95,7 +97,7 @@ def _writable(gdf: gpd.GeoDataFrame | pd.DataFrame) -> gpd.GeoDataFrame | pd.Dat
             if s.map(lambda v: isinstance(v, (list, dict))).any():
                 out[c] = s.map(lambda v: json.dumps(v) if isinstance(v, (list, dict)) else v)
             elif s.map(lambda v: isinstance(v, bool)).any():
-                out[c] = s.map(lambda v: None if v is None else bool(v)).astype("boolean")
+                out[c] = s.map(lambda v: None if (v is None or (isinstance(v, float) and pd.isna(v))) else bool(v)).astype("boolean")
             elif s.isna().all():
                 out[c] = s.astype("string")
     return out
@@ -126,14 +128,47 @@ def _load_checkpoint(out_dir: Path, n: int) -> dict:
         return pickle.load(f)
 
 
+def _drop_checkpoints_after(out_dir: Path, n: int) -> None:
+    """Stage n has just been rewritten, so every later checkpoint describes a
+    state that no longer exists: remove them rather than let a later --resume
+    silently reload the stale frame."""
+    for k in range(n + 1, 11):
+        p = _checkpoint_path(out_dir, k)
+        if p.exists():
+            p.unlink()
+            log.info("removed stale %s (Stage %d was re-run)", p.name, n)
+
+
 def _latest_checkpoint_at_or_before(out_dir: Path, n: int) -> int:
     """Stages 5-10 each depend on Stages 1-4 but not on one another, so a
-    resume for Stage 8 may start from the state after Stage 4, 5, 6 or 7,
-    whichever was written last."""
-    for k in range(n, 0, -1):
-        if _checkpoint_path(out_dir, k).exists():
-            return k
-    raise FileNotFoundError(f"cannot resume: no checkpoint at or before Stage {n} in {out_dir}")
+    resume for Stage 8 may start from the state after Stage 4, 5, 6 or 7 —
+    whichever was written last. Stage 4 is the floor: its access columns are
+    required, and a Stage 1-3 checkpoint would silently produce a record with
+    no access screening at all."""
+    floor = 4 if n >= 4 else 1
+    cands = [k for k in range(n, floor - 1, -1) if _checkpoint_path(out_dir, k).exists()]
+    if not cands:
+        raise FileNotFoundError(
+            f"cannot resume Stage {n + 1}+: no checkpoint between Stage {floor} and Stage {n} in {out_dir}. "
+            f"Stages 5-10 need the state after Stage 4 — run `farmsearch run --stages 1-4` first.")
+    # the newest by mtime, never an older file with a higher stage number
+    return max(cands, key=lambda k: _checkpoint_path(out_dir, k).stat().st_mtime)
+
+
+def _grow_context(context, parcels: gpd.GeoDataFrame, cfg: Config):
+    """The layer-loading extent: the study polygon's context band plus every
+    parcel that will be scored, grown by the frontage search radius so a farm
+    straddling the study line still meets its own constraints and its road."""
+    sel = parcels["stage1_pass"] if "stage1_pass" in parcels.columns else parcels["in_study_area"]
+    if cfg.run.process_all and "in_study_area" in parcels.columns:
+        sel = sel | (parcels["in_study_area"] & parcels["is_account"])
+    g = parcels.loc[sel.fillna(False).astype(bool)]
+    if not len(g):
+        return context
+    grown = unary_union([context, g.geometry.union_all().buffer(ft_to_m(cfg.access.frontage_search_ft))])
+    log.info("layer context: study band %.0f km2 -> %.0f km2 including the %d parcels to be scored",
+             context.area / 1e6, grown.area / 1e6, int(len(g)))
+    return grown
 
 
 def run_pipeline(cfg: Config, stages: Iterable[int] = (1, 2, 3, 4), out_dir: Optional[Path] = None,
@@ -160,12 +195,16 @@ def run_pipeline(cfg: Config, stages: Iterable[int] = (1, 2, 3, 4), out_dir: Opt
 
     if resume_from:
         # ---- Resume: the state after Stage `resume_from` (or the latest earlier one) ----
+        # (context is grown to the loaded parcels below, once they are available)
         if resume_from >= 4:
             resume_from = _latest_checkpoint_at_or_before(out_dir, resume_from)
         ck1 = _load_checkpoint(out_dir, 1)
         ck = ck1 if resume_from == 1 else _load_checkpoint(out_dir, resume_from)
         parcels = ck1["parcels"]
         scored = ck["scored"]
+        if resume_from >= 4 and "largest_contiguous_reachable_acres" not in scored.columns:
+            raise ValueError(f"the Stage {resume_from} checkpoint in {out_dir} has no Stage 4 access columns; "
+                             f"re-run `farmsearch run --stages 1-4` before resuming Stages 5-10")
         s2, s3 = ck.get("s2"), ck.get("s3")
         for k, v in ck["summary"].items():
             if (k.startswith("stage") and k != "stages_run") or k == "missing_layers":
@@ -174,6 +213,7 @@ def run_pipeline(cfg: Config, stages: Iterable[int] = (1, 2, 3, 4), out_dir: Opt
         summary["stages_run"] = sorted(set(prior) | set(stages))
         summary["resumed_from_stage"] = resume_from
         s1 = Stage1Result(parcels=parcels, summary=summary["stage1"])
+        context = _grow_context(context, parcels, cfg)
         log.info("resumed from the Stage %d checkpoint: %d parcels, %d scored", resume_from, len(parcels), len(scored))
     else:
         # ---- Stage 1 --------------------------------------------------
@@ -186,7 +226,12 @@ def run_pipeline(cfg: Config, stages: Iterable[int] = (1, 2, 3, 4), out_dir: Opt
             _writable(_drop_private(parcels)).to_file(out_dir / "parcels_stage1.gpkg", driver="GPKG")
         targets = parcels["stage1_pass"] | (cfg.run.process_all & parcels["in_study_area"] & parcels["is_account"])
         scored = parcels[targets].reset_index(drop=True)
+        # A scored parcel may reach well past the fixed context band (a 300-acre farm
+        # is ~3,600 ft across). Grow the context so Stages 2-4 load constraints, ROW
+        # and slope over all of it, not merely the part near the study line.
+        context = _grow_context(context, parcels, cfg)
         if write:
+            _drop_checkpoints_after(out_dir, 1)
             _save_checkpoint(out_dir, 1, {"parcels": parcels, "scored": scored, "s2": None, "s3": None,
                                           "summary": {"stage1": summary["stage1"], "missing_layers": []}})
     result = {"study_area": study, "stage1": s1}
@@ -214,6 +259,7 @@ def run_pipeline(cfg: Config, stages: Iterable[int] = (1, 2, 3, 4), out_dir: Opt
                         for a, d in s2.geoms.items() for t, g in d.items() if g is not None and not g.is_empty]
             if enc_rows:
                 _writable(gpd.GeoDataFrame(enc_rows, geometry="geometry", crs=cfg.working_crs)).to_file(out_dir / "encumbrances.gpkg", driver="GPKG")
+            _drop_checkpoints_after(out_dir, 2)
             _save_checkpoint(out_dir, 2, {"scored": scored, "s2": s2, "s3": None,
                                           "summary": {k: summary[k] for k in ("stage1", "stage2", "missing_layers")}})
         result["stage2"] = s2
@@ -235,6 +281,7 @@ def run_pipeline(cfg: Config, stages: Iterable[int] = (1, 2, 3, 4), out_dir: Opt
         }
         if write:
             _writable(s3.usable).to_file(out_dir / "usable_area.gpkg", driver="GPKG")
+            _drop_checkpoints_after(out_dir, 3)
             _save_checkpoint(out_dir, 3, {"scored": scored, "s2": s2, "s3": s3,
                                           "summary": {k: summary[k] for k in ("stage1", "stage2", "stage3", "missing_layers")}})
         result["stage3"] = s3
@@ -246,10 +293,16 @@ def run_pipeline(cfg: Config, stages: Iterable[int] = (1, 2, 3, 4), out_dir: Opt
         rows, missing = load_row_layers(cfg, context)
         summary["missing_layers"] += missing
         # Neighbors: all study-area parcels, carrying the scored attributes for targets
-        new_cols = [c for c in scored.columns if c not in parcels.columns]
-        merged = parcels.merge(scored[["account_id"] + new_cols], on="account_id", how="left")
-        merged = gpd.GeoDataFrame(merged, geometry=parcels.geometry.name, crs=parcels.crs)
+        # Stages 2-3 also MUTATE columns that Stage 1 created (manual_flags), so the
+        # scored frame wins for every non-geometry column of a scored row.
+        gname = parcels.geometry.name
+        overlap = [c for c in scored.columns if c in parcels.columns and c not in ("account_id", gname)]
+        merged = parcels.drop(columns=overlap).merge(
+            scored.drop(columns=[gname]), on="account_id", how="left", suffixes=("", "_scored"))
+        merged = gpd.GeoDataFrame(merged, geometry=gname, crs=parcels.crs)
         mask = merged["account_id"].isin(scored["account_id"])
+        for c in overlap:      # unscored rows (blockers, context) keep Stage 1's value
+            merged.loc[~mask, c] = parcels.set_index("account_id").loc[merged.loc[~mask, "account_id"], c].values
         s4 = run_stage4(cfg, merged, mask, s3.geoms, rows, missing)
         scored = s4.parcels[mask.values].reset_index(drop=True)
         summary["stage4"] = {
@@ -270,9 +323,18 @@ def run_pipeline(cfg: Config, stages: Iterable[int] = (1, 2, 3, 4), out_dir: Opt
                 _writable(s4.entry_points).to_file(out_dir / "entry_points.gpkg", driver="GPKG")
             s4.strips.to_csv(out_dir / "reserve_strips.csv", index=False)
             s4.islands.to_csv(out_dir / "islands.csv", index=False)
+            _drop_checkpoints_after(out_dir, 4)
             _save_checkpoint(out_dir, 4, {"scored": scored, "s2": s2, "s3": s3,
                                           "summary": {k: v for k, v in summary.items() if k.startswith("stage") or k == "missing_layers"}})
         result["stage4"] = s4
+
+    def _require_stage4(n: int) -> None:
+        """Stages 5-10 read Stage 3's usable geometry and Stage 4's access columns.
+        Without them the record would be written with no usable area and no access
+        screening at all, silently overwriting a complete earlier run."""
+        if s3 is None or "largest_contiguous_reachable_acres" not in scored.columns:
+            raise ValueError(f"Stage {n} requires Stages 2-4: run `--stages 1-{n}`, or `--stages {n}-10 --resume` "
+                             f"after a run that reached Stage 4")
 
     def _later_checkpoint(n: int) -> None:
         if write:
@@ -282,8 +344,7 @@ def run_pipeline(cfg: Config, stages: Iterable[int] = (1, 2, 3, 4), out_dir: Opt
     # ---- Stage 5: dischargeable envelope ------------------------------
     s5 = None
     if 5 in stages:
-        if s3 is None:
-            raise ValueError("Stage 5 requires Stage 3 (usable area)")
+        _require_stage4(5)
         occ = load_occupied_structures(cfg, parcels, context)
         summary["missing_layers"] += occ.missing_layers
         s5 = run_stage5(cfg, scored, s3.geoms, occ)
@@ -305,9 +366,21 @@ def run_pipeline(cfg: Config, stages: Iterable[int] = (1, 2, 3, 4), out_dir: Opt
 
     # ---- Stage 6: viewshed ----------------------------------------------
     if 6 in stages:
-        if s5 is None:
-            raise ValueError("Stage 6 requires Stage 5 (envelope) in the same run")
-        s6 = run_stage6(cfg, scored, s5.envelopes, s5.structures.structures)
+        _require_stage4(6)
+        envelopes = structures = None
+        if s5 is not None:
+            envelopes, structures = s5.envelopes, s5.structures.structures
+        elif (out_dir / "envelope.gpkg").exists():
+            # Stage 6 is the DEM-heavy stage and the likeliest to be interrupted:
+            # its inputs are re-read from the Stage 5 outputs rather than redone
+            envelopes = gpd.read_file(out_dir / "envelope.gpkg")
+            structures = gpd.read_file(out_dir / "occupied_structures.gpkg") if (out_dir / "occupied_structures.gpkg").exists() \
+                else gpd.GeoDataFrame({"kind": [], "account_id": [], "owner_key": [], "located_by": []}, geometry=[], crs=cfg.working_crs)
+            log.info("Stage 6: re-using envelope.gpkg (%d) and occupied_structures.gpkg (%d) from %s",
+                     len(envelopes), len(structures), out_dir)
+        if envelopes is None:
+            raise ValueError("Stage 6 requires Stage 5: run it in the same run, or resume in a directory holding envelope.gpkg")
+        s6 = run_stage6(cfg, scored, envelopes, structures)
         scored = s6.parcels
         summary["stage6"] = {
             "terrain_mode": s6.terrain_mode, "windows_failed": s6.windows_failed,
@@ -320,9 +393,10 @@ def run_pipeline(cfg: Config, stages: Iterable[int] = (1, 2, 3, 4), out_dir: Opt
 
     # ---- Stage 7: future encroachment ---------------------------------
     if 7 in stages:
+        _require_stage4(7)
         from .stages.stage1_base_filter import load_zoning_layers
         zl = load_zoning_layers(cfg, context)
-        fav = load_favorable_layers(cfg, context)
+        fav = load_favorable_layers(cfg, context, summary["missing_layers"])
         layers7, missing = load_encroachment_layers(cfg, context, favorable_layers=fav)
         summary["missing_layers"] += missing
         s7 = run_stage7(cfg, scored, parcels, zl, layers7, missing)
@@ -335,6 +409,7 @@ def run_pipeline(cfg: Config, stages: Iterable[int] = (1, 2, 3, 4), out_dir: Opt
             "adjacent_permanently_eased": int((scored["adjacent_permanently_eased_acres"].fillna(0) > 0).sum()),
             "median_units_within_radius": (float(scored["approved_unbuilt_units_within_2mi"].median())
                                            if scored["approved_unbuilt_units_within_2mi"].notna().any() else None),
+            "parcels_without_pipeline_coverage": int(scored["approved_unbuilt_units_within_2mi"].isna().sum()),
             "pipeline_radius_ft": cfg.encroachment.pipeline_radius_ft,
         }
         result["stage7"] = s7
@@ -342,6 +417,7 @@ def run_pipeline(cfg: Config, stages: Iterable[int] = (1, 2, 3, 4), out_dir: Opt
 
     # ---- Stage 8: transmission and industrial exposure ----------------
     if 8 in stages:
+        _require_stage4(8)
         layers8, missing = load_transmission_layers(cfg, context)
         summary["missing_layers"] += missing
         los = None
@@ -367,10 +443,15 @@ def run_pipeline(cfg: Config, stages: Iterable[int] = (1, 2, 3, 4), out_dir: Opt
 
     # ---- Stage 9: valuation ---------------------------------------------
     if 9 in stages:
-        fav_layers = load_favorable_layers(cfg, context.buffer(ft_to_m(max((s.fetch_margin_ft or 0) for s in cfg.valuation.sales_layers) if cfg.valuation.sales_layers else 0)))
+        _require_stage4(9)
+        comp_reach = context.buffer(ft_to_m(max((s.fetch_margin_ft or 0) for s in cfg.valuation.sales_layers)
+                                             if cfg.valuation.sales_layers else 0))
+        fav_layers = load_favorable_layers(cfg, comp_reach, summary["missing_layers"])
         fav_geoms = [unary_union(list(g.geometry.values)) for g in fav_layers.values() if len(g)]
         fav_union = unary_union(fav_geoms) if fav_geoms else None
-        comps = build_comps(cfg, context, parcels, fav_union)
+        # the sales layer is fetched miles beyond the study polygon so the market,
+        # not the boundary, defines the band: clip the comps to the same reach
+        comps = build_comps(cfg, comp_reach, parcels, fav_union)
         summary["missing_layers"] += comps.missing_layers
         s9 = run_stage9(cfg, scored, comps)
         scored = s9.parcels
@@ -388,6 +469,7 @@ def run_pipeline(cfg: Config, stages: Iterable[int] = (1, 2, 3, 4), out_dir: Opt
 
     # ---- Stage 10: commute (reported, never a filter) ------------------
     if 10 in stages:
+        _require_stage4(10)
         pipe = None
         if cfg.encroachment.pipeline_layers:
             try:
@@ -398,7 +480,7 @@ def run_pipeline(cfg: Config, stages: Iterable[int] = (1, 2, 3, 4), out_dir: Opt
         layers10 = load_commute_layers(cfg, context, pipeline=pipe)
         summary["missing_layers"] += layers10.missing_layers
         ep = s4.entry_points if s4 is not None else None
-        if ep is None and write and (out_dir / "entry_points.gpkg").exists():
+        if ep is None and (out_dir / "entry_points.gpkg").exists():
             ep = gpd.read_file(out_dir / "entry_points.gpkg")
         s10 = run_stage10(cfg, scored, ep, layers10)
         scored = s10.parcels

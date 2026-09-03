@@ -37,6 +37,7 @@ log = logging.getLogger(__name__)
 @dataclass
 class TransmissionLayers:
     routes: list[tuple[str, str, BaseGeometry]] = field(default_factory=list)   # (source name, variant, geometry)
+    routes_loaded: bool = False        # a route layer was read (even if no feature lies within reach)
     hv_lines: Optional[BaseGeometry] = None
     substations: Optional[BaseGeometry] = None
     data_centers: Optional[gpd.GeoDataFrame] = None    # columns: name, geometry
@@ -54,7 +55,7 @@ def _name_column(g: gpd.GeoDataFrame) -> Optional[str]:
         if c.lower() in ("name", "site", "site_name", "project", "project_name", "facility", "label", "title"):
             return c
     for c in g.columns:
-        if c != g.geometry.name and g[c].dtype == object:
+        if c != g.geometry.name and pd.api.types.is_string_dtype(g[c]):
             return c
     return None
 
@@ -71,6 +72,7 @@ def load_transmission_layers(cfg: Config, clip: BaseGeometry) -> tuple[Transmiss
             log.warning("MPRP route layer %s unavailable: %s", r.source.name, e)
             missing.append(r.source.name)
             continue
+        L.routes_loaded = True
         if len(g):
             L.routes.append((r.source.name, r.variant, unary_union(list(g.geometry.values))))
         log.info("MPRP route layer %s (%s): %d features", r.source.name, r.variant, len(g))
@@ -136,7 +138,10 @@ def run_stage8(cfg: Config, scored: gpd.GeoDataFrame, layers: TransmissionLayers
         _ = dcs.sindex
     for i, pg in enumerate(P.geometry.values):
         flags = P.at[i, "transmission_flags"]
-        tier = 0 if have_routes else None
+        # route data read but every feature beyond reach = tier 0 (known, far), not unknown
+        tier = 0 if (have_routes or layers.routes_loaded) else None
+        if layers.routes_loaded and not have_routes:
+            flags.append("mprp_routes_beyond_reach")
         if have_routes:
             best = None
             for name, variant, rg in layers.routes:
@@ -160,11 +165,20 @@ def run_stage8(cfg: Config, scored: gpd.GeoDataFrame, layers: TransmissionLayers
             else:
                 los = None
                 if line_of_sight is not None and d <= general:
-                    try:
-                        los = line_of_sight(pg, rg)
-                    except Exception as ex:  # noqa: BLE001
-                        log.warning("line of sight failed for %s: %s", P.at[i, "account_id"], ex)
-                        los = None
+                    # any studied route within the general corridor distance, not only the nearest
+                    for _n, _v, g2 in layers.routes:
+                        if pg.distance(g2) > general:
+                            continue
+                        try:
+                            r = line_of_sight(pg, g2)
+                        except Exception as ex:  # noqa: BLE001
+                            log.warning("line of sight failed for %s: %s", P.at[i, "account_id"], ex)
+                            r = None
+                        if r:
+                            los = True
+                            break
+                        if r is False and los is None:
+                            los = False
                 P.at[i, "mprp_line_of_sight"] = los
                 if los:
                     tier = 2
@@ -177,14 +191,14 @@ def run_stage8(cfg: Config, scored: gpd.GeoDataFrame, layers: TransmissionLayers
             P.at[i, "hv_line_nearest_ft"] = round(m_to_ft(d), 0)
             if d <= hv_b:
                 flags.append("near_existing_hv_transmission_corridor")
-                if tier is not None and tier == 0:
+                if tier in (None, 0):       # tier 3 stands on its own, MPRP data or not
                     tier = 3
         if layers.substations is not None and not layers.substations.is_empty:
             d = pg.distance(layers.substations)
             P.at[i, "substation_nearest_ft"] = round(m_to_ft(d), 0)
             if d <= sub_b:
                 flags.append("near_substation")
-                if tier is not None and tier == 0:
+                if tier in (None, 0):
                     tier = 3
         if dcs is not None and len(dcs):
             j = int(dcs.sindex.nearest(pg, return_all=False)[1][0])

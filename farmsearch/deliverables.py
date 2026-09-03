@@ -56,8 +56,14 @@ def rank_shortlist(scored: pd.DataFrame, cfg: Config) -> tuple[pd.DataFrame, pd.
         m = _num(df["mprp_tier"]) == 1
         reasons[m] = "mprp_tier_1_intersects_studied_route"
     if sl.require_reachable_acres_min and "largest_contiguous_reachable_acres" in df.columns:
-        m = (_num(df["largest_contiguous_reachable_acres"]) < cfg.acreage_min) & (reasons == "")
-        reasons[m] = "largest_reachable_block_below_acreage_min"
+        # Stream crossings are routinely permitted (spec): the block that clears
+        # acreage_min may be the strict one or the one with crossings permitted.
+        strict = _num(df["largest_contiguous_reachable_acres"])
+        permitted = _num(df["largest_reachable_if_crossings_permitted_acres"]) \
+            if "largest_reachable_if_crossings_permitted_acres" in df.columns else strict
+        best = pd.concat([strict, permitted], axis=1).max(axis=1)
+        m = (best < cfg.acreage_min) & (reasons == "")
+        reasons[m] = "largest_reachable_block_below_acreage_min_even_with_crossings"
     if sl.exclude_owner_types and "owner_type" in df.columns:
         m = df["owner_type"].astype(str).str.lower().isin([x.lower() for x in sl.exclude_owner_types]) & (reasons == "")
         reasons[m] = "owner_type_" + df.loc[m, "owner_type"].astype(str).str.lower()
@@ -70,12 +76,22 @@ def rank_shortlist(scored: pd.DataFrame, cfg: Config) -> tuple[pd.DataFrame, pd.
         if w == 0 or col not in eligible.columns:
             continue
         v = _num(eligible[col])
+        if col == "mprp_tier":
+            # tiers are ordinal in DESCENDING severity: 1 intersects, 2 exclusion
+            # buffer / line of sight, 3 general corridor or existing HV, 0 none
+            v = v.map({0: 0.0, 3: 1.0, 2: 2.0, 1: 3.0})
         if v.notna().sum() == 0:
             continue
-        # clip to the percentile band so one 2,500 ac outlier does not flatten everyone else
-        q = min(max(sl.normalize_percentile, 50.0), 100.0) / 100.0
-        lo, hi = float(v.quantile(1 - q)), float(v.quantile(q))
-        norm = ((v.clip(lo, hi) - lo) / (hi - lo)) if hi > lo else pd.Series(0.5, index=v.index)
+        vals = v.dropna()
+        if vals.nunique() <= 3:
+            # booleans and tiers: a rare flag must keep its full penalty
+            lo, hi = float(vals.min()), float(vals.max())
+        else:
+            # clip to the percentile band so one 2,500 ac outlier does not flatten everyone else
+            q = min(max(sl.normalize_percentile, 50.0), 100.0) / 100.0
+            lo, hi = float(vals.quantile(1 - q)), float(vals.quantile(q))
+        # a constant column separates nobody: it contributes nothing (0.5 is reserved for unknown)
+        norm = ((v.clip(lo, hi) - lo) / (hi - lo)) if hi > lo else pd.Series(0.0, index=v.index)
         norm = norm.fillna(0.5)
         components[f"score_{col}"] = (w * norm).round(3)
         score = score + w * norm
@@ -87,12 +103,18 @@ def rank_shortlist(scored: pd.DataFrame, cfg: Config) -> tuple[pd.DataFrame, pd.
     out["rank"] = np.arange(1, len(out) + 1)
     cols = ["rank", "shortlist_score"] + [c for c in SHORTLIST_COLUMNS if c in out.columns] + \
            [c for c in out.columns if c.startswith("score_")] + (["manual_verification_flags"] if "manual_verification_flags" in out.columns else [])
-    return out[cols].head(sl.top_n), excluded[[c for c in ["account_id", "county", "gross_acres", "exclusion_reason"] if c in excluded.columns]]
+    out = out[cols].head(sl.top_n).copy()
+    if "manual_verification_flags" in out.columns:
+        out["manual_verification_flags"] = out["manual_verification_flags"].map(lambda v: json.dumps(v) if isinstance(v, list) else v)
+    return out, excluded[[c for c in ["account_id", "county", "gross_acres", "exclusion_reason"] if c in excluded.columns]]
 
 
 def owner_list(scored: pd.DataFrame, shortlist: Optional[pd.DataFrame] = None) -> pd.DataFrame:
     """Collapse by owner_key: one row per owner + mailing address."""
     df = pd.DataFrame(scored.drop(columns=[scored.geometry.name], errors="ignore")) if hasattr(scored, "geometry") else pd.DataFrame(scored)
+    if not len(df):
+        return pd.DataFrame(columns=["owner_key", "owner_name", "owner_mailing_address", "owner_type", "parcel_count", "account_ids",
+                                     "gross_acres_total", "largest_reachable_acres_max", "best_shortlist_rank", "on_shortlist", "sdat_urls", "counties"])
     if "owner_key" not in df.columns:
         df["owner_key"] = df["account_id"]
     key = df["owner_key"].fillna("").astype(str)
@@ -162,7 +184,14 @@ def render_dossiers(cfg: Config, out_dir: Path, shortlist: pd.DataFrame, pdf_pat
     ROW = rows if rows is not None else _read(out_dir, "row_public.gpkg")
     STR = _read(out_dir, "occupied_structures.gpkg")
     parcels_path = Path(parcels_path or out_dir / "parcels_stage1.gpkg")
-    R = pd.read_csv(out_dir / "reserve_strips.csv", dtype=str) if (out_dir / "reserve_strips.csv").exists() else pd.DataFrame(columns=["account_id", "strip_account_id"])
+    R = pd.DataFrame(columns=["account_id", "strip_account_id"])
+    if (out_dir / "reserve_strips.csv").exists():
+        try:
+            R = pd.read_csv(out_dir / "reserve_strips.csv", dtype=str)
+        except pd.errors.EmptyDataError:      # a run with no strip candidates writes an empty file
+            pass
+        if "strip_account_id" not in R.columns:
+            R = pd.DataFrame(columns=["account_id", "strip_account_id"])
     with PdfPages(pdf_path) as pdf:
         for _, row in shortlist.iterrows():
             acct = str(row["account_id"])

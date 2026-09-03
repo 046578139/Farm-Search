@@ -36,7 +36,12 @@ def _stages(spec: str) -> list[int]:
 def cmd_run(args) -> int:
     from .pipeline import run_pipeline
     cfg = Config.load(args.config)
-    res = run_pipeline(cfg, stages=_stages(args.stages), out_dir=args.out, resume=bool(getattr(args, "resume", False)))
+    stages = _stages(args.stages)
+    resume = bool(getattr(args, "resume", False))
+    if not resume and min(stages) > 1:
+        raise SystemExit(f"--stages {args.stages} starts at Stage {min(stages)}: add --resume to continue from the "
+                         f"checkpoint of the previous run, or start at Stage 1 (later stages need Stages 1-4)")
+    res = run_pipeline(cfg, stages=stages, out_dir=args.out, resume=resume)
     from .pipeline import render_summary
     print(render_summary(res["summary"]))
     return 0
@@ -216,7 +221,7 @@ def main(argv=None) -> int:
 
     r = sub.add_parser("run", help="run the pipeline")
     r.add_argument("--config", default="config/pipeline.yaml")
-    r.add_argument("--stages", default="1-10", help="e.g. 1, 1-4, 7-8, 1-10")
+    r.add_argument("--stages", default="1-10", help="e.g. 1, 1-4, 1-10; a range starting later than 1 needs --resume")
     r.add_argument("--out", default=None, help="output directory (default run.output_dir)")
     r.add_argument("--resume", action="store_true",
                    help="continue from the checkpoint written after the stage before the first requested one, "
