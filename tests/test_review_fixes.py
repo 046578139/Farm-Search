@@ -520,3 +520,72 @@ def test_stage9_comp_from_a_county_with_no_easement_layer_is_neither_eased_nor_u
     assert cs.bands[("Frederick", "uneased")]["n"] == 4        # the Montgomery comp is not counted
     assert cs.bands[("Frederick", "eased")]["n"] == 1
     assert ("Montgomery", "uneased") not in cs.bands
+
+
+def _mk(tmp_path, rows, **over):
+    """A frame of candidate parcels with only the columns the shortlist rules read."""
+    df = pd.DataFrame(rows)
+    for c, d in (("largest_contiguous_reachable_acres", 100.0), ("owner_type", "individual"),
+                 ("land_use_desc", "Agricultural"), ("structure_sqft", 2000.0),
+                 ("assessed_improvement_value", 200_000.0), ("gross_acres", 100.0),
+                 ("owner_key", None)):
+        if c not in df.columns:
+            df[c] = d
+    df["owner_key"] = df["owner_key"].fillna("k:" + df["account_id"])
+    cfg = _cfg(tmp_path, acreage_min=40, shortlist={"top_n": 50, "weights": {"gross_acres": 1.0}, **over})
+    return rank_shortlist_fn(df, cfg)
+
+
+def rank_shortlist_fn(df, cfg):
+    from farmsearch.deliverables import rank_shortlist
+    return rank_shortlist(df, cfg)
+
+
+def test_shortlist_drops_institutions_and_operating_businesses(tmp_path):
+    """A screen for land to buy should not rank a hospital campus, a plant, or a
+    working creamery — but a farm with a house and barns stays."""
+    short, excl = _mk(tmp_path, [
+        {"account_id": "FARM", "structure_sqft": 3600.0, "assessed_improvement_value": 420_000.0},
+        {"account_id": "BIGHOUSE", "structure_sqft": 6900.0, "assessed_improvement_value": 945_000.0},
+        {"account_id": "CREAMERY", "structure_sqft": 12_092.0, "assessed_improvement_value": 1_354_500.0},
+        {"account_id": "PLANT", "land_use_desc": "Industrial", "structure_sqft": 530_000.0,
+         "assessed_improvement_value": 30_208_000.0},
+        {"account_id": "CLUB", "land_use_desc": "Country Club"},
+        {"account_id": "HOSPITAL", "land_use_desc": "Exempt Commercial"},
+        {"account_id": "HUGE_BARN", "structure_sqft": 24_000.0, "assessed_improvement_value": 300_000.0},
+    ])
+    kept = set(short["account_id"])
+    why = dict(zip(excl["account_id"], excl["exclusion_reason"]))
+    assert kept == {"FARM", "BIGHOUSE"}                       # a farmhouse and barns are not a business
+    assert why["CREAMERY"] == "buildings_suggest_an_operating_business"
+    assert why["HUGE_BARN"] == "buildings_suggest_an_operating_business"   # 24,000 sq ft on its own
+    assert why["PLANT"] == "land_use_industrial"
+    assert why["CLUB"] == "land_use_country_club"
+    assert why["HOSPITAL"] == "land_use_exempt_commercial"
+
+
+def test_shortlist_honours_an_account_excluded_by_hand(tmp_path):
+    short, excl = _mk(tmp_path, [{"account_id": "A"}, {"account_id": "B"}],
+                      exclude_accounts=["B"])
+    assert set(short["account_id"]) == {"A"}
+    assert dict(zip(excl["account_id"], excl["exclusion_reason"]))["B"] == "excluded_by_hand"
+
+
+def test_shortlist_reports_what_else_the_owner_holds(tmp_path):
+    """One mailbox holding 1,965 acres over eleven parcels is a business's
+    landholding, and that is worth seeing on the row."""
+    short, _ = _mk(tmp_path, [
+        {"account_id": "A", "owner_key": "one|8305 bolivar rd", "gross_acres": 431.2},
+        {"account_id": "B", "owner_key": "one|8305 bolivar rd", "gross_acres": 178.9},
+        {"account_id": "C", "owner_key": "two|elsewhere", "gross_acres": 250.0},
+    ])
+    s = short.set_index("account_id")
+    assert s.loc["A", "owner_parcels_held"] == 2 and s.loc["A", "owner_acres_held"] == pytest.approx(610.1)
+    assert s.loc["C", "owner_parcels_held"] == 1
+
+
+def test_operating_business_rules_can_be_turned_off(tmp_path):
+    short, _ = _mk(tmp_path, [{"account_id": "CREAMERY", "structure_sqft": 12_092.0,
+                               "assessed_improvement_value": 1_354_500.0}],
+                   exclude_operating_businesses=False, exclude_land_uses=[])
+    assert set(short["account_id"]) == {"CREAMERY"}

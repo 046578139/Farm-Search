@@ -447,6 +447,37 @@ comparable to the 2026-09-02 one column by column:
 The direction of travel is the same in every case: fewer confident claims, and
 the ones that remain are the ones the data supports.
 
+## Not everything with soil on it is for sale (2026-09-03)
+
+The first shipped shortlist put South Mountain Creamery's home farm at number
+one: 314 acres, a large dischargeable envelope, no transmission exposure — and a
+working dairy with a processing plant and a farm store that will not be sold as
+farmland. The screen measured the land and never asked what stands on it.
+
+Two rules now run before the ranking, both in `shortlist:`:
+
+- **Land use.** The assessment record already names institutions and businesses.
+  Excluding `Commercial`, `Exempt Commercial`, `Exempt`, `Industrial` and
+  `Country Club` removes 32 parcels that were sitting in the eligible set —
+  among them a hospital campus, two industrial plants, and a country club. Fort
+  Detrick's 805 acres were already out as a government owner.
+- **Buildings.** A working agribusiness is recorded as agricultural like any
+  other farm; what gives it away is the plant. 8,000 sq ft of structures *and*
+  $750,000 of assessed improvements together, or 20,000 sq ft or $3m on their
+  own, exclude 23 more. The creamery has 12,092 sq ft and $1.35m. A farmhouse
+  with barns — 3,000 to 6,000 sq ft, $200k to $600k — is untouched, which is why
+  seven farms with improvements over $750k are still on the list.
+
+`exclude_accounts:` takes account numbers you know yourself; local knowledge
+beats any threshold, and the reason is recorded as `excluded_by_hand`.
+
+Every excluded parcel keeps its row and its reason in `shortlist_excluded.csv`.
+Two columns now travel with each candidate so the judgement can be made by eye:
+`structure_sqft` with `assessed_improvement_value`, and `owner_parcels_held`
+with `owner_acres_held`. The last pair is the sharper instrument: the creamery's
+remaining field parcels rank third and eighth, and both show an owner holding
+eleven parcels over 1,965 acres.
+
 ## Caveats to keep in mind
 
 - **Limited-access highways.** Frontage on an interstate is not access.

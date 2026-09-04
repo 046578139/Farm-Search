@@ -30,13 +30,15 @@ from .config import Config
 log = logging.getLogger(__name__)
 
 SHORTLIST_COLUMNS = [
-    "account_id", "county", "owner_name", "owner_mailing_address", "owner_type", "gross_acres", "usable_acres",
+    "account_id", "county", "owner_name", "owner_mailing_address", "owner_type", "land_use_desc",
+    "structure_sqft", "assessed_improvement_value", "gross_acres", "usable_acres",
     "largest_contiguous_reachable_acres", "largest_reachable_if_crossings_permitted_acres",
     "dischargeable_envelope_acres", "dischargeable_envelope_longest_dim_yards",
     "dwellings_with_line_of_sight", "mprp_tier", "adjacent_residential_zoning_acres", "adjacent_planned_sewer",
     "approved_unbuilt_units_within_2mi", "adjacent_permanently_eased_acres", "est_market_value", "est_per_acre",
     "commute_bwi_peak_min", "commute_langley_peak_min", "commute_nova_peak_min", "route_redundancy",
-    "corridor_durability_score", "landlocked_apparent", "frontage_blocked_by_foreign_parcel", "sdat_url",
+    "corridor_durability_score", "landlocked_apparent", "frontage_blocked_by_foreign_parcel",
+    "owner_parcels_held", "owner_acres_held", "sdat_url",
 ]
 
 
@@ -68,9 +70,38 @@ def rank_shortlist(scored: pd.DataFrame, cfg: Config) -> tuple[pd.DataFrame, pd.
     if sl.exclude_owner_types and "owner_type" in df.columns:
         m = df["owner_type"].astype(str).str.lower().isin([x.lower() for x in sl.exclude_owner_types]) & (reasons == "")
         reasons[m] = "owner_type_" + df.loc[m, "owner_type"].astype(str).str.lower()
+    # The assessment record already says what many properties are: a hospital
+    # campus, a plant, a club. None of them is a farm someone will sell.
+    if sl.exclude_land_uses and "land_use_desc" in df.columns:
+        lu = df["land_use_desc"].astype(str)
+        m = lu.isin(sl.exclude_land_uses) & (reasons == "")
+        reasons[m] = "land_use_" + lu[m].str.lower().str.replace(r"[^a-z]+", "_", regex=True)
+    # A working agribusiness is recorded as agricultural like any other farm; what
+    # gives it away is the plant standing on it.
+    if sl.exclude_operating_businesses:
+        sq = _num(df["structure_sqft"]) if "structure_sqft" in df.columns else pd.Series(np.nan, index=df.index)
+        imp = _num(df["assessed_improvement_value"]) if "assessed_improvement_value" in df.columns else pd.Series(np.nan, index=df.index)
+        both = (sq >= sl.operation_structure_sqft) & (imp >= sl.operation_improvement_value)
+        alone = (sq >= sl.operation_structure_sqft_alone) | (imp >= sl.operation_improvement_value_alone)
+        m = (both | alone) & (reasons == "")
+        reasons[m] = "buildings_suggest_an_operating_business"
+    if sl.exclude_accounts:
+        m = df["account_id"].astype(str).isin([str(a) for a in sl.exclude_accounts]) & (reasons == "")
+        reasons[m] = "excluded_by_hand"
     eligible = df[reasons == ""].copy()
     excluded = df[reasons != ""].copy()
     excluded["exclusion_reason"] = reasons[reasons != ""]
+    # How much land the same mailbox holds across the study area: a parcel that is
+    # one of several under one owner may be a business's landholding, and an
+    # approach to that owner is one letter about all of it.
+    if "owner_key" in df.columns:
+        key = df["owner_key"].fillna("").astype(str)
+        key = key.where(key.str.strip("|").str.strip() != "", "acct:" + df["account_id"].astype(str))
+        held = key.value_counts()
+        acres = _num(df["gross_acres"]).groupby(key).sum()
+        eligible = eligible.assign(
+            owner_parcels_held=key.reindex(eligible.index).map(held).astype("Int64"),
+            owner_acres_held=key.reindex(eligible.index).map(acres).round(1))
     components = {}
     score = pd.Series(0.0, index=eligible.index)
     for col, w in sl.weights.items():

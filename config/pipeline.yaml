@@ -921,6 +921,21 @@ shortlist:
     commute_bwi_peak_min: 0.0
     commute_langley_peak_min: 0.0
     commute_nova_peak_min: 0.0
+  # Not everything with soil on it is for sale. Two rules, and a list for the
+  # ones you know yourself:
+  #  - land use: the assessment record already calls these institutions or
+  #    businesses (Fort Detrick, a hospital campus, a plant, a country club);
+  #  - buildings: a working agribusiness is recorded as agricultural like any
+  #    other farm, but carries a plant. 8,000 sq ft AND $750k of assessed
+  #    improvements together, or 20,000 sq ft or $3m on their own. A farmhouse
+  #    with barns (3,000-6,000 sq ft, $200-600k) stays.
+  exclude_land_uses: [Commercial, Exempt Commercial, Exempt, Industrial, Country Club, Commercial Condominium, Apartments]
+  exclude_operating_businesses: true
+  operation_structure_sqft: 8000
+  operation_improvement_value: 750000
+  operation_structure_sqft_alone: 20000
+  operation_improvement_value_alone: 3000000
+  exclude_accounts: []            # e.g. [1122435531]  # South Mountain Creamery home farm
 
 # --- Reference layers (located and verified; not consumed by Stages 1-4 yet) --
 # Kept here so later stages and the dossier step do not have to rediscover them.

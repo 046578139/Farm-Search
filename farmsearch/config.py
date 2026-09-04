@@ -445,6 +445,22 @@ class ShortlistConfig:
         "commute_nova_peak_min": 0.0,
     })
     exclude_mprp_tier_1: bool = True
+    # A screen for land to buy should not rank things that are not for sale. Two
+    # different cases: a property the assessment record already calls an
+    # institution or a business, and a working agribusiness that is recorded as
+    # agricultural but has a plant standing on it.
+    exclude_land_uses: list[str] = field(default_factory=lambda: [
+        "Commercial", "Exempt Commercial", "Exempt", "Industrial", "Country Club",
+        "Commercial Condominium", "Apartments"])
+    exclude_operating_businesses: bool = True
+    # a building complex: this much floor area AND this much assessed improvement
+    operation_structure_sqft: float = 8000
+    operation_improvement_value: float = 750_000
+    # or either one on its own at a scale no farmstead reaches
+    operation_structure_sqft_alone: float = 20_000
+    operation_improvement_value_alone: float = 3_000_000
+    # accounts you know are not for sale, whatever the data says
+    exclude_accounts: list[str] = field(default_factory=list)
     require_reachable_acres_min: bool = True     # largest reachable block >= acreage_min to make the list
     exclude_owner_types: list[str] = field(default_factory=lambda: ["government"])   # not acquisition candidates
     normalize_percentile: float = 95             # metrics are min-max scaled between the 5th and 95th percentiles (outliers clipped)
@@ -709,6 +725,13 @@ class Config:
                                         exclude_mprp_tier_1=bool(sl.get("exclude_mprp_tier_1", True)),
                                         require_reachable_acres_min=bool(sl.get("require_reachable_acres_min", True)),
                                         exclude_owner_types=[str(x).lower() for x in (sl.get("exclude_owner_types") if sl.get("exclude_owner_types") is not None else dsl.exclude_owner_types)],
+                                        exclude_land_uses=[str(x) for x in (sl.get("exclude_land_uses") if sl.get("exclude_land_uses") is not None else dsl.exclude_land_uses)],
+                                        exclude_operating_businesses=bool(sl.get("exclude_operating_businesses", True)),
+                                        operation_structure_sqft=float(sl.get("operation_structure_sqft", dsl.operation_structure_sqft)),
+                                        operation_improvement_value=float(sl.get("operation_improvement_value", dsl.operation_improvement_value)),
+                                        operation_structure_sqft_alone=float(sl.get("operation_structure_sqft_alone", dsl.operation_structure_sqft_alone)),
+                                        operation_improvement_value_alone=float(sl.get("operation_improvement_value_alone", dsl.operation_improvement_value_alone)),
+                                        exclude_accounts=[str(x).strip() for x in (sl.get("exclude_accounts") or [])],
                                         normalize_percentile=float(sl.get("normalize_percentile", dsl.normalize_percentile)))
             if not 50.0 < shortlist.normalize_percentile <= 100.0:
                 # at exactly 50 the band collapses to the median and every metric
