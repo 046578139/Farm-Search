@@ -589,3 +589,36 @@ def test_operating_business_rules_can_be_turned_off(tmp_path):
                                "assessed_improvement_value": 1_354_500.0}],
                    exclude_operating_businesses=False, exclude_land_uses=[])
     assert set(short["account_id"]) == {"CREAMERY"}
+
+
+def test_a_business_takes_its_whole_holding_off_the_list(tmp_path):
+    """The fields behind a creamery belong to the creamery. A bare field's land
+    use code cannot tell you who farms it — the owner mailbox can."""
+    creamery = "one|8305 bolivar rd"
+    short, excl = _mk(tmp_path, [
+        {"account_id": "PLANT", "owner_key": creamery, "structure_sqft": 12_092.0,
+         "assessed_improvement_value": 1_354_500.0},
+        {"account_id": "FIELD_A", "owner_key": creamery, "gross_acres": 431.2},
+        {"account_id": "FIELD_B", "owner_key": creamery, "gross_acres": 178.9},
+        {"account_id": "CLUBHOUSE", "owner_key": "two|fairway", "land_use_desc": "Country Club"},
+        {"account_id": "FAIRWAY", "owner_key": "two|fairway"},
+        {"account_id": "NEIGHBOUR", "owner_key": "three|plain farm"},
+    ])
+    why = dict(zip(excl["account_id"], excl["exclusion_reason"]))
+    assert set(short["account_id"]) == {"NEIGHBOUR"}
+    assert why["PLANT"] == "buildings_suggest_an_operating_business"
+    assert why["CLUBHOUSE"] == "land_use_country_club"
+    assert why["FIELD_A"] == why["FIELD_B"] == "owner_runs_a_business_on_another_parcel"
+    assert why["FAIRWAY"] == "owner_runs_a_business_on_another_parcel"
+
+
+def test_owner_propagation_ignores_a_blank_owner_key(tmp_path):
+    """owner_key is empty when neither a name nor an address is published; that
+    is not a shared owner, and must not take unrelated parcels with it."""
+    short, excl = _mk(tmp_path, [
+        {"account_id": "PLANT", "owner_key": "|", "land_use_desc": "Industrial"},
+        {"account_id": "FARM_A", "owner_key": "|"},
+        {"account_id": "FARM_B", "owner_key": ""},
+    ])
+    assert set(short["account_id"]) == {"FARM_A", "FARM_B"}
+    assert dict(zip(excl["account_id"], excl["exclusion_reason"]))["PLANT"] == "land_use_industrial"

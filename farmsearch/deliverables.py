@@ -85,6 +85,16 @@ def rank_shortlist(scored: pd.DataFrame, cfg: Config) -> tuple[pd.DataFrame, pd.
         alone = (sq >= sl.operation_structure_sqft_alone) | (imp >= sl.operation_improvement_value_alone)
         m = (both | alone) & (reasons == "")
         reasons[m] = "buildings_suggest_an_operating_business"
+    # The fields behind a creamery belong to the creamery. Once a parcel is out as
+    # a business or an institution, every parcel under the same owner goes with
+    # it: the land use code on a bare field cannot tell you who farms it.
+    if sl.exclude_business_owner_holdings and "owner_key" in df.columns:
+        okey = df["owner_key"].fillna("").astype(str).str.strip()
+        is_biz = reasons.str.startswith("land_use_") | (reasons == "buildings_suggest_an_operating_business")
+        owners = {k for k in okey[is_biz] if k.strip("|").strip()}
+        if owners:
+            m = okey.isin(owners) & (reasons == "")
+            reasons[m] = "owner_runs_a_business_on_another_parcel"
     if sl.exclude_accounts:
         m = df["account_id"].astype(str).isin([str(a) for a in sl.exclude_accounts]) & (reasons == "")
         reasons[m] = "excluded_by_hand"

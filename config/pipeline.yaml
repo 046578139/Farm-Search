@@ -935,7 +935,10 @@ shortlist:
   operation_improvement_value: 750000
   operation_structure_sqft_alone: 20000
   operation_improvement_value_alone: 3000000
-  exclude_accounts: []            # e.g. [1122435531]  # South Mountain Creamery home farm
+  # an operator's other parcels go too: the fields behind a creamery or a golf
+  # course belong to the business, whatever each parcel's land use code says
+  exclude_business_owner_holdings: true
+  exclude_accounts: []            # account numbers you know are not for sale
 
 # --- Reference layers (located and verified; not consumed by Stages 1-4 yet) --
 # Kept here so later stages and the dossier step do not have to rediscover them.

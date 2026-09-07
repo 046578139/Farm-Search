@@ -459,6 +459,11 @@ class ShortlistConfig:
     # or either one on its own at a scale no farmstead reaches
     operation_structure_sqft_alone: float = 20_000
     operation_improvement_value_alone: float = 3_000_000
+    # An operator's other parcels are not for sale either: the fields behind a
+    # creamery or a golf course belong to the business, whatever the land use
+    # code on each one says. Excludes every parcel sharing an owner mailbox with
+    # a parcel already excluded as a business or an institution.
+    exclude_business_owner_holdings: bool = True
     # accounts you know are not for sale, whatever the data says
     exclude_accounts: list[str] = field(default_factory=list)
     require_reachable_acres_min: bool = True     # largest reachable block >= acreage_min to make the list
@@ -731,6 +736,7 @@ class Config:
                                         operation_improvement_value=float(sl.get("operation_improvement_value", dsl.operation_improvement_value)),
                                         operation_structure_sqft_alone=float(sl.get("operation_structure_sqft_alone", dsl.operation_structure_sqft_alone)),
                                         operation_improvement_value_alone=float(sl.get("operation_improvement_value_alone", dsl.operation_improvement_value_alone)),
+                                        exclude_business_owner_holdings=bool(sl.get("exclude_business_owner_holdings", True)),
                                         exclude_accounts=[str(x).strip() for x in (sl.get("exclude_accounts") or [])],
                                         normalize_percentile=float(sl.get("normalize_percentile", dsl.normalize_percentile)))
             if not 50.0 < shortlist.normalize_percentile <= 100.0:

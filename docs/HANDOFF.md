@@ -468,6 +468,14 @@ Two rules now run before the ranking, both in `shortlist:`:
   with barns — 3,000 to 6,000 sq ft, $200k to $600k — is untouched, which is why
   seven farms with improvements over $750k are still on the list.
 
+- **The rest of the operator's land.** Excluding the parcel with the plant on it
+  and then ranking the same owner's fields is the wrong answer: the fields
+  behind a creamery belong to the creamery, and a bare field's land use code
+  cannot tell you who farms it. Once a parcel is out as a business or an
+  institution, every parcel sharing its owner mailbox goes with it — 26 more,
+  including the two South Mountain Creamery fields that had been sitting at
+  ranks three and eight.
+
 `exclude_accounts:` takes account numbers you know yourself; local knowledge
 beats any threshold, and the reason is recorded as `excluded_by_hand`.
 
