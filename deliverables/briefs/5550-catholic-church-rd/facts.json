@@ -1,0 +1,299 @@
+{
+ "address": "5550 Catholic Church Rd, Jefferson, MD 21755",
+ "sdat": {
+  "district": "22",
+  "account": "432257",
+  "acctid": "1122432257",
+  "map": "0074",
+  "parcel": "0056",
+  "url": "https://sdat.dat.maryland.gov/RealProperty/Pages/viewdetails.aspx?County=11&SearchType=ACCT&District=22&AccountNumber=432257",
+  "record_date": "2026 MAY (SDAT extract), polygon 2024 NOV"
+ },
+ "acres": {
+  "sdat": 81.28,
+  "geometry": 80.55
+ },
+ "zoning": "A \u2014 Frederick County Agricultural (100% of parcel)",
+ "land_use": "Agricultural (SDAT), no exempt class, no commercial-use code",
+ "assessment": {
+  "land": 130000,
+  "improvements": 1031500,
+  "total": 1161500
+ },
+ "structures": {
+  "house": "4,298 sq ft finished (footprint 5,036 sq ft), built 2005, south block by the road",
+  "barns": "two outbuildings, 2,904 and 1,962 sq ft footprints, north block"
+ },
+ "transfer": {
+  "date": "1981-09-30",
+  "consideration": 253500,
+  "deed": "Liber 1157 Folio 633"
+ },
+ "owner": "BERMAN MELVIN J (Frederick County tax record, updated 2026-07-16); owner-occupied (code D); the same family name appears as an adjoiner on the 1981 plat",
+ "easements": {
+  "met": {
+   "id": "0424BER98.FRED",
+   "easement_acres": 81.3,
+   "covers_acres": 78.84,
+   "covers_pct": 97.9,
+   "year": 1998,
+   "coholder": "none in the DNR MET layer",
+   "program": "ISTEA-10 (federal Intermodal Surface Transportation Efficiency Act enhancement funds via SHA, DNR match) \u2014 a PURCHASED scenic easement, not a donation",
+   "settled": "1998-01-07",
+   "county_project": "ISTEA-10",
+   "county_easement_acres": 81.303,
+   "companion": "ISTEA-11, 156.25 ac, same date, on 6100 Burkittsville Rd (the 'Berman Farm' 250-ac scenic easement protecting the South Mountain / Burkittsville viewshed)",
+   "lpprp": "Frederick County 2022 LPPRP lists 'Berman, Melvin 81.30 / 81.30 MET ISTEA' \u2014 the whole parcel counted as preserved"
+  },
+  "neighbour_slivers": [
+   {
+    "id": "0438MIL98.FRED",
+    "acres_on_parcel": 0.06,
+    "coholder": "Maryland Historical Trust"
+   },
+   {
+    "id": "0709WHI02.FRED",
+    "acres_on_parcel": 0.0005,
+    "coholder": "Frederick County"
+   }
+  ],
+  "rural_legacy_touching": [
+   {
+    "id": "RL-006-032",
+    "settled": "2006-12-27",
+    "legal_acres": 39.41
+   },
+   {
+    "id": "RL-006-009",
+    "settled": "2002-04-04",
+    "legal_acres": 150.47
+   }
+  ],
+  "malpf": 0,
+  "county_ipp": 0,
+  "critical_farms": 0,
+  "forest_conservation": 0,
+  "forest_bank": 0,
+  "crep": 0,
+  "fcma": "none (SDAT FCMACODE blank)",
+  "malpf_district": "none (AGFNDAREA blank)",
+  "ppa_rla": "Inside the certified Mid-Maryland Priority Preservation Area and the Mid-Maryland Rural Legacy Area boundary (not itself a Rural Legacy easement)"
+ },
+ "physical": {
+  "floodplain_ae": 8.24,
+  "riparian_presumed": 6.97,
+  "wetland_nwi": 0.49,
+  "steep_slope": 18.34,
+  "usable": 54.21,
+  "blocks": [
+   {
+    "name": "south",
+    "usable": 32.23,
+    "note": "road frontage, house"
+   },
+   {
+    "name": "north",
+    "usable": 19.3,
+    "note": "beyond the stream/floodplain, barns"
+   }
+  ],
+  "small_pieces": [
+   1.0,
+   0.39,
+   0.33
+  ]
+ },
+ "land_cover": {
+  "lulc_2010": {
+   "cropland_21": 46.9,
+   "pasture_22": 15.7,
+   "forest_41": 14.9,
+   "low_density_residential_11": 3.1
+  },
+  "canopy_2018_30m": {
+   "mean_pct": 19.1,
+   "acres_ge_50pct": 13.6,
+   "acres_ge_70pct": 7.7
+  },
+  "dnr_forested_buffers": 6.9
+ },
+ "frontage": {
+  "facing_ft": 2129.5,
+  "row_contact_ft": 1732.7,
+  "open_ft": 1193.1,
+  "encumbered_ft": 534.8,
+  "foreign_ft": 401.5,
+  "entry_nodes": 3,
+  "authority": "county road"
+ },
+ "envelope": {
+  "acres": 37.14,
+  "largest_block": 18.52,
+  "longest_yd": 517,
+  "occupied_structures_within_150yd": 14,
+  "nearest_dwelling_yd": 150,
+  "dwellings_los_1000yd": 53,
+  "dwellings_within_1000yd": 69
+ },
+ "encroachment": {
+  "adjacent_residential_zoning_acres": 0,
+  "planned_sewer": false,
+  "pfa": false,
+  "growth_area": false,
+  "adjacent_eased_acres": 175.96,
+  "adjacent_eased_pct": 35,
+  "approved_unbuilt_units_2mi": 0,
+  "adjacent_parcels": 11,
+  "adjacent_acres": 502.42
+ },
+ "mprp": {
+  "tier": 0,
+  "nearest_route_ft": 39403,
+  "hv_line_ft": 7249,
+  "substation_ft": 25812,
+  "data_center_ft": 34655
+ },
+ "commute": {
+  "bwi_peak": 106,
+  "langley_peak": 132,
+  "nova_peak": 122,
+  "bwi_freeflow": 79,
+  "basis": "OSRM free-flow x peak factor (placeholder)",
+  "redundancy": "redundant",
+  "corridor": "Broad Run / Jefferson Rd, AADT 1,851, +18.6% trend"
+ },
+ "pipeline_valuation": {
+  "segment_used": "uneased (MET typed 'varies')",
+  "per_acre": 16010,
+  "land": 1289587,
+  "total": 2321087,
+  "eased_band_frederick": {
+   "n": 5,
+   "median": 9719,
+   "p25": 8724,
+   "p75": 10168
+  }
+ },
+ "screen_result": "Excluded from the shortlist: largest contiguous reachable block 32 ac < 40 ac minimum, even with crossings (rule largest_reachable_block_below_acreage_min_even_with_crossings)",
+ "comps": [
+  {
+   "addr": "5533 Gapland Rd (adjoins) \u2014 Distillery Lane Ciderworks",
+   "acct": "1122434209",
+   "date": "2025-08-13 (deed 2025-09-18)",
+   "list": 1679000,
+   "price": 1650000,
+   "dom": 104,
+   "acres": 94.47,
+   "house": "4,750 sf restored 1840s farmhouse, cider house, dairy barn, 25 kW solar; 40 ac tillable, 35 ac woods, 10 ac orchard",
+   "land_per_acre": 9752,
+   "eased": "MET 0438MIL98 (99%), co-held by MD Historical Trust",
+   "miles": 0.2,
+   "note": "remarks: 'agricultural and historic easements \u2026 preserve the scenic viewshed'"
+  },
+  {
+   "addr": "6208 Picnic Woods Rd (+ 9.17 ac lot)",
+   "acct": "1122431919",
+   "date": "2026-03-03 (deed 2026-03-04)",
+   "list": 1250000,
+   "price": 1150000,
+   "dom": 54,
+   "acres": 87.49,
+   "house": "1,960 sf 1900 farmhouse, dairy barns, 44\u00d7150 Butler shed; '78 \u00b1 tillable acres in preservation'; cash sale",
+   "land_per_acre": 9719,
+   "eased": "MET + Rural Legacy (100%)",
+   "miles": 0.9,
+   "note": "remarks: 'rear woods make for excellent hunting \u2026 large whitetail bucks'"
+  },
+  {
+   "addr": "6100 Burkittsville Rd \u2014 the other half of the 1998 Berman easement",
+   "acct": "1122428705",
+   "date": "2022-07-11 (deed 2022-07-14)",
+   "list": 3490000,
+   "price": 1850000,
+   "dom": "219 days active, expired, sold 18 months later",
+   "acres": 160.25,
+   "house": "6,754 sf 1850 brick manor + 1752 guest house, six structures; 'working 135-acre farm'",
+   "land_per_acre": null,
+   "eased": "MET 0423BER98 / ISTEA-11 (154 ac)",
+   "miles": 1.5,
+   "note": "asked $3.49M (2019), cut to $2.5M (2020), sold at $1.85M \u2014 53% of the first ask"
+  },
+  {
+   "addr": "6300B Old Middletown Rd",
+   "acct": "1114315411",
+   "date": "2025-07-01",
+   "list": null,
+   "price": 1300000,
+   "dom": null,
+   "acres": 106.48,
+   "house": "1,800 sf 1880 house",
+   "land_per_acre": 10168,
+   "eased": "MALPF (100%)",
+   "miles": 3.8,
+   "note": ""
+  }
+ ],
+ "listing": {
+  "mls": "MDFR2089452",
+  "status": "Active",
+  "listed": "2026-09-16",
+  "price": 1999900,
+  "per_sqft": 465,
+  "beds": 5,
+  "baths": "6 full, 1 half",
+  "finished_sqft": 4298,
+  "unfinished_sqft": 2558,
+  "agent": "Nancy A. Hulsman, The Hulsman Group, Coldwell Banker Realty (Global Luxury)",
+  "open_house": "Sunday 2026-09-20, 2-4 pm",
+  "structures": "Barn, Barn/Farm Building, Barn/Stable, Beef Barn, Dairy Barn, Garage(s), Gazebo; fencing partial; horse trails, horses allowed",
+  "taxes_2026": 14194,
+  "remarks_mention_easement": false,
+  "remarks_acreage_breakdown": false,
+  "url_redfin": "https://www.redfin.com/MD/Jefferson/5550-Catholic-Church-Rd-21755/home/205569228",
+  "url_cb": "https://www.coldwellbankerhomes.com/md/jefferson/5550-catholic-church-rd/pid_73759651/"
+ },
+ "cama": {
+  "ag_class_3_acres": 80.28,
+  "homesite_acres": 1.0,
+  "last_assessed": "2023-10",
+  "last_inspected": "2024-01",
+  "dwelling": "2-story with basement, siding, grade 7/9, 4,298 sf enclosed, 979 sf attached garage, three porches",
+  "water_sewer": "well / septic; no planned water or sewer service (NPS)",
+  "watershed": "Catoctin Creek \u2014 Broad Run middle/lower mainstem"
+ },
+ "streams": "Manor Run, Burkitts Run and Broad Run (2nd\u20133rd order) touch or cross the parcel; the FEMA AE zone follows the eastern stream",
+ "historic": "No county historic overlay; the MHT Crampton's Gap / South Mountain Battlefield polygon (F-4-017A) covers the area; the 1899 'Haley Farm' (MIHP F-2-101) sits on the adjoining Shisler land, not this parcel",
+ "plat_note": "1981 farm-lot plat (Plat Book 24 p.144) marks an 84.075-ac remainder 'Not an approved building lot \u2014 no residential building allowed'; the 2005 house was nonetheless built, so the parcel's building-lot status was resolved later \u2014 get the permit history",
+ "second_address": "A second county address point (5650 Catholic Church Rd) is assigned to this tax account \u2014 a second addressed building",
+ "comps_met": {
+  "frederick_eased_incl_met": {
+   "n": 7,
+   "median": 9719,
+   "p25": 8927,
+   "p75": 9960
+  },
+  "frederick_uneased": {
+   "n": 36,
+   "median": 17126,
+   "p25": 11515,
+   "p75": 25949
+  },
+  "all_eased_incl_met": {
+   "n": 18,
+   "median": 9736,
+   "p25": 8741,
+   "p75": 11038
+  }
+ },
+ "ask_vs_comps": {
+  "ask": 1999900,
+  "improvements_assessed": 1031500,
+  "implied_land": 968400,
+  "implied_land_per_acre": 12063,
+  "eased_median_per_acre": 9719,
+  "eased_p75_per_acre": 9960,
+  "value_at_median": 1811741,
+  "value_at_p75": 1831089,
+  "gap_at_median": 188159
+ }
+}

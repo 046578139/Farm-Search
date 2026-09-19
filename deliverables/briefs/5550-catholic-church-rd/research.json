@@ -1,0 +1,773 @@
+{
+ "subtitle": "Listed on 16 September 2026 at $1,999,900 (Bright MLS MDFR2089452, open house Sunday 20 September 2\u20134 pm). This brief answers three questions from the public record, live-verified on 19 September 2026: what the farm is, what is already preserved and what that means for a buyer, and where the money is \u2014 including the idea that putting the woods into a conservation easement pays cash.",
+ "verdict": "<p><strong>The preservation cheque was cashed in January 1998.</strong> The whole farm (81.3 easement acres against 81.28 assessed) is under a perpetual Maryland Environmental Trust conservation easement, and it was not a donation: the State bought it with federal ISTEA transportation-enhancement money (Frederick County project ISTEA-10) as half of the 250-acre \u201cBerman Farm\u201d scenic easement protecting the South Mountain battlefield and Burkittsville viewshed. The development rights are gone, the seller's family was paid for them, and every program that pays for development rights (MALPF, Rural Legacy, the county IPP and Critical Farms, MARBIDCO Next Gen) has nothing left to buy here.</p><p><strong>What a buyer inherits is a tax position, not a payment:</strong> the eased land is valued at the highest agricultural rate ($500/ac) whether or not you farm it, which is why the land carries a $130,000 assessment and $1,589 of the $14,194 tax bill. The 15-year 100% land-tax credit that follows an MET easement ran out in 2014 and does not restart on sale. The one preservation-side idea with real money in it is a Forest Resource Ordinance mitigation bank on the forested stream buffer \u2014 worth tens of thousands, not hundreds, paid out as developers buy credits, and it needs MET's consent. Beyond that the woods are worth a small hunting lease (\u2248 $2,000 a year at central-Maryland rates) and under $100 a year in tax relief.</p><p><strong>Where the money actually is:</strong> the price, and the taxes at purchase. Eased farmland in this neighbourhood trades at a tight $9,719/ac (seven sales, interquartile $8,927\u2013$9,960), which with the house at its assessed value supports about $1,811,741 \u2014 roughly $188,159 under the ask. A Declaration of Intent at settlement removes an agricultural transfer tax of roughly $42,000 at $1.8M; a purchase-money deed of trust avoids 1.4% recordation tax on the loan; and if every buyer on the deed is a first-time Maryland homebuyer the statute shifts the state transfer and recordation taxes to the seller.</p>",
+ "tiles": [
+  [
+   "Asking",
+   "$1,999,900",
+   "listed 16 Sep 2026 \u00b7 $465 per finished sq ft"
+  ],
+  [
+   "Eased-comps value",
+   "$1,811,741",
+   "land at $9,719/ac + house at assessment"
+  ],
+  [
+   "Already preserved",
+   "98%",
+   "MET / ISTEA-10 easement, settled 7 Jan 1998"
+  ],
+  [
+   "Preservation cash left",
+   "\u2248 $0",
+   "no program buys rights already sold"
+  ],
+  [
+   "Avoidable at closing",
+   "\u2248 $42,000",
+   "ag transfer tax, waived by a Declaration of Intent (at $1.8M)"
+  ],
+  [
+   "Annual tax today",
+   "$14,194",
+   "89% of it is the house, not the land"
+  ]
+ ],
+ "parcel_prose": "<p>Tax Map 74 Parcel 56 sits on the west side of Catholic Church Road between Jefferson and Burkittsville, at the foot of South Mountain. The assessment carries 81.28 acres; the parcel polygon measures 80.55. Frederick County zones all of it A (Agricultural); it is well and septic with no planned water or sewer service, outside the Priority Funding Area, and adjoins no residential zoning. Eleven neighbouring parcels total 502 acres, and 176 of those acres \u2014 a third of the boundary \u2014 are themselves under permanent easement, so the setting is about as protected from development as Frederick County gets.</p><p>The stream is the parcel's defining feature. Manor Run, Burkitts Run and Broad Run converge here; the eastern branch crosses the property with an 8.2-acre FEMA AE floodplain and a presumed 7-acre riparian buffer along it. That splits the usable ground into a <strong>32-acre south block</strong> holding the 2005 house, the road frontage and most of the cropland, and a <strong>19-acre north block</strong> beyond the water holding the two barns, reachable from the house only across the floodplain (the pipeline flags the crossing as permit-dependent). A further 18 acres are steeper than the screen's slope limit. That split is why the acquisition screen dropped the parcel: its largest contiguous reachable block is 32 acres against a 40-acre rule.</p><p>Land cover from the state's 2010 land-use mapping is roughly 47 acres cropland, 16 acres pasture, 15 acres forest and a 3-acre house site; the 2018 canopy raster agrees (13.6 acres at \u2265 50% canopy). DNR maps 6.9 acres of it as forested stream buffer. The listing gives no tillable / pasture / woods breakdown and never mentions the easement.</p><p>Structures: a 4,298 sq ft two-storey house with basement (grade 7 of 9, 979 sq ft attached garage, 2,558 sq ft unfinished lower level per the listing) and two outbuildings of 2,904 and 1,962 sq ft footprints in the north block, which the listing describes as barns and stables. The county assigns a second street address (5650 Catholic Church Rd) to the same tax account, which usually means a second addressed building \u2014 ask what it is. Note also that the 1981 farm-lot plat the parcel descends from marks its 84-acre remainder \u201cnot an approved building lot \u2014 no residential building allowed\u201d; the house was built anyway in 2005, so that status was resolved later, and the permit file should confirm how.</p>",
+ "preserved_prose": "<p><strong>What is on the land.</strong> One easement matters: MET easement 0424BER98.FRED, 81.30 easement acres, held solely by the Maryland Environmental Trust (no co-holder in the DNR layer), covering 78.8 of the parcel's 80.55 polygon acres \u2014 the remaining 1.7 acres are boundary slivers, and Frederick County's 2022 land-preservation plan lists the property as \u201cBerman, Melvin \u00b7 81.30 \u00b7 81.30 \u00b7 MET \u00b7 ISTEA\u201d, i.e. the whole parcel counted as preserved. Two neighbouring MET easements and two Rural Legacy easements overlap the boundary by hundredths of an acre and do not burden this parcel. There is no MALPF, IPP, Critical Farms, Rural Legacy, CREP, Forest Conservation Act or forest-bank easement on it, no Forest Conservation and Management Agreement, and no county historic overlay (the Maryland Historical Trust's Crampton's Gap battlefield polygon covers the area; the 1899 \u201cHaley Farm\u201d historic house is on the neighbouring Shisler land, not this parcel).</p><p><strong>How it got there.</strong> The county records the easement as project ISTEA-10, settled 7 January 1998 \u2014 the same day as ISTEA-11 on the 160-acre farm next door at 6100 Burkittsville Road. Scenic America's case study describes the deal: the 250-acre Berman Farm easement, MET as holder, the State Highway Administration as conduit for federal Intermodal Surface Transportation Efficiency Act enhancement funds, and DNR providing the match. Frederick County's plan says these ISTEA funds were used \u201cto purchase development easements\u201d around South Mountain and Burkittsville, and lists MET's own donated-easement programme separately. So the landowner was <em>paid</em>. The price is not published; it would be in the 1998 deed of easement, which the seller must hand you before contract under Real Property \u00a710-705.</p><p><strong>What it means for you.</strong> MET's FAQ: \u201cthe land can be bought and sold; however, the easement remains on the land and binds all future owners.\u201d Extinguishment needs a court and \u201cunexpected change\u201d making conservation impossible; MET's 2025 policy is to amend only to strengthen protection and never to subordinate to a newer overlay easement. MET's model easement (the 1998 deed will differ in detail) prohibits subdivision and leases of part of the land beyond 20 years, caps dwellings at a negotiated number inside a mapped building area, keeps agricultural structures inside that area unless under 500 sq ft, requires a forest stewardship plan before cutting in mapped forest areas, allows commercial agriculture and small-scale agritourism, and counts hunting (with deer stands and blinds) as permitted passive recreation. Target shooting is not addressed by the model; Frederick County has no county-wide discharge ordinance that this research could find, and a formal range in the A district is a special-exception use with a 500 ft setback. Read the recorded deed for the dwelling cap, the building envelope, forestry, and any clause on firearms \u2014 those four clauses decide what you can do here.</p>",
+ "ledger_intro": "Every Maryland and Frederick County programme that pays landowners for preservation, with its rule for land already under a perpetual easement. \u201cCashed in 1998\u201d means the value that programme pays for was sold to the State in the ISTEA deal. Figures are the current (FY2026\u201327) ones where a cycle exists.",
+ "ledger": [
+  {
+   "program": "MET easement (the one already here)",
+   "runs": "Maryland Environmental Trust \u00b7 DNR",
+   "status": "cashed",
+   "pays": "Purchase price in 1998 (ISTEA funds); a donated MET easement pays a federal deduction and a state credit of up to $5,000/yr, $80,000 total",
+   "why": "Perpetual, binds every future owner. The 1998 grantor was paid; a buyer receives no deduction or credit for an easement that already exists. Only the \u00a78-209.1 land valuation (below) survives."
+  },
+  {
+   "program": "\u00a7 9-107 conservation property tax credit",
+   "runs": "SDAT \u00b7 state law",
+   "status": "no",
+   "pays": "100% of property tax on the unimproved eased land for 15 tax years after the easement",
+   "why": "Runs from the easement date, not the owner: for a January 1998 easement the window closed 30 June 2014 and cannot restart. It never covered the house or its acre anyway (\u2248 $490/yr at today's land value)."
+  },
+  {
+   "program": "\u00a7 8-209.1 conservation-property valuation",
+   "runs": "SDAT \u00b7 state law",
+   "status": "yes",
+   "pays": "Land valued at the highest agricultural-use rate ($500/ac) with no farming requirement",
+   "why": "Already in the bill: 80.28 ac \u00d7 $500 = $40,140 of land value, \u2248 $490/yr in tax. Passes to a buyer automatically. Worth \u2248 $9,000/yr against an eased-market valuation of the land \u2014 but you never see it as cash."
+  },
+  {
+   "program": "MALPF easement purchase",
+   "runs": "Maryland Agricultural Land Preservation Foundation \u00b7 county applications due 1 April",
+   "status": "no",
+   "pays": "Fair market value minus agricultural value, from two state appraisals; capped at 75% of FMV",
+   "why": "The formula pays for development value, and MALPF's application instructions say it \u201cwill not pay for acreage already encumbered.\u201d On land whose rights went to MET in 1998 the easement value is nil, and MET would have to consent to an overlay."
+  },
+  {
+   "program": "Rural Legacy (Mid-Maryland Frederick RLA)",
+   "runs": "DNR \u00b7 Frederick County as sponsor",
+   "status": "no",
+   "pays": "Points-based price: county EVS pays $5.45/point up to 1,100 points (\u2248 $6,000/ac max, 2015 draft); FY2025 grant $1.30M",
+   "why": "The parcel sits inside the RLA boundary, but 450 of the 1,100 points are for development rights extinguished \u2014 rights this parcel no longer has. Effectively zero value; confirm with the county sponsor."
+  },
+  {
+   "program": "Frederick County Installment Purchase Program (IPP)",
+   "runs": "County Land Preservation \u00b7 applications to 1 September",
+   "status": "no",
+   "pays": "Base value per acre plus ranking points, paid as tax-free interest over 10\u201320 years and a balloon; 46 applicants for 21 slots in FY2025",
+   "why": "Code \u00a7 1-13-35(C)(4): applicants \u201cmust have further subdivision rights.\u201d The no-rights exception (adjoining \u2265 50 eased acres \u2014 this parcel does) pays base value only, and the county has not said it will pay base value for rights MET already holds. Ask Shannon O'Neil, 301-600-1411."
+  },
+  {
+   "program": "Frederick County Critical Farms",
+   "runs": "County \u00b7 for contract purchasers of farms",
+   "status": "no",
+   "pays": "A 5-year option worth 75% of easement value (\u2248 51% of land FMV) paid to the buyer at purchase, repaid when MALPF buys",
+   "why": "Code \u00a7 1-13-34(B)(4): the farm \u201cmust be able to have additional residential lots created.\u201d A 98%-eased parcel cannot. It is also a loan against a future MALPF sale, not a grant. Cycle closed as of March 2026."
+  },
+  {
+   "program": "MARBIDCO Next Gen / Small Acreage Next Gen",
+   "runs": "MARBIDCO \u00b7 monthly applications",
+   "status": "no",
+   "pays": "Up to 51% of land value (cap $500,000) at settlement as an easement option; SANG 30\u201360% on 10\u201349 ac",
+   "why": "Both exist to option development rights that the buyer later sells to MALPF or the county; UMD Extension states the farm \u201ccannot already be subject to a permanent conservation easement.\u201d SANG also fails on acreage."
+  },
+  {
+   "program": "Forest mitigation bank (county FRO \u00a7 1-21-29)",
+   "runs": "Frederick County Development Review \u00b7 Graham Hubbard 301-600-1436",
+   "status": "partly",
+   "pays": "Credits sold privately to developers; county's FY2026 overview: \u201cgoing sales price roughly $20,000 per acre\u201d; existing forest banks at 2.5 : 1",
+   "why": "The closest thing to \u201cmoney for the woods.\u201d Only stream, floodplain and wetland buffer forest on Ag-zoned land qualifies (\u2248 7 ac here). Needs a new deed of easement to the county, a forester's plan, survey, title opinion and MET's consent \u2014 MET's 2025 policy allows banking on eased land \u2265 5 ac subject to Board review. Credits sell as demand arrives (county-wide 28\u201373 ac of existing-forest credits a year across 33 banks, two of them on Burkittsville Run / Broad Run next door). Whether county staff will bank forest already under an MET easement is undocumented."
+  },
+  {
+   "program": "Forest Conservation and Management Agreement (FCMA)",
+   "runs": "DNR Forest Service \u00b7 15-year minimum",
+   "status": "tax",
+   "pays": "Woodland assessed at $125/ac instead of $500/ac",
+   "why": "On 15 ac: $7,500 \u2192 $1,875 of assessment, saving \u2248 $69/yr before the $50 entry fee and $100 five-yearly inspections \u2014 net \u2248 $50/yr, with back taxes if you break the 15-year plan. A stewardship plan alone ($187.50/ac) saves \u2248 $57/yr with no lock-in. MET's forestry clause governs any plan."
+  },
+  {
+   "program": "CREP riparian forest buffer (CP22)",
+   "runs": "USDA FSA \u00b7 MDA \u00b7 Catoctin Soil Conservation District",
+   "status": "partly",
+   "pays": "Annual rent of 3 \u00d7 the soil rental rate for 15 years (\u2248 $350/ac/yr at Frederick's $114 rent) + a $1,000/ac state bonus through 2031 + 87.5% cost-share and a 40% practice incentive, so planting is effectively free",
+   "why": "Only cropped or grazed streamside acres count, and the buffer here is mostly already wooded \u2014 perhaps 7 ac of field edge qualifies (\u2248 $2,400/yr gross, \u2248 $1,700 net of the rent those acres earn now, plus \u2248 $7,700 one-time). Two catches: a 12-month ownership rule, and the FY2026 continuous signup closed 1 May 2026 with CRP's federal authority extended only to 30 September 2026 \u2014 a 2027 offer depends on Congress. A management contract fits under the MET easement; a permanent CREP easement would be an overlay needing MET's consent."
+  },
+  {
+   "program": "Family Forest Carbon Program and other carbon payments",
+   "runs": "American Forest Foundation / TNC",
+   "status": "unknown",
+   "pays": "Annual per-acre payments on 30+ forested acres under a 10\u201320 year practice contract",
+   "why": "The parcel has \u2248 15 ac of forest, under the programme's 30-acre floor; eligibility and its easement rule are being verified."
+  },
+  {
+   "program": "County agricultural-preservation land credit (TP \u00a7 9-312(g))",
+   "runs": "Frederick County Treasury",
+   "status": "unknown",
+   "pays": "Up to 100% of county tax on eased land only \u2014 at most \u2248 $446/yr here (house + 1 ac excluded)",
+   "why": "State law lets the county grant it; the county's tax-credit page lists no such credit and no enacting code section was found. Worth one phone call (301-600-1111), not a plan."
+  },
+  {
+   "program": "Donating a new easement or an amendment",
+   "runs": "MET or a land trust \u00b7 IRC \u00a7 170(h), TG \u00a7 10-723",
+   "status": "no",
+   "pays": "Federal deduction and a Maryland credit of up to $5,000/yr ($80,000 total) for the value given up",
+   "why": "A donation is worth the value of the rights donated. After 1998 there is nothing of value left to give on 98% of the parcel; the 1.7 boundary acres are slivers. MET amends only to strengthen protection, which would be a donation of nothing measurable."
+  }
+ ],
+ "levers_intro": "Ordered by dollars. The first lever is worth more than all the others together; the next three are decided in the contract, not after closing. Beginning-farmer status matters only for the two cheapest FSA loans.",
+ "levers": [
+  {
+   "id": "price",
+   "title": "1 \u00b7 Pay the eased price, not the estate price",
+   "lead": "The listing never mentions the easement and prices the land at $12,063/ac after the house's assessed value \u2014 24% above what eased farmland here has fetched in seven sales since mid-2025. The gap is about $188,159.",
+   "items": [
+    {
+     "name": "The comps say \u2248 $1.81M",
+     "stamps": [
+      "yes"
+     ],
+     "text": "Frederick County agricultural sales since 2023 with a perpetual easement (MET, MALPF, Rural Legacy or county) over half the parcel: seven arms-length sales, land at a median $9,719/ac, interquartile $8,927\u2013$9,960, against $17,126/ac for 36 un-eased sales. The two nearest are the neighbours: 5533 Gapland Rd (adjoining, MET-eased, 94 ac, restored 4,750 sq ft farmhouse, cidery and orchard) closed at $1,650,000 in August 2025 after 104 days at $1,679,000; 6208 Picnic Woods Rd (MET + Rural Legacy, 87 ac) closed at $1,150,000 in March 2026 after listing at $1,250,000. The other half of this very easement, the 160-acre manor at 6100 Burkittsville Rd, asked $3.49M in 2019, cut to $2.5M, expired, and sold at $1.85M in 2022 \u2014 53% of the first ask.",
+     "dollars": "80.28 ac \u00d7 $9,719 = $780,241 land + $1,031,500 improvements at assessment = $1,811,741\nat the eased 75th percentile ($9,960/ac): $1,831,089\nask $1,999,900 \u2192 implied land $968,400 = $12,063/ac",
+     "sources": [
+      "https://www.redfin.com/MD/Jefferson/5533-Gapland-Rd-21755/home/195572976",
+      "https://www.compass.com/homedetails/6208-Picnic-Woods-Rd-Jefferson-MD-21755/1VFHQ8_pid/",
+      "https://mdgeodata.md.gov/imap/rest/services/PlanningCadastre/MD_PropertySales/MapServer/0"
+     ]
+    },
+    {
+     "name": "Make the appraisal do the arguing",
+     "stamps": [
+      "yes"
+     ],
+     "text": "Any lender's appraisal (and FSA's, under USPAP) values the property as encumbered. Hand the appraiser the recorded 1998 easement and the three eased sales above. If the appraisal lands near $1.8M the financing contingency does the negotiating for you; if you overpay, the FSA down-payment loan and the lender's loan-to-value are both computed on the lower of price and appraisal, so the excess comes out of your cash.",
+     "dollars": "every $100,000 of price above appraisal = $100,000 more cash at closing (0% financed)",
+     "sources": [
+      "https://www.law.cornell.edu/cfr/text/7/761.7"
+     ]
+    },
+    {
+     "name": "Price the house honestly",
+     "stamps": [
+      "partly"
+     ],
+     "text": "The assessed improvement value ($1,031,500 for a grade-7 2005 house) is a cost-based figure and probably fair; the market for a $1M house on an 81-acre eased farm ninety minutes from Washington is thin (the ciderworks farm needed 104 days, the manor needed three years). Every $100,000 of house price also becomes \u2248 $1,222/yr of tax once SDAT reassesses toward your deed price (the homestead cap only slows it).",
+     "dollars": "$1,222 per year of property tax per $100,000 of assessment",
+     "sources": [
+      "https://frederickcountymd.gov/DocumentCenter/View/373830/TAX-RATES-2026-2027"
+     ]
+    }
+   ]
+  },
+  {
+   "id": "closing",
+   "title": "2 \u00b7 Taxes at closing you can legally avoid",
+   "lead": "Four rules, all in the contract and the deed package. On a $1,800,000 purchase they are worth about $55,000 to $75,000 depending on who is on the deed.",
+   "items": [
+    {
+     "name": "Sign a Declaration of Intent \u2014 no agricultural transfer tax",
+     "stamps": [
+      "yes"
+     ],
+     "text": "Maryland taxes the deed on land that leaves the agricultural-use assessment: 5% on transfers of 20 acres or more, plus a 25% surcharge (6.25% effective), on the consideration attributable to the ag-assessed land \u2014 the price less the assessed improvements and the market value of the one-acre homesite. It is not charged at all if the purchaser signs SDAT form RP-18, a Declaration of Intent to keep the land in agricultural use for five full consecutive taxable years. On this parcel the promise costs nothing: the MET easement already forbids anything else. Breaking it triggers the tax on fair market value plus 10%. Beginning-farmer status is irrelevant.",
+     "dollars": "at $1,800,000: net land \u2248 $1,800,000 \u2212 $1,031,500 \u2212 \u2248$100,000 homesite \u2248 $670,000 \u00d7 6.25% \u2248 $42,000 avoided\nat $1,999,900: \u2248 $870,000 \u00d7 6.25% \u2248 $54,000 avoided\nask SDAT Frederick (301-815-5350) for the binding Agricultural Transfer Tax Statement before contract",
+     "sources": [
+      "https://mgaleg.maryland.gov/mgawebsite/Laws/StatuteText?article=gtp&section=13-303&enactments=false",
+      "https://dat.maryland.gov/realproperty/Documents/agtransf.pdf",
+      "https://mgaleg.maryland.gov/mgawebsite/Laws/StatuteText?article=gtp&section=13-305&enactments=false"
+     ]
+    },
+    {
+     "name": "Record a purchase-money deed of trust \u2014 no recordation tax on the loan",
+     "stamps": [
+      "yes"
+     ],
+     "text": "Frederick County's recordation tax is $7 per $500 (1.4%) on deeds and on secured debt. A deed of trust that recites purchase money, is executed within 30 days of the deed and recorded within 30 days after it is exempt (TP \u00a7 12-108(i)); a later refinance is exempt up to the unpaid balance. Any lender, including FSA and Farm Credit, qualifies. Record any second lien (FSA participation, seller note) in the same package.",
+     "dollars": "$1,530,000 loan (85% of $1.8M) \u00d7 1.4% = $21,420 avoided\nper $100,000 borrowed: $1,400",
+     "sources": [
+      "https://mgaleg.maryland.gov/mgawebsite/Laws/StatuteText?article=gtp&section=12-108&enactments=false",
+      "https://frederickcountymd.gov/7861/Record-a-Deed"
+     ]
+    },
+    {
+     "name": "First-time Maryland homebuyer: the seller pays the transfer taxes",
+     "stamps": [
+      "partly"
+     ],
+     "text": "If every grantee on the deed has never owned a Maryland principal residence and will live in the house, the state transfer tax drops from 0.5% to 0.25% and by statute the seller pays all of it (TP \u00a7 13-203) and, unless the contract says otherwise, all of the recordation tax on the deed (RP \u00a7 14-104). Buying through an LLC or adding a non-qualifying co-owner forfeits it. The seller will price it in, so raise it in the offer, not at the table. Whether the clerk applies the residential rule to an 81-acre farm deed with a dwelling is unconfirmed \u2014 the statute has no acreage cap.",
+     "dollars": "at $1,800,000, buyer's customary half of state transfer ($4,500) + recordation ($12,600) = $17,100 \u2192 $0",
+     "sources": [
+      "https://mgaleg.maryland.gov/mgawebsite/Laws/StatuteText?article=gtp&section=13-203&enactments=false",
+      "https://mgaleg.maryland.gov/mgawebsite/Laws/StatuteText?article=grp&section=14-104&enactments=false"
+     ]
+    },
+    {
+     "name": "What cannot be avoided",
+     "stamps": [
+      "tax"
+     ],
+     "text": "Frederick County has no county transfer tax (\u201cat this time, Frederick County does not impose a County Transfer Tax\u201d). Clerk's fees are $60\u2013$115 per instrument plus a $20 lien certificate. The MET easement adds only a free 30-day post-sale notice to MET (RP \u00a7 10-705); no MET approval or right of first refusal.",
+     "dollars": "\u2248 $250 of fixed fees",
+     "sources": [
+      "https://www.mdcourts.gov/clerks/frederick/recordingfees"
+     ]
+    }
+   ]
+  },
+  {
+   "id": "financing",
+   "title": "3 \u00b7 The cheapest money, in order",
+   "lead": "FSA's two subsidised farm-ownership loans are the cheapest dollars available anywhere, but each is capped well below the price and each requires you to be the owner-operator of a family farm with three years of farm-business experience and a lender's turndown. The bulk of the loan will be Farm Credit. Rates below are September 2026 and reset monthly.",
+   "items": [
+    {
+     "name": "FSA Down Payment Farm Ownership loan \u2014 2.000%, beginning farmers",
+     "stamps": [
+      "yes"
+     ],
+     "text": "You put down 5%; FSA lends 45% of the least of price, appraisal or $667,000 (so at most $300,150) at 2.000% for 20 years; a commercial lender carries the rest on a 30-year amortisation with no balloon in the first 20 years, and FSA guarantees that lender up to 95% with no fee. Beginning farmer means under 10 years operating a farm and owning no more than 30% of the county's average farm size \u2014 30% of Frederick County's 138-acre average is 41.4 acres, a test on what you already own, not on the 81 acres you are buying.",
+     "dollars": "$300,150 at 2.000% \u2248 $6,000 first-year interest, \u2248 $18,350/yr level payment over 20 years (\u2248 $26,170 at 6%: about $7,800/yr less, \u2248 $12,000 less interest in year one)\ncash needed at $1.8M: $90,000 (5%) + closing",
+     "sources": [
+      "https://www.fsa.usda.gov/news-events/news/09-01-2026/usda-announces-september-2026-lending-rates-agricultural-producers",
+      "https://www.law.cornell.edu/cfr/text/7/764.203",
+      "https://www.law.cornell.edu/cfr/text/7/761.2"
+     ]
+    },
+    {
+     "name": "FSA Joint Financing \u2014 4.000%, up to $600,000, any farmer",
+     "stamps": [
+      "yes"
+     ],
+     "text": "FSA funds up to half of the amount financed (capped at $600,000) at the direct rate minus two points, 40-year term, alongside a lender for the other half or more. Same owner-operator, three-year experience and credit-elsewhere tests; no beginning-farmer requirement. Direct funds are appropriated annually and can queue, so file early in the federal fiscal year (October).",
+     "dollars": "$600,000 at 4.000% = $24,000/yr interest, \u2248 $30,300/yr level over 40 years\nsaves $2,000/yr per $100,000 against the regular 6.000% direct rate",
+     "sources": [
+      "https://www.law.cornell.edu/cfr/text/7/764.154",
+      "https://www.fsa.usda.gov/resources/loans/farm-ownership-loans"
+     ]
+    },
+    {
+     "name": "Horizon Farm Credit for the balance \u2014 85% LTV, patronage",
+     "stamps": [
+      "yes"
+     ],
+     "text": "The cooperative lender for Frederick County (888-339-3334): no acreage or loan cap, up to 85% of price or appraisal with no mortgage insurance for first-time rural property owners (their stated term \u2014 confirm it covers you), farm income counted, and a patronage refund on profits \u2014 100 basis points declared for 2024 and paid in 2025, not guaranteed. Ask them to layer FSA Joint or Down Payment underneath and to request the FSA 95% guarantee. MARBIDCO's MRBIFF participation piece (4.25% plus up to 0.75% servicing, up to $700,000, 15-year balloon; its direct loan adds a 1% origination fee) is a further tranche if FSA money is capped or queued. Their note rate is not published \u2014 get a written quote.",
+     "dollars": "at $1.8M: loan $1,530,000, cash $270,000 (or $90,000 with the FSA down-payment structure)\npatronage at 100 bp \u2248 $1,000/yr per $100,000 borrowed (2024 level; consumer-purpose loans excluded, not guaranteed)",
+     "sources": [
+      "https://www.horizonfc.com/loans/home-loans",
+      "https://www.horizonfc.com/patronage",
+      "https://marbidco.org/mbriff/"
+     ]
+    },
+    {
+     "name": "Out of reach: MARBIDCO Next Gen, Maryland Mortgage Program, USDA housing loans",
+     "stamps": [
+      "no"
+     ],
+     "text": "Next Gen and SANG option development rights this parcel no longer has. The Maryland Mortgage Program caps acquisition at $1,306,974 (non-targeted) and the loan at $832,750. USDA Rural Development's guaranteed housing loan excludes farm-related, income-producing property outright.",
+     "dollars": "$0",
+     "sources": [
+      "https://www.marbidco.org/next-generation-farmland-acquisition-program",
+      "https://mmp.maryland.gov/Lenders/Documents/income-and-purchase-limits.pdf"
+     ]
+    }
+   ]
+  },
+  {
+   "id": "holding",
+   "title": "4 \u00b7 Holding cost: the house is the tax bill",
+   "lead": "FY2027 rate $1.110 county + $0.112 state = $1,222 per $100,000 of assessment. On today's $1,161,500 assessment that is $14,194 (the listing's figure) \u2014 $12,605 on the house, $1,589 on the land.",
+   "items": [
+    {
+     "name": "Keep the land at $500/ac",
+     "stamps": [
+      "yes"
+     ],
+     "text": "Two statutes hold the land there: agricultural-use assessment (TP \u00a7 8-209) for land actually farmed \u2014 an 81-acre parcel with ~63 acres cropped or grazed faces no income test \u2014 and conservation-property valuation (TP \u00a7 8-209.1) for land under an MET easement whether farmed or not. File the SDAT Agricultural Use application with the Declaration of Intent at settlement so nothing lapses in the transfer; keep a crop or pasture lease or Schedule F on file.",
+     "dollars": "80.28 ac \u00d7 $500 = $40,140 \u2192 \u2248 $490/yr; at eased market value (\u2248 $780,000) it would be \u2248 $9,500/yr",
+     "sources": [
+      "https://mgaleg.maryland.gov/mgawebsite/Laws/StatuteText?article=gtp&section=8-209.1&enactments=false",
+      "https://dat.maryland.gov/realproperty/Pages/The-Agricultural-Use-Assessment.aspx"
+     ]
+    },
+    {
+     "name": "Homestead credit: file it the week the deed records",
+     "stamps": [
+      "yes"
+     ],
+     "text": "Frederick County caps annual taxable-assessment growth on an owner-occupied principal residence at 5% (state 10%) \u2014 the dwelling and its curtilage, not the farmland. Nothing in the first tax year after a transfer; from the second year it compounds. Move in before 1 July of the first full tax year and file at onestop.md.gov (SDAT ID 11 + 432257).",
+     "dollars": "if SDAT reassesses the house toward a $1.8M deed (+50%, phased 16.7%/yr): \u2248 $1,600 saved in the first capped year, growing each year",
+     "sources": [
+      "https://mgaleg.maryland.gov/mgawebsite/Laws/StatuteText?article=gtp&section=9-105&enactments=false",
+      "https://dat.maryland.gov/realproperty/pages/maryland-homestead-tax-credit.aspx"
+     ]
+    },
+    {
+     "name": "Small change",
+     "stamps": [
+      "tax"
+     ],
+     "text": "Pay the bill in July for 1% off (\u2248 $142). The county's agricultural-preservation land credit, if it exists for MET land, tops out at \u2248 $446/yr. An FCMA on the woods nets \u2248 $50/yr for a 15-year commitment. Add the $88 system benefit charge and the $60 Bay Restoration Fee for septic.",
+     "dollars": "\u2248 $150\u2013$600/yr all told; the all-in bill on today's assessment is $14,194 + $88 + $60 = $14,342",
+     "sources": [
+      "https://frederickcountymd.gov/3188/Tax-Rates",
+      "https://dnr.maryland.gov/forests/pages/programapps/fcmp.aspx"
+     ]
+    }
+   ]
+  },
+  {
+   "id": "income",
+   "title": "5 \u00b7 What the land can earn",
+   "lead": "Realistic, low-effort income is about $9,000\u2013$12,000 a year \u2014 roughly half a percent of the price. It trims the carrying cost; it does not finance the purchase. Every figure below was checked against the source and the MET model easement; the 1998 deed may be narrower.",
+   "items": [
+    {
+     "name": "Cash-rent the fields \u2014 \u2248 $6,700/yr",
+     "stamps": [
+      "yes"
+     ],
+     "text": "USDA NASS county cash rents (2025 release, via UMD Extension): Frederick County non-irrigated cropland $114/ac, pasture $83.50/ac. A written 1\u20133 year cash lease to a neighbouring farmer is passive income, needs no farmer status, and keeps the agricultural-use assessment. Keep any lease of part of the land under 20 years \u2014 MET's model easement treats a longer partial lease as a subdivision. Ask the seller who farms it now and at what rent.",
+     "dollars": "47 ac \u00d7 $114 = $5,358 + 16 ac \u00d7 $83.50 = $1,336 \u2192 \u2248 $6,700/yr\nhaying it yourself grosses \u2248 $18,000 (2.2 t/ac \u00d7 $175/t) but only nets more with your own equipment; a one-third crop share \u2248 $6,000",
+     "sources": [
+      "https://extension.umd.edu/sites/extension.umd.edu/files/2025-10/MD_Cash_Rental_Rates_Write_Up_accessible.pdf",
+      "https://www.nass.usda.gov/Quick_Stats/Ag_Overview/stateOverview.php?state=Maryland&year=2025"
+     ]
+    },
+    {
+     "name": "Hunting lease on the woods and stream corridor \u2014 \u2248 $2,000/yr",
+     "stamps": [
+      "partly"
+     ],
+     "text": "Frederick County led Maryland's deer harvest in 2024\u201325, and the neighbouring 6208 Picnic Woods listing sold on \u201cexcellent hunting \u2026 large whitetail bucks.\u201d The only current price data are a lease marketplace's: central Maryland $25\u2013$35/ac/yr, 50\u2013100 ac tracts $1,250\u2013$3,500 (not an official statistic). MET's model counts hunting as passive recreation and allows stands and blinds, but limits commercial passive recreation run by a resident to a \u201cde minimis\u201d scale \u2014 a small lease fits, an outfitting business does not. On liability, a hunter you admit on a limited-entry basis, with or without charge, assumes responsibility for their own safety under NR \u00a7 5-1109(a)(2); still use a written lease with indemnity and the lessees' liability insurance.",
+     "dollars": "\u2248 15 ac of woods plus stream buffer and field edges: plan on \u2248 $2,000/yr; archery-only or two or three guns \u2248 $1,200\u2013$1,500",
+     "sources": [
+      "https://huntlease.co/blog/maryland-hunting-leases-2025-complete-guide-to-prices-regions-laws/",
+      "https://mgaleg.maryland.gov/mgawebsite/Laws/StatuteText?article=gnr&section=5-1109&enactments=false",
+      "https://agrisk.umd.edu/post/hunting-leases-checklist-for-those-considering-a-hunting-lease"
+     ]
+    },
+    {
+     "name": "CREP forest buffer on the cropped stream edge \u2014 contingent",
+     "stamps": [
+      "partly"
+     ],
+     "text": "Maryland's CREP pays three times the soil rental rate for 15 years on a riparian forest buffer (CP22), a $1,000/ac state signing bonus through 2031, and 87.5% cost-share plus a 40% practice incentive, so planting costs nothing net. Only cropped or grazed land with cropping history qualifies \u2014 the wooded buffer already here does not \u2014 so the candidate is the field edge along the stream, perhaps 7 acres, and you must have owned the land 12 months first. The catch is timing: the FY2026 continuous signup closed on 1 May 2026, only 1.9 million acres remain under the national cap, and CRP's authority was extended only to 30 September 2026, so a 2027 offer depends on Congress. Do not underwrite it.",
+     "dollars": "7 ac \u00d7 (3 \u00d7 $114 + $10 maintenance) \u2248 $2,460/yr gross, \u2248 $1,670/yr after the rent those acres earn today; one-time \u2248 $7,700 ($1,000/ac state bonus + $100/ac federal incentive)",
+     "sources": [
+      "https://www.fsa.usda.gov/resources/conservation/conservation-reserve-program",
+      "https://mda.maryland.gov/resource_conservation/pages/crep.aspx",
+      "https://dnr.maryland.gov/wildlife/documents/crep_qa_factsheet.pdf",
+      "https://www.fsa.usda.gov/news-events/news/02-10-2026/usda-open-continuous-general-conservation-reserve-program-enrollment"
+     ]
+    },
+    {
+     "name": "Cost-share if you run livestock: MACS 87.5%, EQIP 75\u201390%, CSP $4,000/yr floor",
+     "stamps": [
+      "yes"
+     ],
+     "text": "Maryland's MACS programme pays 87.5% of stream-exclusion fencing (NRCS 382), a livestock stream crossing (578), a watering facility (614), spring development and a well, through the Catoctin Soil Conservation District (301-695-2803 x3), for a herd of 15 animal units (pro-rated below) with a soil-conservation and nutrient-management plan. A funded crossing is also the natural way to reach the north-block barns. NRCS EQIP reimburses 75% of practice costs \u2014 90% with half paid in advance for a beginning farmer (under 10 consecutive years) \u2014 and CSP pays a $4,000/yr floor over five years to the operator; if you cash-rent, the tenant is the applicant. Fencing is expressly allowed by the MET model; run-in sheds under 500 sq ft may sit outside the building envelope but not in the 100 ft stream buffer.",
+     "dollars": "illustration: 3,000 ft of fence + a crossing + trough and pipeline \u2248 $26,000 \u2192 your share \u2248 $3,250\nCSP floor $4,000 \u00d7 5 years = $20,000 if you are the operator and rank",
+     "sources": [
+      "https://mda.maryland.gov/resource_conservation/Documents/1_Eligible_Practices_and_Cost-Share_Rates_NRCS_Numerical_Order.pdf",
+      "https://news.maryland.gov/mda/press-release/2026/01/29/department-launches-outreach-campaign-to-promote-stream-protection-herd-health/",
+      "https://www.law.cornell.edu/cfr/text/7/1466.23",
+      "https://www.nrcs.usda.gov/programs-initiatives/csp-conservation-stewardship-program"
+     ]
+    },
+    {
+     "name": "Barns, boarding, a farm stand \u2014 allowed in principle, no verified rates",
+     "stamps": [
+      "partly"
+     ],
+     "text": "MET's model easement defines agriculture to include boarding and training horses, allows commercial activity inside allowed structures, on-farm sale of products mostly grown on the property, and equestrian services; it prohibits industrial uses, kennels and golf. MET warns that older deeds \u201cprohibit all but a few commercial activities\u201d beyond selling what the farm grows or what fits inside an existing structure without changing its appearance, and weddings or festivals need written approval 60 days ahead (20 ac, 150 guests, three days). No Frederick County boarding or barn-rental rates were verifiable; field board in the existing barns is the low-labour version, and bay storage runs about $1,200/yr per $100/month bay.",
+     "dollars": "not underwritten \u2014 get MET's written read of the 1998 deed first",
+     "sources": [
+      "https://dnr.maryland.gov/met/Documents/PDFs/MET_ModelEasement.pdf",
+      "https://dnr.maryland.gov/met/documents/conservation_easement_policies.pdf"
+     ]
+    },
+    {
+     "name": "Solar lease: $0",
+     "stamps": [
+      "no"
+     ],
+     "text": "The one high-dollar land income this farm cannot capture. MET's model allows solar only on allowed buildings (or another structure with approval) to serve the property's own load, and MET has denied commercial generation on eased land as industrial use. A barn-roof array for the house is fine; a lease to a developer is not.",
+     "dollars": "$0",
+     "sources": [
+      "https://dnr.maryland.gov/met/Documents/PDFs/MET_ModelEasement.pdf",
+      "https://www.matrixsolar.com/blog/agriculture-preservation-solar-maryland"
+     ]
+    }
+   ]
+  }
+ ],
+ "comps_prose": "<p>Arms-length agricultural sales within the acquisition screen's study area and a five-mile margin, three years back, multi-account transfers collapsed, improvement-dominated sales dropped; land price is sale price less SDAT's assessed improvements. The screen originally counted only MALPF, Rural Legacy and county easements as \u201ceased\u201d, which left 5533 Gapland Rd in the un-eased band; counting MET easements moves it and lifts the Frederick eased band to seven sales. The four below are the ones a buyer should carry into the negotiation; the first three are MET-eased farms within two miles.</p>",
+ "budget_price": "$1,800,000",
+ "budget_intro": "<p>A purchase at the comps-supported price, financed the cheapest way a qualifying beginning farmer could, with every avoidable tax avoided. Change the price and the percentage lines scale; the FSA caps do not. Income lines are what the land earns with almost no labour; they offset about half a percent of the price a year. This is arithmetic from public rates, not a lender's quote or tax advice.</p>",
+ "budget": [
+  [
+   "Purchase price",
+   "$1,800,000",
+   "eased comps at the median $9,719/ac plus the house at its assessed $1,031,500 (ask $1,999,900)"
+  ],
+  [
+   "Cash at closing \u2014 down payment",
+   "$90,000",
+   "5% under the FSA Down Payment structure; $270,000 (15%) with Farm Credit alone at 85% LTV"
+  ],
+  [
+   "FSA Down Payment loan",
+   "$300,150",
+   "45% of the $667,000 cap \u00b7 2.000% \u00b7 20 years \u00b7 \u2248 $18,350/yr"
+  ],
+  [
+   "Farm Credit first lien (FSA-guaranteed 95%)",
+   "$1,409,850",
+   "balance \u00b7 30-year amortisation \u00b7 rate by quote \u00b7 patronage \u2248 $14,000/yr at 100 bp"
+  ],
+  [
+   "Alternative: FSA Joint Financing",
+   "$600,000 at 4.000%",
+   "if not a beginning farmer: \u2248 $30,300/yr over 40 years, Farm Credit $930,000 + 15% cash"
+  ],
+  [
+   "State transfer tax (0.5%)",
+   "$4,500 \u2192 $0",
+   "buyer's half; $0 if every buyer is a first-time Maryland homebuyer (0.25%, seller pays)"
+  ],
+  [
+   "Recordation tax on the deed (1.4%)",
+   "$12,600 \u2192 $0",
+   "buyer's half by custom; seller pays all for a first-time buyer unless the contract says otherwise"
+  ],
+  [
+   "Recordation tax on the loan",
+   "$0",
+   "purchase-money deed of trust exempt (saves $23,940 on $1.71M of liens)"
+  ],
+  [
+   "Agricultural transfer tax + surcharge",
+   "$0",
+   "Declaration of Intent (RP-18) signed at settlement; \u2248 $42,000 without it"
+  ],
+  [
+   "County transfer tax",
+   "$0",
+   "Frederick County levies none"
+  ],
+  [
+   "Clerk and lien-certificate fees",
+   "\u2248 $250",
+   "two instruments plus the county lien certificate"
+  ],
+  [
+   "Property tax, year 1",
+   "$14,194",
+   "on the current assessment; rises \u2248 $1,222 per $100,000 as SDAT moves toward the deed price, house capped at 5%/yr from year 2"
+  ],
+  [
+   "Land tax inside that",
+   "\u2248 $490",
+   "80.28 ac \u00d7 $500 \u00d7 1.222% \u2014 the MET easement's lasting benefit"
+  ],
+  [
+   "Post-sale notice to MET",
+   "$0",
+   "within 30 days of settlement (RP \u00a7 10-705)"
+  ],
+  [
+   "Income: cash rent on 63 ac",
+   "\u2248 $6,700/yr",
+   "47 ac \u00d7 $114 + 16 ac \u00d7 $83.50, Frederick County 2025 NASS rates"
+  ],
+  [
+   "Income: hunting lease",
+   "\u2248 $2,000/yr",
+   "central-Maryland marketplace rate of $25\u2013$35/ac on the huntable ground; de minimis scale under MET"
+  ],
+  [
+   "Income: CREP buffer",
+   "\u2248 $1,700/yr net + \u2248 $7,700 once",
+   "only if CRP is reauthorised and a signup opens after 12 months of ownership \u2014 not underwritten"
+  ]
+ ],
+ "asks": [
+  "<strong>The recorded 1998 Deed of Conservation Easement</strong> (MET 0424BER98 / county ISTEA-10) and every amendment, which the seller must deliver before contract under RP \u00a7 10-705 \u2014 read the dwelling cap and building envelope, the forestry clause, anything on firearms, hunting and commercial uses, and the price the State paid.",
+  "<strong>SDAT's Agricultural Transfer Tax Statement</strong> for District 22 Account 432257 and confirmation that 80.28 acres carry the agricultural-use assessment; have the title company put form RP-18 (Declaration of Intent) and the Agricultural Use application in the settlement package.",
+  "<strong>The permit file for the 2005 house</strong>, given the 1981 plat's \u201cno residential building allowed\u201d note on the remainder, and what the second county address on this account (5650 Catholic Church Rd) is.",
+  "<strong>MET's stewardship file:</strong> monitoring reports, any open violation, and its position on a forest-bank overlay easement (MET, 410-697-9515).",
+  "<strong>A written Horizon Farm Credit quote</strong> and an FSA eligibility read from the Frederick USDA Service Center on the three-year farm-experience test, before you decide between the Down Payment and Joint structures.",
+  "<strong>Frederick County Land Preservation</strong> (Shannon O'Neil, 301-600-1411) on whether the IPP's no-subdivision-rights exception would pay base value on MET land, and <strong>Development Review</strong> (Graham Hubbard, 301-600-1436) on banking the stream-buffer forest.",
+  "<strong>Well yield and the septic system's rated bedrooms</strong> (five bedrooms, six full baths, no public service planned), and the north block's floodplain crossing \u2014 is there a permitted crossing to the barns?"
+ ],
+ "sources": [
+  [
+   "Bright MLS listing MDFR2089452 via Redfin",
+   "https://www.redfin.com/MD/Jefferson/5550-Catholic-Church-Rd-21755/home/205569228"
+  ],
+  [
+   "Coldwell Banker listing page",
+   "https://www.coldwellbankerhomes.com/md/jefferson/5550-catholic-church-rd/pid_73759651/"
+  ],
+  [
+   "SDAT real property record (District 22, Account 432257)",
+   "https://sdat.dat.maryland.gov/RealProperty/Pages/viewdetails.aspx?County=11&SearchType=ACCT&District=22&AccountNumber=432257"
+  ],
+  [
+   "MD iMAP property data (SDAT extract, May 2026)",
+   "https://mdgeodata.md.gov/imap/rest/services/PlanningCadastre/MD_PropertyData/MapServer/0"
+  ],
+  [
+   "MD iMAP Protected Lands \u2014 MET easements layer",
+   "https://mdgeodata.md.gov/imap/rest/services/Environment/MD_ProtectedLands/FeatureServer/2"
+  ],
+  [
+   "Frederick County GIS \u2014 Agricultural Preservation (ISTEA-10)",
+   "https://fcgis.frederickcountymd.gov/server_pub/rest/services/PlanningAndPermitting/AgriculturalPreservationAll/MapServer/0"
+  ],
+  [
+   "Frederick County 2022 Land Preservation, Parks and Recreation Plan",
+   "https://dnr.maryland.gov/land/Documents/Stewardship/2022-LPPRP-Frederick-County-Final.pdf"
+  ],
+  [
+   "Scenic America \u2014 Berman Farm scenic easement case study",
+   "https://www.scenic.org/take-action/resources/case-studies/case-studies-scenic-easements/case-study-scenic-easement-in-frederick-county-md/"
+  ],
+  [
+   "1981 farm lot plat, Plat Book 24 p. 144",
+   "https://fcgis.frederickcountymd.gov/dpss/otherplats/0024-0144.TIF"
+  ],
+  [
+   "MET FAQ",
+   "https://dnr.maryland.gov/met/Pages/faq.aspx"
+  ],
+  [
+   "MET model easement",
+   "https://dnr.maryland.gov/met/Documents/PDFs/MET_ModelEasement.pdf"
+  ],
+  [
+   "MET Conservation Easement Policies (May 2025)",
+   "https://dnr.maryland.gov/met/documents/conservation_easement_policies.pdf"
+  ],
+  [
+   "MET tax benefits",
+   "https://dnr.maryland.gov/met/pages/tax_benefits.aspx"
+  ],
+  [
+   "Tax-Property \u00a7 9-107 conservation property tax credit",
+   "https://mgaleg.maryland.gov/mgawebsite/Laws/StatuteText?article=gtp&section=9-107&enactments=false"
+  ],
+  [
+   "Tax-Property \u00a7 8-209.1 conservation property valuation",
+   "https://mgaleg.maryland.gov/mgawebsite/Laws/StatuteText?article=gtp&section=8-209.1&enactments=false"
+  ],
+  [
+   "Tax-Property \u00a7 13-303 agricultural land transfer tax",
+   "https://mgaleg.maryland.gov/mgawebsite/Laws/StatuteText?article=gtp&section=13-303&enactments=false"
+  ],
+  [
+   "SDAT \u2014 Agricultural Transfer Tax (rev. 2019)",
+   "https://dat.maryland.gov/realproperty/Documents/agtransf.pdf"
+  ],
+  [
+   "Tax-Property \u00a7 12-108 recordation tax exemptions",
+   "https://mgaleg.maryland.gov/mgawebsite/Laws/StatuteText?article=gtp&section=12-108&enactments=false"
+  ],
+  [
+   "Tax-Property \u00a7 13-203 state transfer tax",
+   "https://mgaleg.maryland.gov/mgawebsite/Laws/StatuteText?article=gtp&section=13-203&enactments=false"
+  ],
+  [
+   "Real Property \u00a7 14-104 allocation of transfer taxes",
+   "https://mgaleg.maryland.gov/mgawebsite/Laws/StatuteText?article=grp&section=14-104&enactments=false"
+  ],
+  [
+   "Real Property \u00a7 10-705 conservation easement notice on sale",
+   "https://mgaleg.maryland.gov/mgawebsite/Laws/StatuteText?article=grp&section=10-705&enactments=false"
+  ],
+  [
+   "Frederick County \u2014 Record a Deed (recordation tax)",
+   "https://frederickcountymd.gov/7861/Record-a-Deed"
+  ],
+  [
+   "Frederick Circuit Court Clerk \u2014 recording fees (no county transfer tax)",
+   "https://www.mdcourts.gov/clerks/frederick/recordingfees"
+  ],
+  [
+   "Frederick County tax rates FY2026\u20132027",
+   "https://frederickcountymd.gov/DocumentCenter/View/373830/TAX-RATES-2026-2027"
+  ],
+  [
+   "Tax-Property \u00a7 9-105 homestead credit",
+   "https://mgaleg.maryland.gov/mgawebsite/Laws/StatuteText?article=gtp&section=9-105&enactments=false"
+  ],
+  [
+   "Tax-Property \u00a7 9-312(g) Frederick County agricultural preservation credit",
+   "https://mgaleg.maryland.gov/mgawebsite/Laws/StatuteText?article=gtp&section=9-312&enactments=false"
+  ],
+  [
+   "Frederick County tax credits page",
+   "https://frederickcountymd.gov/8277/Tax-Credits"
+  ],
+  [
+   "USDA FSA September 2026 lending rates",
+   "https://www.fsa.usda.gov/news-events/news/09-01-2026/usda-announces-september-2026-lending-rates-agricultural-producers"
+  ],
+  [
+   "FSA beginning farmers and ranchers loan fact sheet",
+   "https://www.fsa.usda.gov/sites/default/files/2026-02/FSA-Loan%20Beginning%20Farmers%20and%20Ranchers.pdf"
+  ],
+  [
+   "7 CFR 764.154 joint financing \u00b7 764.203 down payment \u00b7 761.2 beginning farmer",
+   "https://www.law.cornell.edu/cfr/text/7/764.154"
+  ],
+  [
+   "MARBIDCO Next Generation Farmland Acquisition Program",
+   "https://www.marbidco.org/next-generation-farmland-acquisition-program"
+  ],
+  [
+   "UMD Extension on Next Gen / SANG eligibility",
+   "https://extension.umd.edu/news-events/news/demystifying-agricultural-conservation-two-programs-are-helping-beginning-farmers-purchase-and"
+  ],
+  [
+   "Horizon Farm Credit home loans and patronage",
+   "https://www.horizonfc.com/loans/home-loans"
+  ],
+  [
+   "Maryland Mortgage Program 2026 limits",
+   "https://mmp.maryland.gov/Lenders/Documents/income-and-purchase-limits.pdf"
+  ],
+  [
+   "MALPF application instructions (existing encumbrances)",
+   "https://mda.maryland.gov/malpf/Documents/MALPF%20Easement%20Application%20FY%2021%20w-instructions%202.pdf"
+  ],
+  [
+   "MALPF fact sheets 1 and 3",
+   "https://mda.maryland.gov/malpf/Documents/fact01Eligibility.pdf"
+  ],
+  [
+   "Frederick County MALPF FY2027 cycle notice",
+   "https://frederickcountymd.gov/CivicAlerts.aspx?AID=5740&ARC=8851"
+  ],
+  [
+   "Frederick County Code \u00a7 1-13-35 IPP (AFT copy)",
+   "https://s30428.pcdn.co/wp-content/uploads/sites/2/2019/09/Frederick_County-_MD_Local_PACE_Installment_Plan_Ordinance_0.pdf"
+  ],
+  [
+   "Frederick County Code \u00a7 1-13-34 Critical Farms (archived)",
+   "https://web.archive.org/web/20230923093117id_/https://codelibrary.amlegal.com/codes/frederickcounty/latest/frederickco_md/0-0-0-3726"
+  ],
+  [
+   "Frederick County Rural Legacy EVS (2015 draft)",
+   "https://farmlandinfo.org/wp-content/uploads/sites/2/2016/06/Frederick_md_2015_rural_legacy_evs.pdf"
+  ],
+  [
+   "DNR Rural Legacy grants manual",
+   "https://dnr.maryland.gov/land/Documents/RuralLegacy/rlp_grants_manual_april_2009.pdf"
+  ],
+  [
+   "Frederick County forest banking overview (FY2026)",
+   "https://frederickcountymd.gov/DocumentCenter/View/333724/Banking-Overview?bidId="
+  ],
+  [
+   "Frederick County FRO \u00a7 1-21-29 ordinance text",
+   "https://frederickcountymd.gov/DocumentCenter/View/333725"
+  ],
+  [
+   "Frederick County available forest banking sites (1 Sep 2026)",
+   "https://frederickcountymd.gov/DocumentCenter/View/350019"
+  ],
+  [
+   "Natural Resources \u00a7 5-1601 (qualified conservation, mitigation banking)",
+   "https://mgaleg.maryland.gov/2026RS/Statute_Web/gnr/5-1601.pdf"
+  ],
+  [
+   "DNR Forest Conservation and Management Program",
+   "https://dnr.maryland.gov/forests/pages/programapps/fcmp.aspx"
+  ],
+  [
+   "Frederick County zoning \u2014 use table and \u00a7 1-19-8.355 shooting range (archived)",
+   "https://web.archive.org/web/20250322100625id_/https://codelibrary.amlegal.com/codes/frederickcounty/latest/frederickco_md/0-0-0-41341"
+  ],
+  [
+   "Natural Resources \u00a7 10-410 hunting safety zone",
+   "https://mgaleg.maryland.gov/mgawebsite/Laws/StatuteText?article=gnr&section=10-410&enactments=false"
+  ],
+  [
+   "MD iMAP land use / land cover 2010",
+   "https://mdgeodata.md.gov/imap/rest/services/PlanningCadastre/MD_LandUseLandCover/MapServer/1"
+  ],
+  [
+   "MD iMAP forests \u2014 forested buffers",
+   "https://mdgeodata.md.gov/imap/rest/services/Biota/MD_Forests/MapServer/1"
+  ],
+  [
+   "MD iMAP 2018 canopy cover",
+   "https://mdgeodata.md.gov/imap/rest/services/Biota/MD_CanopyCover/ImageServer"
+  ],
+  [
+   "UMD Extension \u2014 Maryland cash rental rates (NASS 2025)",
+   "https://extension.umd.edu/sites/extension.umd.edu/files/2025-10/MD_Cash_Rental_Rates_Write_Up_accessible.pdf"
+  ],
+  [
+   "USDA FSA \u2014 Conservation Reserve Program status (signups, authority)",
+   "https://www.fsa.usda.gov/resources/conservation/conservation-reserve-program"
+  ],
+  [
+   "MDA \u2014 Maryland CREP",
+   "https://mda.maryland.gov/resource_conservation/pages/crep.aspx"
+  ],
+  [
+   "MDA \u2014 MACS cost-share rates",
+   "https://mda.maryland.gov/resource_conservation/Documents/1_Eligible_Practices_and_Cost-Share_Rates_NRCS_Numerical_Order.pdf"
+  ],
+  [
+   "7 CFR 1466.23 EQIP payment rates",
+   "https://www.law.cornell.edu/cfr/text/7/1466.23"
+  ],
+  [
+   "NRCS Conservation Stewardship Program",
+   "https://www.nrcs.usda.gov/programs-initiatives/csp-conservation-stewardship-program"
+  ],
+  [
+   "Natural Resources \u00a7 5-1109 hunter assumption of liability",
+   "https://mgaleg.maryland.gov/mgawebsite/Laws/StatuteText?article=gnr&section=5-1109&enactments=false"
+  ],
+  [
+   "HuntLease Maryland lease price guide (marketplace, not official)",
+   "https://huntlease.co/blog/maryland-hunting-leases-2025-complete-guide-to-prices-regions-laws/"
+  ],
+  [
+   "Sale: 5533 Gapland Rd (Redfin)",
+   "https://www.redfin.com/MD/Jefferson/5533-Gapland-Rd-21755/home/195572976"
+  ],
+  [
+   "Sale: 6208 Picnic Woods Rd (Compass)",
+   "https://www.compass.com/homedetails/6208-Picnic-Woods-Rd-Jefferson-MD-21755/1VFHQ8_pid/"
+  ],
+  [
+   "Sale: 6100 Burkittsville Rd (Compass)",
+   "https://www.compass.com/listing/6100-burkittsville-road-jefferson-md-21755/"
+  ]
+ ],
+ "foot": "Prepared 19 September 2026 from Maryland and Frederick County public records, the Bright MLS listing as syndicated, and the statutes and programme documents linked above; the SDAT web page itself and the county's code library blocked automated reads, so assessment fields come from the state's May 2026 SDAT extract and code text from archived copies. Each research lever was checked by an independent refutation pass; the two corrections that survived (the agricultural transfer tax tiers and CREP's 2026 status) are reflected here, and the preservation-programme rows marked \u201cunverified\u201d are still being checked. This is research, not legal, tax or lending advice \u2014 the recorded 1998 deed of easement, SDAT's transfer-tax statement and a lender's written terms control."
+}

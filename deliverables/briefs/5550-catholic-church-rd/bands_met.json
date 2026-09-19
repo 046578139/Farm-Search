@@ -1,0 +1,20 @@
+{
+ "frederick_eased_incl_met": {
+  "n": 7,
+  "median": 9719,
+  "p25": 8927,
+  "p75": 9960
+ },
+ "frederick_uneased": {
+  "n": 36,
+  "median": 17126,
+  "p25": 11515,
+  "p75": 25949
+ },
+ "all_eased_incl_met": {
+  "n": 18,
+  "median": 9736,
+  "p25": 8741,
+  "p75": 11038
+ }
+}
