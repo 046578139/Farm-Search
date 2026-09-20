@@ -20,7 +20,8 @@ arrives, MET consent needed). The affordability levers, in order: the price (eas
 7-sale median of $9,719/ac, supporting ≈ $1.81 M, ≈ $188 k under the ask), a Declaration of Intent at settlement
 (≈ $42 k of agricultural transfer tax at $1.8 M), a purchase-money deed of trust (no recordation tax on the loan),
 first-time-Maryland-homebuyer allocation of transfer taxes to the seller, FSA Down Payment (2.000 %) and Joint
-Financing (4.000 %) loans under a Farm Credit first lien, and ≈ $9–12 k/yr of low-effort land income.
+Financing (4.000 %) loans under a Farm Credit first lien, two Frederick County tax credits the seller is not claiming
+(Code §§ 1-8-62 eased land and 1-8-63 farm buildings), and ≈ $9–12 k/yr of low-effort land income.
 
 ## Files
 

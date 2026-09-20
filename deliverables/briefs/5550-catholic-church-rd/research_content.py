@@ -12,7 +12,7 @@ def m(x):
 
 # ----------------------------------------------------------------------------- top
 subtitle = ("Listed on 16 September 2026 at $1,999,900 (Bright MLS MDFR2089452, open house Sunday 20 September 2–4 pm). "
-            "This brief answers three questions from the public record, live-verified on 19 September 2026: what the "
+            "This brief answers three questions from the public record, live-verified on 19–20 September 2026: what the "
             "farm is, what is already preserved and what that means for a buyer, and where the money is — including "
             "the idea that putting the woods into a conservation easement pays cash.")
 
@@ -25,10 +25,10 @@ verdict = (
     "county IPP and Critical Farms, MARBIDCO Next Gen) has nothing left to buy here.</p>"
     "<p><strong>What a buyer inherits is a tax position, not a payment:</strong> the eased land is valued at the highest "
     "agricultural rate ($500/ac) whether or not you farm it, which is why the land carries a $130,000 assessment and "
-    "$1,589 of the $14,194 tax bill. The 15-year 100% land-tax credit that follows an MET easement ran out in 2014 and does "
+    "$1,589 of the $14,194 tax bill. The 15-year 100% land-tax credit that follows a <em>donated</em> MET easement ended by 2014 at the latest — if it ever applied to a purchased one — and does "
     "not restart on sale. The one preservation-side idea with real money in it is a Forest Resource Ordinance mitigation "
     "bank on the forested stream buffer — worth tens of thousands, not hundreds, paid out as developers buy credits, and it "
-    "needs MET's consent. Beyond that the woods are worth a small hunting lease (≈ $2,000 a year at central-Maryland rates) and under $100 a year in tax relief.</p>"
+    "needs MET's consent. Beyond that the woods are worth a small hunting lease (≈ $2,000 a year at central-Maryland rates), a one-time timber harvest under a MET-approved stewardship plan, and under $100 a year in tax relief. Two county tax credits the seller appears never to have claimed — on the eased land and on the barns — are worth a few hundred to a few thousand dollars a year.</p>"
     "<p><strong>Where the money actually is:</strong> the price, and the taxes at purchase. Eased farmland in this "
     f"neighbourhood trades at a tight {m(F['comps_met']['frederick_eased_incl_met']['median'])}/ac (seven sales, "
     f"interquartile {m(F['comps_met']['frederick_eased_incl_met']['p25'])}–{m(F['comps_met']['frederick_eased_incl_met']['p75'])}), "
@@ -92,8 +92,8 @@ preserved_prose = (
     "would be in the 1998 deed of easement, which the seller must hand you before contract under Real Property §10-705.</p>"
     "<p><strong>What it means for you.</strong> MET's FAQ: “the land can be bought and sold; however, the easement remains "
     "on the land and binds all future owners.” Extinguishment needs a court and “unexpected change” making conservation "
-    "impossible; MET's 2025 policy is to amend only to strengthen protection and never to subordinate to a newer overlay "
-    "easement. MET's model easement (the 1998 deed will differ in detail) prohibits subdivision and leases of part of the "
+    "impossible; MET's 2025 policy is to amend only to strengthen protection and not to subordinate to a newer overlay "
+    "easement without its Board's approval. MET's model easement (the 1998 deed will differ in detail) prohibits subdivision and leases of part of the "
     "land beyond 20 years, caps dwellings at a negotiated number inside a mapped building area, keeps agricultural structures "
     "inside that area unless under 500 sq ft, requires a forest stewardship plan before cutting in mapped forest areas, allows "
     "commercial agriculture and small-scale agritourism, and counts hunting (with deer stands and blinds) as permitted "
@@ -109,47 +109,53 @@ ledger_intro = ("Every Maryland and Frederick County programme that pays landown
 
 ledger = [
     {"program": "MET easement (the one already here)", "runs": "Maryland Environmental Trust · DNR", "status": "cashed",
-     "pays": "Purchase price in 1998 (ISTEA funds); a donated MET easement pays a federal deduction and a state credit of up to $5,000/yr, $80,000 total",
-     "why": "Perpetual, binds every future owner. The 1998 grantor was paid; a buyer receives no deduction or credit for an easement that already exists. Only the §8-209.1 land valuation (below) survives."},
+     "pays": "Purchase price in 1998 (ISTEA funds). A donated MET easement pays a federal deduction and a state credit of up to $5,000/yr ($80,000 total) — to the donor, in the year of the gift",
+     "why": "Perpetual, binds every future owner. The 1998 grantor was paid; a buyer receives no deduction or credit for an easement that already exists. The state credit statute (TG § 10-723) was enacted in 2001 and is reduced by any payment received, so even the grantor likely never had it. Only the § 8-209.1 land valuation (below) survives."},
     {"program": "§ 9-107 conservation property tax credit", "runs": "SDAT · state law", "status": "no",
-     "pays": "100% of property tax on the unimproved eased land for 15 tax years after the easement",
-     "why": "Runs from the easement date, not the owner: for a January 1998 easement the window closed 30 June 2014 and cannot restart. It never covered the house or its acre anyway (≈ $490/yr at today's land value)."},
+     "pays": "100% of property tax on the unimproved eased land for 15 tax years after a donated easement",
+     "why": "Requires a donated easement and runs from the donation, not the owner: for a January 1998 easement the window closed 30 June 2013 (2014 at the latest) and cannot restart. It never covered the house or its acre anyway (≈ $490/yr at today's land value)."},
     {"program": "§ 8-209.1 conservation-property valuation", "runs": "SDAT · state law", "status": "yes",
-     "pays": "Land valued at the highest agricultural-use rate ($500/ac) with no farming requirement",
-     "why": "Already in the bill: 80.28 ac × $500 = $40,140 of land value, ≈ $490/yr in tax. Passes to a buyer automatically. Worth ≈ $9,000/yr against an eased-market valuation of the land — but you never see it as cash."},
-    {"program": "MALPF easement purchase", "runs": "Maryland Agricultural Land Preservation Foundation · county applications due 1 April", "status": "no",
-     "pays": "Fair market value minus agricultural value, from two state appraisals; capped at 75% of FMV",
+     "pays": "Land valued at the highest agricultural-use rate ($500/ac) with no farming requirement, indefinitely",
+     "why": "Already in the bill: 80.28 ac × $500 = $40,140 of land value, ≈ $490/yr in tax. Passes to a buyer automatically; the statute covers easements “sold or donated”. Worth ≈ $9,000/yr against an eased-market valuation of the land — but you never see it as cash."},
+    {"program": "Frederick County agricultural-preservation land credit (Code § 1-8-62)", "runs": "Frederick County Treasury · apply by 1 October", "status": "partly",
+     "pays": "100% of the county tax on land under an easement permanently conveyed to the county or a Maryland state agency “to preserve the agricultural use”; residence + 1 ac excluded; lasts while the land qualifies",
+     "why": "Verified in the current county code (Ord. 02-24-320) although the Treasury's tax-credit page omits it, and the county's 2022 land-preservation plan says it credits “any land preservation program … 100% of the agriculturally assessed land.” MET is a state agency; the open question is whether a scenic/conservation easement counts as one “to preserve the agricultural use.” Worth ≈ $446/yr. The current bill ($14,193.53) equals 1.222% of the assessment exactly, so the seller is not receiving it."},
+    {"program": "Frederick County agricultural building credit (Code § 1-8-63)", "runs": "Frederick County · apply by 1 October", "status": "yes",
+     "pays": "100% of the county tax on farm buildings that sit on ag-use-assessed land and are used for an SDAT-recognised agricultural activity (not the house)",
+     "why": "Verified in the county code and in TP § 9-312(h). The listing shows barns, stables, a beef barn and a dairy barn; whatever share of the $1,031,500 improvement assessment is those buildings, used for cattle, hay or boarding, comes off the county tax at $1.110 per $100 — hundreds to a few thousand dollars a year. Ask SDAT for the house/outbuilding split. Nothing in the current bill suggests it is being claimed."},
+    {"program": "MALPF easement purchase", "runs": "Maryland Agricultural Land Preservation Foundation · county applications due 1 April", "status": "none",
+     "pays": "Fair market value minus agricultural value, from two state appraisals; capped at 75% of FMV; one lump sum at settlement",
      "why": "The formula pays for development value, and MALPF's application instructions say it “will not pay for acreage already encumbered.” On land whose rights went to MET in 1998 the easement value is nil, and MET would have to consent to an overlay."},
-    {"program": "Rural Legacy (Mid-Maryland Frederick RLA)", "runs": "DNR · Frederick County as sponsor", "status": "no",
-     "pays": "Points-based price: county EVS pays $5.45/point up to 1,100 points (≈ $6,000/ac max, 2015 draft); FY2025 grant $1.30M",
-     "why": "The parcel sits inside the RLA boundary, but 450 of the 1,100 points are for development rights extinguished — rights this parcel no longer has. Effectively zero value; confirm with the county sponsor."},
+    {"program": "Rural Legacy (Mid-Maryland Frederick RLA)", "runs": "DNR · Frederick County as sponsor", "status": "none",
+     "pays": "Lump sum by the county's points formula ($5.45/point up to 1,100 points in the 2015 draft); recent Frederick purchases $5,664–$6,873/ac",
+     "why": "Not barred in law — no statute or manual excludes eased land, and MET's policy allows overlays with Board approval — but 450 of the 1,100 points are for development rights extinguished, which this parcel no longer has, and the sponsor chooses whom to buy from. Possible in law, worth about nothing in practice; ask Shannon O'Neil (301-600-1411)."},
     {"program": "Frederick County Installment Purchase Program (IPP)", "runs": "County Land Preservation · applications to 1 September", "status": "no",
-     "pays": "Base value per acre plus ranking points, paid as tax-free interest over 10–20 years and a balloon; 46 applicants for 21 slots in FY2025",
-     "why": "Code § 1-13-35(C)(4): applicants “must have further subdivision rights.” The no-rights exception (adjoining ≥ 50 eased acres — this parcel does) pays base value only, and the county has not said it will pay base value for rights MET already holds. Ask Shannon O'Neil, 301-600-1411."},
+     "pays": "Base value ($1,000/ac) plus ranking points per acre, paid as tax-free interest over 10–20 years and a balloon; 46 applicants for 21 slots in FY2025",
+     "why": "Code § 1-13-35(C)(4): applicants “must have further subdivision rights.” The no-rights exception (adjoining ≥ 50 eased acres — this parcel does) pays base value only, and the county has not said it would pay base value for rights MET already holds."},
     {"program": "Frederick County Critical Farms", "runs": "County · for contract purchasers of farms", "status": "no",
      "pays": "A 5-year option worth 75% of easement value (≈ 51% of land FMV) paid to the buyer at purchase, repaid when MALPF buys",
      "why": "Code § 1-13-34(B)(4): the farm “must be able to have additional residential lots created.” A 98%-eased parcel cannot. It is also a loan against a future MALPF sale, not a grant. Cycle closed as of March 2026."},
     {"program": "MARBIDCO Next Gen / Small Acreage Next Gen", "runs": "MARBIDCO · monthly applications", "status": "no",
      "pays": "Up to 51% of land value (cap $500,000) at settlement as an easement option; SANG 30–60% on 10–49 ac",
-     "why": "Both exist to option development rights that the buyer later sells to MALPF or the county; UMD Extension states the farm “cannot already be subject to a permanent conservation easement.” SANG also fails on acreage."},
+     "why": "Both exist to option development rights that the buyer later sells to MALPF or the county — “extinguishing the development rights forever” cannot happen twice. UMD Extension: the farm “cannot already be subject to a permanent conservation easement.” SANG also fails on acreage."},
     {"program": "Forest mitigation bank (county FRO § 1-21-29)", "runs": "Frederick County Development Review · Graham Hubbard 301-600-1436", "status": "partly",
      "pays": "Credits sold privately to developers; county's FY2026 overview: “going sales price roughly $20,000 per acre”; existing forest banks at 2.5 : 1",
-     "why": "The closest thing to “money for the woods.” Only stream, floodplain and wetland buffer forest on Ag-zoned land qualifies (≈ 7 ac here). Needs a new deed of easement to the county, a forester's plan, survey, title opinion and MET's consent — MET's 2025 policy allows banking on eased land ≥ 5 ac subject to Board review. Credits sell as demand arrives (county-wide 28–73 ac of existing-forest credits a year across 33 banks, two of them on Burkittsville Run / Broad Run next door). Whether county staff will bank forest already under an MET easement is undocumented."},
+     "why": "The closest thing to “money for the woods.” Only stream, floodplain and wetland buffer forest on Ag-zoned land qualifies (≈ 7 ac here, and state law since 2021 allows new banks of existing forest only in such priority-retention areas). It needs a new perpetual deed of easement to the county, a forester's plan, survey, title opinion, a 2–3 year improvement agreement with a letter of credit, a 5-year minimum banking agreement, and MET's written consent (MET's 2025 policy treats credit sales on eased land ≥ 5 ac as a permitted commercial activity after Stewardship Committee review). Credits sell as demand arrives — county-wide 28–73 ac of existing-forest credits a year across 33 banks, two of them on Burkittsville Run / Broad Run next door. Whether the $20,000 is per credit-acre (7 ac ÷ 2.5 = 2.8 credits ≈ $56,000) or per banked acre (≈ $140,000) is not stated, and whether county staff will bank forest already under an MET easement is undocumented."},
     {"program": "Forest Conservation and Management Agreement (FCMA)", "runs": "DNR Forest Service · 15-year minimum", "status": "tax",
      "pays": "Woodland assessed at $125/ac instead of $500/ac",
-     "why": "On 15 ac: $7,500 → $1,875 of assessment, saving ≈ $69/yr before the $50 entry fee and $100 five-yearly inspections — net ≈ $50/yr, with back taxes if you break the 15-year plan. A stewardship plan alone ($187.50/ac) saves ≈ $57/yr with no lock-in. MET's forestry clause governs any plan."},
+     "why": "On 15 ac: $7,500 → $1,875 of assessment, saving ≈ $69/yr before the $50 entry fee, $200 plan fee and $100 five-yearly inspections — net ≈ $50/yr, with back taxes if you break the 15-year plan. A stewardship plan alone ($187.50/ac) saves ≈ $57/yr with no lock-in. MET's forestry clause governs any plan."},
     {"program": "CREP riparian forest buffer (CP22)", "runs": "USDA FSA · MDA · Catoctin Soil Conservation District", "status": "partly",
-     "pays": "Annual rent of 3 × the soil rental rate for 15 years (≈ $350/ac/yr at Frederick's $114 rent) + a $1,000/ac state bonus through 2031 + 87.5% cost-share and a 40% practice incentive, so planting is effectively free",
-     "why": "Only cropped or grazed streamside acres count, and the buffer here is mostly already wooded — perhaps 7 ac of field edge qualifies (≈ $2,400/yr gross, ≈ $1,700 net of the rent those acres earn now, plus ≈ $7,700 one-time). Two catches: a 12-month ownership rule, and the FY2026 continuous signup closed 1 May 2026 with CRP's federal authority extended only to 30 September 2026 — a 2027 offer depends on Congress. A management contract fits under the MET easement; a permanent CREP easement would be an overlay needing MET's consent."},
-    {"program": "Family Forest Carbon Program and other carbon payments", "runs": "American Forest Foundation / TNC", "status": "unknown",
-     "pays": "Annual per-acre payments on 30+ forested acres under a 10–20 year practice contract",
-     "why": "The parcel has ≈ 15 ac of forest, under the programme's 30-acre floor; eligibility and its easement rule are being verified."},
-    {"program": "County agricultural-preservation land credit (TP § 9-312(g))", "runs": "Frederick County Treasury", "status": "unknown",
-     "pays": "Up to 100% of county tax on eased land only — at most ≈ $446/yr here (house + 1 ac excluded)",
-     "why": "State law lets the county grant it; the county's tax-credit page lists no such credit and no enacting code section was found. Worth one phone call (301-600-1111), not a plan."},
-    {"program": "Donating a new easement or an amendment", "runs": "MET or a land trust · IRC § 170(h), TG § 10-723", "status": "no",
-     "pays": "Federal deduction and a Maryland credit of up to $5,000/yr ($80,000 total) for the value given up",
-     "why": "A donation is worth the value of the rights donated. After 1998 there is nothing of value left to give on 98% of the parcel; the 1.7 boundary acres are slivers. MET amends only to strengthen protection, which would be a donation of nothing measurable."},
+     "pays": "Annual rent of the soil rental rate plus a 200% state incentive for 15 years (≈ $350/ac/yr at Frederick's $114 rent) + a $1,000/ac state bonus through 2031 + up to 100% cost-share and a 40–50% practice incentive, so planting is effectively free",
+     "why": "Three catches. Only cropped or grazed streamside acres count (perhaps 7 ac of field edge; the wooded buffer already here does not). Federal rule 7 CFR 1410.6(e)(2) bars land whose deed “requires any resource-conserving measures” — DNR notes Rural Legacy easements with mandatory stream buffers are precluded — so it turns on whether the 1998 MET deed mandates a buffer. And timing: 12 months of ownership first, the FY2026 signup closed 1 May 2026, and CRP's authority was extended only to 30 September 2026. DNR's CREP <em>permanent</em> easement is expressly closed to already-eased land (FAQ Q16). ≈ $2,400/yr gross if it all lines up; not immediate money."},
+    {"program": "Family Forest Carbon Program and other carbon payments", "runs": "American Forest Foundation / TNC", "status": "no",
+     "pays": "$12.10 per forested acre per year for 20 years (Appalachians sheet, April 2026), 25% more if paid up front through the Premium Partnership",
+     "why": "Works “alongside most conservation easements” but needs 30+ forested acres, the legal right to harvest, and no encumbrance restricting timber harvest; this parcel has ≈ 15 ac of woods, so it fails on size, and even at 30 ac it would pay ≈ $360/yr. Forest Carbon Works needs 500 ac; NCX no longer runs a payment program."},
+    {"program": "Donating a new easement or an amendment", "runs": "MET or a land trust · IRC § 170(h), TG § 10-723", "status": "none",
+     "pays": "Federal deduction (50% of AGI, 100% for a qualified farmer, 15-year carryover) and a Maryland credit of up to $5,000/yr ($80,000 total) for the value given up",
+     "why": "A donation is worth the value of the rights donated. After 1998 there is nothing of value left to give on 98% of the parcel; the 1.7 boundary acres are slivers under MET's 25-acre minimum. MET amends only to strengthen protection, and the requester pays the appraisal and fees."},
+    {"program": "Federal estate-tax exclusion for eased land (IRC § 2031(c)), battlefield and Forest Legacy grants", "runs": "IRS · NPS · USFS/DNR", "status": "no",
+     "pays": "Up to $500,000 excluded from a taxable estate; grants to governments to buy battlefield or forest land",
+     "why": "§ 2031(c) requires the easement to have been granted by the decedent's family and the land held by the family for three years — a 2026 purchaser fails both. Battlefield Land Acquisition Grants and Forest Legacy pay governments for unprotected land; this parcel was itself a battlefield-viewshed purchase in 1998."},
 ]
 
 # ----------------------------------------------------------------------------- levers
@@ -254,9 +260,12 @@ levers = [
          "first tax year after a transfer; from the second year it compounds. Move in before 1 July of the first full tax year and file at onestop.md.gov (SDAT ID 11 + 432257).",
          "dollars": "if SDAT reassesses the house toward a $1.8M deed (+50%, phased 16.7%/yr): ≈ $1,600 saved in the first capped year, growing each year",
          "sources": ["https://mgaleg.maryland.gov/mgawebsite/Laws/StatuteText?article=gtp&section=9-105&enactments=false", "https://dat.maryland.gov/realproperty/pages/maryland-homestead-tax-credit.aspx"]},
+        {"name": "Claim the two county credits the seller is not using", "stamps": ["yes"], "text":
+         "Frederick County Code § 1-8-62 gives 100% of the county tax on land under a permanent easement conveyed to the county or a state agency to preserve agricultural use (residence + 1 ac excluded), and § 1-8-63 gives 100% of the county tax on farm buildings on ag-use-assessed land used for a recognised agricultural activity. Both are in the current code although the Treasury's credits page omits them; both are applied for by 1 October. The current bill is exactly 1.222% of the assessment, so neither is being claimed today. The land credit is worth ≈ $446/yr if the county accepts an MET easement as agricultural; the building credit depends on how much of the $1,031,500 improvement assessment is the barns.",
+         "dollars": "land credit ≈ $446/yr · building credit = 1.11% × the barns' assessed value (e.g. $150,000 of barns ≈ $1,665/yr)",
+         "sources": ["https://frederickcountymd.gov/DocumentCenter/View/334378", "https://mgaleg.maryland.gov/mgawebsite/Laws/StatuteText?article=gtp&section=9-312&enactments=false"]},
         {"name": "Small change", "stamps": ["tax"], "text":
-         "Pay the bill in July for 1% off (≈ $142). The county's agricultural-preservation land credit, if it exists for MET land, tops out at ≈ $446/yr. An FCMA on the woods nets ≈ $50/yr "
-         "for a 15-year commitment. Add the $88 system benefit charge and the $60 Bay Restoration Fee for septic.",
+         "Pay the bill in July for 1% off (≈ $142). An FCMA on the woods nets ≈ $50/yr for a 15-year commitment. Add the $88 system benefit charge and the $60 Bay Restoration Fee for septic.",
          "dollars": "≈ $150–$600/yr all told; the all-in bill on today's assessment is $14,194 + $88 + $60 = $14,342", "sources": ["https://frederickcountymd.gov/3188/Tax-Rates", "https://dnr.maryland.gov/forests/pages/programapps/fcmp.aspx"]},
      ]},
     {"id": "income", "title": "5 · What the land can earn", "lead":
@@ -282,6 +291,10 @@ levers = [
          "MET's model easement defines agriculture to include boarding and training horses, allows commercial activity inside allowed structures, on-farm sale of products mostly grown on the property, and equestrian services; it prohibits industrial uses, kennels and golf. MET warns that older deeds “prohibit all but a few commercial activities” beyond selling what the farm grows or what fits inside an existing structure without changing its appearance, and weddings or festivals need written approval 60 days ahead (20 ac, 150 guests, three days). No Frederick County boarding or barn-rental rates were verifiable; field board in the existing barns is the low-labour version, and bay storage runs about $1,200/yr per $100/month bay.",
          "dollars": "not underwritten — get MET's written read of the 1998 deed first",
          "sources": ["https://dnr.maryland.gov/met/Documents/PDFs/MET_ModelEasement.pdf", "https://dnr.maryland.gov/met/documents/conservation_easement_policies.pdf"]},
+        {"name": "If you farm it yourself: MDA cover-crop payments and a timber sale", "stamps": ["partly"], "text":
+         "Maryland's Cover Crop Program pays the operator $35/ac base and up to $65/ac with add-ons on cropland planted to cover crops (10-acre minimum, nutrient-management plan required); sign-up is each June–July at the soil conservation district, so 2027 is the first cycle available, and if a tenant farms the fields it is the tenant's money unless the lease says otherwise. The ≈ 15 ac of woods can be harvested once under a forest stewardship plan that MET approves (its model easement permits cutting in mapped forest areas under an approved plan); no stand data exists, so the value is unknown until a forester walks it.",
+         "dollars": "cover crop on 47 ac: $1,645–$3,055/yr to whoever farms it\ntimber: one-time, unpriced — get a DNR or licensed forester's cruise",
+         "sources": ["https://mda.maryland.gov/resource_conservation/Pages/cover_crop.aspx", "https://dnr.maryland.gov/met/Documents/PDFs/MET_ModelEasement.pdf"]},
         {"name": "Solar lease: $0", "stamps": ["no"], "text":
          "The one high-dollar land income this farm cannot capture. MET's model allows solar only on allowed buildings (or another structure with approval) to serve the property's own load, and MET has denied commercial generation on eased land as industrial use. A barn-roof array for the house is fine; a lease to a developer is not.",
          "dollars": "$0", "sources": ["https://dnr.maryland.gov/met/Documents/PDFs/MET_ModelEasement.pdf", "https://www.matrixsolar.com/blog/agriculture-preservation-solar-maryland"]},
@@ -320,13 +333,14 @@ budget = [
 ]
 
 asks = [
-    "<strong>The recorded 1998 Deed of Conservation Easement</strong> (MET 0424BER98 / county ISTEA-10) and every amendment, which the seller must deliver before contract under RP § 10-705 — read the dwelling cap and building envelope, the forestry clause, anything on firearms, hunting and commercial uses, and the price the State paid.",
-    "<strong>SDAT's Agricultural Transfer Tax Statement</strong> for District 22 Account 432257 and confirmation that 80.28 acres carry the agricultural-use assessment; have the title company put form RP-18 (Declaration of Intent) and the Agricultural Use application in the settlement package.",
-    "<strong>The permit file for the 2005 house</strong>, given the 1981 plat's “no residential building allowed” note on the remainder, and what the second county address on this account (5650 Catholic Church Rd) is.",
-    "<strong>MET's stewardship file:</strong> monitoring reports, any open violation, and its position on a forest-bank overlay easement (MET, 410-697-9515).",
-    "<strong>A written Horizon Farm Credit quote</strong> and an FSA eligibility read from the Frederick USDA Service Center on the three-year farm-experience test, before you decide between the Down Payment and Joint structures.",
-    "<strong>Frederick County Land Preservation</strong> (Shannon O'Neil, 301-600-1411) on whether the IPP's no-subdivision-rights exception would pay base value on MET land, and <strong>Development Review</strong> (Graham Hubbard, 301-600-1436) on banking the stream-buffer forest.",
-    "<strong>Well yield and the septic system's rated bedrooms</strong> (five bedrooms, six full baths, no public service planned), and the north block's floodplain crossing — is there a permitted crossing to the barns?",
+    "<strong>The recorded 1998 Deed of Conservation Easement</strong> (MET 0424BER98 / county ISTEA-10) with exhibits and every amendment, which the seller must deliver before contract under RP § 10-705, plus MET's easement file (410-697-9515): the consideration clause, the Board of Public Works date, the reserved-dwelling clause and building envelope, the forest-area map and stewardship-plan requirement, the stream-buffer clause, commercial-use and ecosystem-services language, the latest monitoring report and any open violation. This one document decides CREP, forest banking, timber, boarding and every future structure.",
+    "<strong>SDAT's Agricultural Transfer Tax Statement</strong> for District 22 Account 432257 and the seller's written TP § 13-308 notice; confirmation that 80.28 acres carry the agricultural-use assessment; and form RP-18 (Declaration of Intent) plus the Agricultural Use application in the settlement package.",
+    "<strong>The last three county tax bills</strong> — to see that neither the § 1-8-62 land credit nor the § 1-8-63 building credit is applied, and whether the account carries the “Agricultural Transfer Tax” recapture flag — and SDAT's split of the $1,031,500 improvement assessment between the house and the barns.",
+    "<strong>Title and authority to convey.</strong> The owner of record is “Berman Melvin J”, the last recorded transfer is 1981, and the easement was signed in 1998; confirm who holds title today (an estate or trust would change the closing) and that the MET easement is disclosed in writing — the MLS listing does not mention it.",
+    "<strong>The permit file for the 2005 house</strong>, given the 1981 plat's “no residential building allowed” note on the remainder, what the second county address on this account (5650 Catholic Church Rd) is, well yield, and the septic system's rated bedrooms.",
+    "<strong>The current crop lease</strong> behind the listing's “Crops Reserved” — tenant, rent, term, whether it survives closing, and who holds the nutrient-management plan and any cover-crop enrolment.",
+    "<strong>A written Horizon Farm Credit quote</strong> and an FSA eligibility read from the Frederick USDA Service Center on the three-year farm-experience test, before choosing between the Down Payment and Joint structures; note the NRCS FY2027 EQIP/CSP deadline of 13 November 2026 if you intend to farm.",
+    "<strong>Frederick County Land Preservation</strong> (Shannon O'Neil, 301-600-1411) on whether the IPP's no-subdivision-rights exception would pay base value on MET land, <strong>Development Review</strong> (Graham Hubbard, 301-600-1436) on banking the stream-buffer forest and whether the $20,000 figure is per credit or per banked acre, and <strong>Treasury</strong> (301-600-1111) on whether an MET easement qualifies under § 1-8-62.",
 ]
 
 sources = [
@@ -389,6 +403,16 @@ sources = [
     ("NRCS Conservation Stewardship Program", "https://www.nrcs.usda.gov/programs-initiatives/csp-conservation-stewardship-program"),
     ("Natural Resources § 5-1109 hunter assumption of liability", "https://mgaleg.maryland.gov/mgawebsite/Laws/StatuteText?article=gnr&section=5-1109&enactments=false"),
     ("HuntLease Maryland lease price guide (marketplace, not official)", "https://huntlease.co/blog/maryland-hunting-leases-2025-complete-guide-to-prices-regions-laws/"),
+    ("Frederick County Code Chapter 1-8 (§§ 1-8-62, 1-8-63 tax credits)", "https://frederickcountymd.gov/DocumentCenter/View/334378"),
+    ("MDA Cover Crop Program", "https://mda.maryland.gov/resource_conservation/Pages/cover_crop.aspx"),
+    ("7 CFR 1410.6 CRP eligible land (deed-restricted land)", "https://www.law.cornell.edu/cfr/text/7/1410.6"),
+    ("DNR CREP questions and answers (permanent easement not on eased land)", "https://dnr.maryland.gov/wildlife/documents/crep_qa_factsheet.pdf"),
+    ("Natural Resources § 5-1610.1 (post-2020 mitigation banks)", "https://mgaleg.maryland.gov/2026RS/Statute_Web/gnr/5-1610.1.pdf"),
+    ("Frederick County forest banking agreement (5-year minimum)", "https://www.frederickcountymd.gov/DocumentCenter/View/277103"),
+    ("Family Forest Carbon Program — Growing Mature Forests, Appalachians (April 2026)", "https://assets.familyforestcarbon.org/assets/47849fdf-06f9-4111-8f29-7ed695712acb"),
+    ("Tax-General § 10-723 conservation easement income tax credit", "https://mgaleg.maryland.gov/mgawebsite/Laws/StatuteText?article=gtg&section=10-723&enactments=false"),
+    ("IRC § 2031(c) estate-tax exclusion for eased land", "https://www.law.cornell.edu/uscode/text/26/2031"),
+    ("NRCS Maryland EQIP (FY2027 deadline 13 November 2026)", "https://www.nrcs.usda.gov/programs-initiatives/eqip-environmental-quality-incentives/maryland"),
     ("Sale: 5533 Gapland Rd (Redfin)", "https://www.redfin.com/MD/Jefferson/5533-Gapland-Rd-21755/home/195572976"),
     ("Sale: 6208 Picnic Woods Rd (Compass)", "https://www.compass.com/homedetails/6208-Picnic-Woods-Rd-Jefferson-MD-21755/1VFHQ8_pid/"),
     ("Sale: 6100 Burkittsville Rd (Compass)", "https://www.compass.com/listing/6100-burkittsville-road-jefferson-md-21755/"),
@@ -396,7 +420,7 @@ sources = [
 
 foot = ("Prepared 19 September 2026 from Maryland and Frederick County public records, the Bright MLS listing as syndicated, and the statutes and programme documents linked above; "
         "the SDAT web page itself and the county's code library blocked automated reads, so assessment fields come from the state's May 2026 SDAT extract and code text from archived copies. "
-        "Each research lever was checked by an independent refutation pass; the two corrections that survived (the agricultural transfer tax tiers and CREP's 2026 status) are reflected here, and the preservation-programme rows marked “unverified” are still being checked. This is research, not legal, tax or lending advice — the "
+        "Three research passes (the property record, eight preservation programmes, four affordability levers — 42 agents) each had every finding challenged by independent refuters; the corrections that survived (the agricultural transfer tax tiers, CREP's 2026 status and deed-restriction rule, Rural Legacy being unbarred in law, the NRCS FY2027 deadline) are reflected, and a final completeness check surfaced the two county credits and the title question. This is research, not legal, tax or lending advice — the "
         "recorded 1998 deed of easement, SDAT's transfer-tax statement and a lender's written terms control.")
 
 R = dict(subtitle=subtitle, verdict=verdict, tiles=tiles, parcel_prose=parcel_prose, preserved_prose=preserved_prose, ledger_intro=ledger_intro, ledger=ledger,
